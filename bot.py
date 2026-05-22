@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+
 import aiohttp
 import discord
 from discord.ext import commands
@@ -16,6 +17,22 @@ try:
     from tabulate import tabulate
 except ImportError:
     tabulate = None
+
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot activo"
+
+def run():
+    app.run(host='0.0.0.0', port=10000)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
 load_dotenv()
 
@@ -442,4 +459,5 @@ def validate_environment() -> None:
 
 if __name__ == "__main__":
     validate_environment()
+    keep_alive()
     bot.run(DISCORD_TOKEN)

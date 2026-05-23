@@ -257,7 +257,7 @@ clan_client = ClanClient(api_base=KIRKA_API_BASE, api_key=KIRKA_API_KEY)
 bot = WeeklyXPBot(clan_client=clan_client)
 class TopClansPagination(discord.ui.View):
     def __init__(self, interaction: discord.Interaction, clans: list, page: int, per_page: int):
-        super().__init__(timeout=120) # Los botones se desactivan tras 2 minutos de inactividad
+        super().__init__(timeout=120)
         self.clans = clans
         self.page = page
         self.per_page = per_page
@@ -269,118 +269,106 @@ class TopClansPagination(discord.ui.View):
         self.btn_next.disabled = self.page >= self.max_page
 
     async def update_message(self, interaction: discord.Interaction):
-        # Generar la nueva imagen para la página actual
         image_path = generate_top_clans_image(self.clans, self.page, self.per_page)
         file = discord.File(image_path, filename="top_clans.png")
         self.update_buttons()
-        # Editar el mensaje original con la nueva imagen
         await interaction.response.edit_message(attachments=[file], view=self)
 
-    @discord.ui.button(label="⬅️ Anterior", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.gray)
     async def btn_prev(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page = max(0, self.page - 1)
         await self.update_message(interaction)
 
-    @discord.ui.button(label="Siguiente ➡️", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Next ➡️", style=discord.ButtonStyle.gray)
     async def btn_next(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page = min(self.max_page, self.page + 1)
         await self.update_message(interaction)
 
 
 def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 10):
-    # Dimensiones más anchas para que quepa la tabla
-    width, height = 850, 600
-    img = Image.new("RGB", (width, height), (43, 45, 49)) # Color de fondo estilo Discord
+    # Larger dimensions for better readability
+    width, height = 950, 700 
+    img = Image.new("RGB", (width, height), (30, 31, 34)) # Discord Darker Background
     draw = ImageDraw.Draw(img)
 
-    # Intentar cargar fuentes (Render a veces no tiene arial, usa fallback si es necesario)
+    # Increase font sizes
     try:
-        font_normal = ImageFont.truetype("arial.ttf", 22)
-        font_bold = ImageFont.truetype("arialbd.ttf", 22)
-        font_title = ImageFont.truetype("arialbd.ttf", 32)
+        font_normal = ImageFont.truetype("arial.ttf", 26)
+        font_bold = ImageFont.truetype("arialbd.ttf", 26)
+        font_title = ImageFont.truetype("arialbd.ttf", 42)
+        font_header = ImageFont.truetype("arialbd.ttf", 28)
     except:
         font_normal = ImageFont.load_default()
         font_bold = font_normal
         font_title = font_normal
+        font_header = font_normal
 
     start = page * per_page
     end = start + per_page
     sliced = clans[start:end]
 
-    # Título
-    draw.text((30, 20), f"🏆 TOP CLANS - PÁGINA {page+1}", fill=(255, 215, 0), font=font_title)
+    # Header Title
+    draw.text((40, 30), f"🏆 GLOBAL CLAN LEADERBOARD", fill=(255, 255, 255), font=font_title)
+    draw.text((width - 220, 45), f"PAGE {page+1} OF {max(1, (len(clans)//per_page)+1)}", fill=(150, 150, 150), font=font_normal)
 
-    # Dibujar Cabeceras de las columnas
-    y_offset = 80
-    cols = [40, 160, 480, 700] # Posiciones X para: Rank, Nombre, XP, Miembros
-    headers = ["Rank", "Clan", "Experiencia (XP)", "Miembros"]
+    # Table Column Settings
+    y_offset = 110
+    # X Positions for: Rank, Clan Name, XP, Members
+    cols = [40, 140, 520, 780] 
+    headers = ["RANK", "CLAN NAME", "TOTAL EXPERIENCE", "MEMBERS"]
+    
+    # Draw Header Background
+    draw.rectangle([(30, y_offset), (width - 30, y_offset + 50)], fill=(43, 45, 49))
     
     for x, text in zip(cols, headers):
-        draw.text((x, y_offset), text, fill=(181, 186, 193), font=font_bold)
-    
-    # Línea separadora
-    draw.line([(30, y_offset + 35), (width - 30, y_offset + 35)], fill=(88, 101, 242), width=3)
+        draw.text((x, y_offset + 10), text, fill=(88, 101, 242), font=font_header) # Discord Blue Color
 
-    y_offset += 60
+    y_offset += 75
     rank = start + 1
 
-    # Rellenar la tabla
     for c in sliced:
         name = c.get("name", "Unknown")
         scores = c.get("scores", 0)
         members = c.get("membersCount", 0)
 
-        # Lógica de resaltado
-        if name.lower() == "usasone!":
-            text_color = (255, 215, 0) # Dorado / Amarillo
+        # Highlighting UsAsOne!
+        is_my_clan = name.lower() == "usasone!"
+        if is_my_clan:
+            text_color = (255, 215, 0) # Gold
+            draw.rectangle([(30, y_offset - 5), (width - 30, y_offset + 40)], fill=(49, 51, 56), outline=(255, 215, 0), width=2)
             current_font = font_bold
-            # Dibujar un pequeño rectángulo de fondo sutil para destacarlo más
-            draw.rectangle([(25, y_offset - 5), (width - 25, y_offset + 30)], fill=(60, 50, 20))
         else:
-            text_color = (255, 255, 255) # Blanco
+            text_color = (220, 221, 222) # Off-white
             current_font = font_normal
 
-        # Dibujar cada celda
+        # Draw Row Data
         draw.text((cols[0], y_offset), f"#{rank}", fill=text_color, font=current_font)
         draw.text((cols[1], y_offset), name, fill=text_color, font=current_font)
         draw.text((cols[2], y_offset), f"{scores:,} XP", fill=text_color, font=current_font)
-        draw.text((cols[3], y_offset), f"👥 {members}", fill=text_color, font=current_font)
+        draw.text((cols[3], y_offset), f"{members} USERS", fill=text_color, font=current_font)
 
-        y_offset += 42
+        y_offset += 50 # More space between rows
         rank += 1
 
     path = f"top_clans_page_{page}.png"
     img.save(path)
     return path
 
-
-@bot.tree.command(name="top_clans", description="Top clans leaderboard con imagen interactiva")
+@bot.tree.command(name="top_clans", description="View the top clans leaderboard")
 async def top_clans(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
-
     try:
         data = await bot.clan_client.get_top_clans()
         clans = data.get("results", [])
-
         if not clans:
-            await interaction.followup.send("No se encontraron clanes en la API.")
-            return
+            return await interaction.followup.send("❌ No clan data found.")
 
-        page = 0
-        per_page = 10
-
-        # Generar imagen inicial
-        image_path = generate_top_clans_image(clans, page, per_page)
+        view = TopClansPagination(interaction, clans, 0, 10)
+        image_path = generate_top_clans_image(clans, 0, 10)
         file = discord.File(image_path, filename="top_clans.png")
-
-        # Crear los botones
-        view = TopClansPagination(interaction, clans, page, per_page)
-
-        # Enviar solo el archivo (la imagen) y la vista (los botones)
         await interaction.followup.send(file=file, view=view)
-
-    except Exception as exc:
-        await interaction.followup.send(f"Hubo un error cargando los clanes: {exc}")
+    except Exception as e:
+        await interaction.followup.send(f"⚠️ Error: {e}")
 
 
 @bot.tree.command(name="register_monday", description="Save Monday baseline snapshot")
@@ -552,7 +540,7 @@ async def set_xp(interaction: discord.Interaction, xp: int) -> None:
     await interaction.response.send_message(f"Weekly XP requirement updated to {WEEKLY_XP_REQUIREMENT:,} XP.")
 
 
-@bot.tree.command(name="clan_info", description="Show current clan info from Kirka API")
+@bot.tree.command(name="clan_info", description="Detailed statistics for the current clan")
 async def clan_info(interaction: discord.Interaction) -> None:
     await interaction.response.defer(thinking=True)
     try:
@@ -560,27 +548,33 @@ async def clan_info(interaction: discord.Interaction) -> None:
         members = clan_data.get("members", [])
         all_scores = int(clan_data.get("allScores", clan_data.get("scores", 0)) or 0)
         month_scores = int(clan_data.get("monthScores", 0) or 0)
-        owner = clan_data.get("owner", {}) if isinstance(clan_data.get("owner"), dict) else {}
-        owner_name = owner.get("name") or "Unknown"
-        owner_short = owner.get("shortId") or "-"
-        desc = str(clan_data.get("description") or "No description")
-        if len(desc) > 220:
-            desc = desc[:217] + "..."
+        
+        desc = str(clan_data.get("description") or "No description provided.")
+        if len(desc) > 250:
+            desc = desc[:247] + "..."
 
         embed = discord.Embed(
-            title=f"🏰 {clan_data.get('name', CLAN_NAME)}",
-            description=desc,
-            color=discord.Color.blurple(),
+            title=f"🏰 Clan Profile: {clan_data.get('name', CLAN_NAME)}",
+            description=f"```\n{desc}\n```",
+            color=0xffd700, # Gold color
             timestamp=datetime.now(timezone.utc),
         )
-        embed.add_field(name="👥 Members", value=f"{len(members)}", inline=True)
-        embed.add_field(name="⭐ All Scores", value=f"{all_scores:,}", inline=True)
-        embed.add_field(name="📅 Month Scores", value=f"{month_scores:,}", inline=True)
-        embed.add_field(name="👑 Owner", value=f"AIMTOME", inline=False)
-        embed.set_footer(text="Source: api.kirka.io")
+        
+        # Using Emojis in Embeds is fine (Discord supports them, unlike the images)
+        embed.add_field(name="👥 Total Members", value=f"**{len(members)}** / 100", inline=True)
+        embed.add_field(name="⭐ Lifetime XP", value=f"**{all_scores:,}**", inline=True)
+        embed.add_field(name="📅 Monthly XP", value=f"**{month_scores:,}**", inline=True)
+        
+        # Leader info (Hardcoded as requested)
+        embed.add_field(name="👑 Clan Leader", value="`AIMTOME`", inline=False)
+        
+        embed.set_footer(text="Kirka.io API System • Updated")
+        # Add a cool thumbnail if the clan has an icon (optional)
+        embed.set_author(name="Clan Intelligence Module", icon_url=interaction.user.display_avatar.url)
+
         await interaction.followup.send(embed=embed)
     except Exception as exc:
-        await interaction.followup.send(f"Failed clan_info: {exc}")
+        await interaction.followup.send(f"❌ Error fetching clan info: {exc}")
 @bot.tree.command(name="delete_snaps", description="Delete Monday and Sunday snapshots")
 async def delete_snaps(interaction: discord.Interaction) -> None:
     if not is_admin(interaction):

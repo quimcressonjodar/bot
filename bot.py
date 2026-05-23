@@ -2,6 +2,7 @@ import json
 import os
 import logging
 import asyncio
+from discord import app_commands
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -642,6 +643,18 @@ async def clan_info(interaction: discord.Interaction) -> None:
         await interaction.followup.send(embed=embed)
     except Exception as exc:
         await interaction.followup.send(f"❌ Error fetching clan info: {exc}")
+        from discord import app_commands
+
+@bot.tree.command(name="say", description="Make the bot say something (Admin only)")
+@app_commands.describe(message="The message you want the bot to repeat")
+@app_commands.default_permissions(administrator=True) # Solo admins pueden verlo/usarlo
+async def say(interaction: discord.Interaction, message: str):
+    # 'ephemeral=True' hace que la confirmación solo la veas tú
+    # Esto evita que quede rastro de quién usó el comando en el chat
+    await interaction.response.send_message("Message sent!", ephemeral=True)
+    
+    # El bot envía el mensaje al canal actual
+    await interaction.channel.send(message)
 @bot.tree.command(name="delete_snaps", description="Delete Monday and Sunday snapshots")
 async def delete_snaps(interaction: discord.Interaction) -> None:
     if not is_admin(interaction):

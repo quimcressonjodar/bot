@@ -160,15 +160,27 @@ class TopView(discord.ui.View):
         s = (self.page-1)*self.per
         return self.data[s:s+self.per]
 
-    async def refresh(self, interaction):
-        img = generate_top_image(self.slice(), self.page, self.pages())
-        file = discord.File(img, "top.png")
+ async def refresh(self, interaction):
+    page_data = self.slice()
 
-        await interaction.response.edit_message(
-            content=f"🏆 Page {self.page}/{self.pages()}",
-            attachments=[file],
-            view=self
-        )
+    img = generate_top_image(page_data, self.page, self.pages())
+    file = discord.File(img, "top.png")
+
+    embed = discord.Embed(
+        title="🏆 Global Top Clans",
+        color=discord.Color.gold()
+    )
+
+    embed.add_field(name="📄 Página", value=f"{self.page}/{self.pages()}", inline=True)
+    embed.add_field(name="📊 Clans", value=str(len(self.data)), inline=True)
+
+    embed.set_image(url="attachment://top.png")
+
+    await interaction.response.edit_message(
+        embed=embed,
+        attachments=[file],
+        view=self
+    )
 
     @discord.ui.button(label="⬅", style=discord.ButtonStyle.gray)
     async def back(self, i, b):
@@ -207,19 +219,50 @@ async def top_clans(interaction: discord.Interaction):
     await interaction.response.defer()
 
     data = await bot.api.get_top_clans()
-    results = data["results"]
+    results = data.get("results", [])
 
     view = TopView(results)
 
-    img = generate_top_image(view.slice(), 1, view.pages())
+    page_data = view.slice()
+
+    img = generate_top_image(page_data, 1, view.pages())
     file = discord.File(img, "top.png")
 
+    # =========================
+    # EMBED
+    # =========================
+    embed = discord.Embed(
+        title="🏆 Global Top Clans",
+        description="Leaderboard oficial de Kirka",
+        color=discord.Color.gold(),
+        timestamp=datetime.now(timezone.utc)
+    )
+
+    embed.add_field(
+        name="📊 Total clans",
+        value=str(len(results)),
+        inline=True
+    )
+
+    embed.add_field(
+        name="📄 Página",
+        value=f"1 / {view.pages()}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="⚡ Status",
+        value="Live data from api.kirka.io",
+        inline=False
+    )
+
+    embed.set_image(url="attachment://top.png")
+
     await interaction.followup.send(
-        content="🏆 Top Clans",
+        embed=embed,
         file=file,
         view=view
     )
-
 # =========================
 # START
 # =========================

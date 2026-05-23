@@ -372,7 +372,8 @@ def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 1
     path = f"top_clans_page_{page}.png"
     img.save(path)
     return path
-
+clan_client = ClanClient(api_base=KIRKA_API_BASE, api_key=KIRKA_API_KEY)
+bot = WeeklyXPBot(clan_client=clan_client)
 @bot.tree.command(name="top_clans", description="View the top clans leaderboard")
 async def top_clans(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
@@ -653,7 +654,7 @@ async def clan_info(interaction: discord.Interaction) -> None:
         await interaction.followup.send(embed=embed)
     except Exception as exc:
         await interaction.followup.send(f"❌ Error fetching clan info: {exc}")
-        from discord import app_commands
+       
 
 @bot.tree.command(name="say", description="Make the bot say something (Admin only)")
 @app_commands.describe(message="The message you want the bot to repeat")

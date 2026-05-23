@@ -431,7 +431,17 @@ async def eight_ball(ctx: commands.Context, question: str):
         "Outlook not so good.", "Very doubtful."
     ]
     answer = random.choice(responses)
-    await ctx.send(f"🎱 **Question:** {question}\n💬 **Answer:** {answer}")
+    
+    # Creamos un Embed elegante (puedes cambiar el color si quieres)
+    embed = discord.Embed(color=0x2b2d31)
+    
+    # Colocamos el nombre del usuario delante de la pregunta y la respuesta abajo
+    embed.description = (
+        f"🎱 **{ctx.author.display_name} asks:** {question}\n"
+        f"💬 **Answer:** {answer}"
+    )
+    
+    await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
 @app_commands.describe(name="Name of the skin (e.g., 1337)")

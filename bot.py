@@ -51,6 +51,7 @@ CLAN_NAME = os.getenv("KIRKA_CLAN_TAG", "UsAsOne!")
 KIRKA_API_BASE = os.getenv("KIRKA_API_BASE", "https://api.kirka.io")
 MONDAY_SNAPSHOT_PATH = Path(os.getenv("MONDAY_SNAPSHOT_FILE", "xp_monday.json"))
 SUNDAY_SNAPSHOT_PATH = Path(os.getenv("SUNDAY_SNAPSHOT_FILE", "xp_sunday.json"))
+ECONOMY_FILE = Path(os.getenv("ECONOMY_FILE", "economy.json"))
 HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "20"))
 HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
@@ -163,6 +164,28 @@ def load_snapshot(path: Path) -> dict[str, Any] | None:
 def save_snapshot(path: Path, data: dict[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as file:
         json.dump(data, file, ensure_ascii=False, indent=2)
+ECONOMY_FILE = Path(os.getenv("ECONOMY_FILE", "economy.json"))
+
+def get_balance(user_id: str) -> int:
+    # Loads the economy file or creates an empty dict if it doesn't exist
+    data = load_snapshot(ECONOMY_FILE) or {}
+    return data.get(str(user_id), {}).get("wallet", 0)
+
+def add_balance(user_id: str, amount: int) -> int:
+    data = load_snapshot(ECONOMY_FILE) or {}
+    uid = str(user_id)
+    
+    if uid not in data:
+        data[uid] = {"wallet": 0}
+        
+    data[uid]["wallet"] += amount
+    
+    # Prevent balance from dropping below 0
+    if data[uid]["wallet"] < 0:
+        data[uid]["wallet"] = 0
+        
+    save_snapshot(ECONOMY_FILE, data)
+    return data[uid]["wallet"]
 
 
 # ACTUALIZADO: is_admin ahora verifica el context (ctx) de comandos híbridos
@@ -413,10 +436,76 @@ async def flip(ctx: commands.Context):
     result = local_random.choice(["Heads", "Tails"])
     
     # 4. Hacemos una micropausa de 1.5 segundos para la intriga
-    await asyncio.sleep(1.5)
+    await asyncio.sleep(1)
     
     # 5. Editamos el mensaje para que aparezca el emoji JUNTO al resultado
     await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
+@bot.hybrid_command(name="balance", description="Check how many coins you have")
+async def balance(ctx: commands.Context, member: discord.Member = None):
+    # If no member is mentioned, check the author's balance
+    target = member or ctx.author
+    bal = get_balance(target.id)
+    await ctx.send(f"👛 **{target.display_name}** has **{bal:,}** coins.")
+
+
+@bot.hybrid_command(name="work", description="Work to earn some coins")
+@commands.cooldown(1, 3600, commands.BucketType.user)  # 1-hour cooldown
+async def work(ctx: commands.Context):
+    earnings = random.randint(100, 500)
+    new_bal = add_balance(ctx.author.id, earnings)
+    
+    work_messages = [
+        f"🛠️ You chopped wood in the forest and earned **{earnings}** coins.",
+        f"💻 You programmed a Discord bot and got paid **{earnings}** coins.",
+        f"🍔 You worked flipping burgers and earned **{earnings}** coins.",
+        f"📦 You helped with a house move and were given **{earnings}** coins."
+    ]
+    
+    selected_message = random.choice(work_messages)
+    await ctx.send(f"{selected_message} (Total balance: **{new_bal:,}**)")
+
+# Cooldown error handler for the work command
+@work.error
+async def work_error(ctx, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        minutes, seconds = divmod(error.retry_after, 60)
+        await ctx.send(f"⏳ You are too tired! Come back to work in **{int(minutes)}m and {int(seconds)}s**.", ephemeral=True)
+
+
+@bot.hybrid_command(name="gamble", description="Gamble your coins (50% win rate)")
+@app_commands.describe(bet="Amount to bet (type 'all' to bet everything)")
+async def gamble(ctx: commands.Context, bet: str):
+    current_bal = get_balance(ctx.author.id)
+    
+    # Handle 'all' keyword
+    if bet.lower() == "all":
+        bet_amount = current_bal
+    else:
+        try:
+            bet_amount = int(bet)
+        except ValueError:
+            return await ctx.send("⚠️ Please enter a valid number or 'all'.", ephemeral=True)
+
+    if bet_amount <= 0:
+        return await ctx.send("⚠️ You must bet an amount greater than 0.", ephemeral=True)
+    
+    if bet_amount > current_bal:
+        return await ctx.send(f"❌ You don't have enough coins. Your current balance is: **{current_bal:,}**")
+
+    # Provably Fair secure random seed generation
+    unique_id = str(ctx.interaction.id if ctx.interaction else ctx.message.id)
+    seed_int = int(hashlib.sha256(unique_id.encode()).hexdigest(), 16)
+    local_random = random.Random(seed_int)
+    
+    # True = Win, False = Lose
+    win = local_random.choice([True, False])
+    
+    if win:
+        new_bal = add_balance(ctx.author.id, bet_amount)
+        await ctx.send(f"🎲 The wheel spins and... **YOU WIN**! You doubled your bet and earned **{bet_amount:,}** coins. 📈\nNew balance: **{new_bal:,}**")
+    else:
+        new_bal = add_balance(ctx.author.id, -bet_amount)
+        await ctx.send(f"🎲 The wheel spins and... **YOU LOSE** **{bet_amount:,}** coins... Better luck next time. 📉\nNew balance: **{new_bal:,}**")
 @bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
 @app_commands.describe(name="Name of the skin (e.g., 1337)")
 async def item_lookup(ctx: commands.Context, name: str):

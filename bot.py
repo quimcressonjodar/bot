@@ -255,40 +255,132 @@ class WeeklyXPBot(commands.Bot):
 
 clan_client = ClanClient(api_base=KIRKA_API_BASE, api_key=KIRKA_API_KEY)
 bot = WeeklyXPBot(clan_client=clan_client)
+class TopClansPagination(discord.ui.View):
+    def __init__(self, interaction: discord.Interaction, clans: list, page: int, per_page: int):
+        super().__init__(timeout=120) # Los botones se desactivan tras 2 minutos de inactividad
+        self.clans = clans
+        self.page = page
+        self.per_page = per_page
+        self.max_page = max(0, (len(clans) - 1) // per_page)
+        self.update_buttons()
+
+    def update_buttons(self):
+        self.btn_prev.disabled = self.page == 0
+        self.btn_next.disabled = self.page >= self.max_page
+
+    async def update_message(self, interaction: discord.Interaction):
+        # Generar la nueva imagen para la página actual
+        image_path = generate_top_clans_image(self.clans, self.page, self.per_page)
+        file = discord.File(image_path, filename="top_clans.png")
+        self.update_buttons()
+        # Editar el mensaje original con la nueva imagen
+        await interaction.response.edit_message(attachments=[file], view=self)
+
+    @discord.ui.button(label="⬅️ Anterior", style=discord.ButtonStyle.primary)
+    async def btn_prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = max(0, self.page - 1)
+        await self.update_message(interaction)
+
+    @discord.ui.button(label="Siguiente ➡️", style=discord.ButtonStyle.primary)
+    async def btn_next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = min(self.max_page, self.page + 1)
+        await self.update_message(interaction)
+
+
 def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 10):
-    width, height = 900, 600
-    img = Image.new("RGB", (width, height), (20, 20, 20))
+    # Dimensiones más anchas para que quepa la tabla
+    width, height = 850, 600
+    img = Image.new("RGB", (width, height), (43, 45, 49)) # Color de fondo estilo Discord
     draw = ImageDraw.Draw(img)
 
+    # Intentar cargar fuentes (Render a veces no tiene arial, usa fallback si es necesario)
     try:
-        font = ImageFont.truetype("arial.ttf", 20)
-        big = ImageFont.truetype("arial.ttf", 26)
+        font_normal = ImageFont.truetype("arial.ttf", 22)
+        font_bold = ImageFont.truetype("arialbd.ttf", 22)
+        font_title = ImageFont.truetype("arialbd.ttf", 32)
     except:
-        font = ImageFont.load_default()
-        big = font
+        font_normal = ImageFont.load_default()
+        font_bold = font_normal
+        font_title = font_normal
 
     start = page * per_page
     end = start + per_page
     sliced = clans[start:end]
 
-    draw.text((20, 20), f"TOP CLANS - PAGE {page+1}", fill=(255,255,255), font=big)
+    # Título
+    draw.text((30, 20), f"🏆 TOP CLANS - PÁGINA {page+1}", fill=(255, 215, 0), font=font_title)
 
-    y = 70
+    # Dibujar Cabeceras de las columnas
+    y_offset = 80
+    cols = [40, 160, 480, 700] # Posiciones X para: Rank, Nombre, XP, Miembros
+    headers = ["Rank", "Clan", "Experiencia (XP)", "Miembros"]
+    
+    for x, text in zip(cols, headers):
+        draw.text((x, y_offset), text, fill=(181, 186, 193), font=font_bold)
+    
+    # Línea separadora
+    draw.line([(30, y_offset + 35), (width - 30, y_offset + 35)], fill=(88, 101, 242), width=3)
+
+    y_offset += 60
     rank = start + 1
 
+    # Rellenar la tabla
     for c in sliced:
-        name = c["name"]
-        scores = c["scores"]
+        name = c.get("name", "Unknown")
+        scores = c.get("scores", 0)
+        members = c.get("membersCount", 0)
 
-        color = (255, 215, 0) if name == "UsAsOne!" else (255,255,255)
+        # Lógica de resaltado
+        if name.lower() == "usasone!":
+            text_color = (255, 215, 0) # Dorado / Amarillo
+            current_font = font_bold
+            # Dibujar un pequeño rectángulo de fondo sutil para destacarlo más
+            draw.rectangle([(25, y_offset - 5), (width - 25, y_offset + 30)], fill=(60, 50, 20))
+        else:
+            text_color = (255, 255, 255) # Blanco
+            current_font = font_normal
 
-        draw.text((20, y), f"#{rank} {name} | {scores:,} XP", fill=color, font=font)
-        y += 45
+        # Dibujar cada celda
+        draw.text((cols[0], y_offset), f"#{rank}", fill=text_color, font=current_font)
+        draw.text((cols[1], y_offset), name, fill=text_color, font=current_font)
+        draw.text((cols[2], y_offset), f"{scores:,} XP", fill=text_color, font=current_font)
+        draw.text((cols[3], y_offset), f"👥 {members}", fill=text_color, font=current_font)
+
+        y_offset += 42
         rank += 1
 
     path = f"top_clans_page_{page}.png"
     img.save(path)
     return path
+
+
+@bot.tree.command(name="top_clans", description="Top clans leaderboard con imagen interactiva")
+async def top_clans(interaction: discord.Interaction):
+    await interaction.response.defer(thinking=True)
+
+    try:
+        data = await bot.clan_client.get_top_clans()
+        clans = data.get("results", [])
+
+        if not clans:
+            await interaction.followup.send("No se encontraron clanes en la API.")
+            return
+
+        page = 0
+        per_page = 10
+
+        # Generar imagen inicial
+        image_path = generate_top_clans_image(clans, page, per_page)
+        file = discord.File(image_path, filename="top_clans.png")
+
+        # Crear los botones
+        view = TopClansPagination(interaction, clans, page, per_page)
+
+        # Enviar solo el archivo (la imagen) y la vista (los botones)
+        await interaction.followup.send(file=file, view=view)
+
+    except Exception as exc:
+        await interaction.followup.send(f"Hubo un error cargando los clanes: {exc}")
 
 
 @bot.tree.command(name="register_monday", description="Save Monday baseline snapshot")
@@ -312,76 +404,6 @@ async def register_monday(interaction: discord.Interaction) -> None:
     except Exception as exc:
         await interaction.followup.send(f"Failed to save Monday snapshot: {exc}")
 
-@bot.tree.command(name="top_clans", description="Top clans leaderboard con imagen")
-async def top_clans(interaction: discord.Interaction):
-    await interaction.response.defer(thinking=True)
-
-    data = await bot.clan_client.get_top_clans()
-    clans = data["results"]
-
-    page = 0
-    per_page = 10
-
-    def build_embed(page: int):
-        start = page * per_page
-        end = start + per_page
-        sliced = clans[start:end]
-
-        embed = discord.Embed(
-            title="🏆 Top Clans",
-            description=f"Page {page+1}",
-            color=discord.Color.gold()
-        )
-
-        for i, c in enumerate(sliced, start=start+1):
-            name = c["name"]
-            score = c["scores"]
-
-            if name == "UsAsOne!":
-                name = f"🔥 **{name}**"
-
-            embed.add_field(
-                name=f"#{i} {name}",
-                value=f"{score:,} XP | 👥 {c['membersCount']}",
-                inline=False
-            )
-
-        return embed
-
-    image_path = generate_top_clans_image(clans, page)
-    file = discord.File(image_path, filename="top_clans.png")
-
-    msg = await interaction.followup.send(
-        embed=build_embed(page),
-        file=file
-    )
-    await msg.add_reaction("⬅️")
-    await msg.add_reaction("➡️")
-
-    def check(r, u):
-        return u == interaction.user and str(r.emoji) in ["⬅️", "➡️"]
-
-    while True:
-        try:
-            reaction, user = await bot.wait_for("reaction_add", timeout=60.0, check=check)
-
-            if str(reaction.emoji) == "➡️":
-                page = min(page + 1, len(clans)//per_page)
-            else:
-                page = max(page - 1, 0)
-
-            image_path = generate_top_clans_image(clans, page)
-            file = discord.File(image_path, filename="top_clans.png")
-
-            await msg.edit(
-                embed=build_embed(page),
-                attachments=[file]
-            )
-
-            await msg.remove_reaction(reaction, user)
-
-        except asyncio.TimeoutError:
-            break
 
 @bot.tree.command(name="register_sunday", description="Save Sunday snapshot")
 async def register_sunday(interaction: discord.Interaction) -> None:

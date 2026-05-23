@@ -2,8 +2,8 @@ import json
 import os
 import logging
 import asyncio
-from datetime import datetime,
-from PIL import Image, ImageDraw, ImageFont timezone
+from datetime import datetime, timezone
+from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -54,6 +54,15 @@ HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
 
 
 class ClanClient:
+    async def get_top_clans(self):
+    url = f"{self.api_base}/api/leaderboard/clan"
+    headers = {
+        "ApiKey": self.api_key,
+        "accept": "application/json"
+    }
+
+    async with self.session.get(url, headers=headers) as r:
+        return await r.json()
     def __init__(self, api_base: str, api_key: str):
         self.api_base = api_base.rstrip("/")
         self.api_key = api_key
@@ -226,15 +235,7 @@ def format_table(rows: list[list[Any]], headers: list[str]) -> str:
     lines = [fmt_line(headers), sep]
     lines.extend(fmt_line(row) for row in rows)
     return "\n".join(lines)
-async def get_top_clans(self):
-    url = f"{self.api_base}/api/leaderboard/clan"
-    headers = {
-        "ApiKey": self.api_key,
-        "accept": "application/json"
-    }
 
-    async with self.session.get(url, headers=headers) as r:
-        return await r.json()
 
 class WeeklyXPBot(commands.Bot):
     def __init__(self, clan_client: ClanClient):
@@ -288,8 +289,30 @@ def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 1
     img.save(path)
     return path
 
-    @bot.tree.command(name="top_clans", description="Top clans leaderboard con imagen")
-async def top_clans(interaction: discord.Interaction):
+
+@bot.tree.command(name="register_monday", description="Save Monday baseline snapshot")
+async def register_monday(interaction: discord.Interaction) -> None:
+    if not is_admin(interaction):
+        await interaction.response.send_message("Admin only command.", ephemeral=True)
+        return
+
+    await interaction.response.defer(thinking=True)
+    try:
+        clan_data = await bot.clan_client.get_clan_data(CLAN_NAME)
+        snapshot = {
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "clan_name": clan_data.get("name", CLAN_NAME),
+            "members": extract_member_map(clan_data),
+        }
+        save_snapshot(MONDAY_SNAPSHOT_PATH, snapshot)
+        await interaction.followup.send(
+            f"Monday snapshot saved in `{MONDAY_SNAPSHOT_PATH}` with {len(snapshot['members'])} members."
+        )
+    except Exception as exc:
+        await interaction.followup.send(f"Failed to save Monday snapshot: {exc}")
+
+@bot.tree.command(name="top_clans", description="Top clans leaderboard con imagen")
+   async def top_clans(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
 
     data = await bot.clan_client.get_top_clans()
@@ -358,28 +381,6 @@ async def top_clans(interaction: discord.Interaction):
 
         except asyncio.TimeoutError:
             break
-
-@bot.tree.command(name="register_monday", description="Save Monday baseline snapshot")
-async def register_monday(interaction: discord.Interaction) -> None:
-    if not is_admin(interaction):
-        await interaction.response.send_message("Admin only command.", ephemeral=True)
-        return
-
-    await interaction.response.defer(thinking=True)
-    try:
-        clan_data = await bot.clan_client.get_clan_data(CLAN_NAME)
-        snapshot = {
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "clan_name": clan_data.get("name", CLAN_NAME),
-            "members": extract_member_map(clan_data),
-        }
-        save_snapshot(MONDAY_SNAPSHOT_PATH, snapshot)
-        await interaction.followup.send(
-            f"Monday snapshot saved in `{MONDAY_SNAPSHOT_PATH}` with {len(snapshot['members'])} members."
-        )
-    except Exception as exc:
-        await interaction.followup.send(f"Failed to save Monday snapshot: {exc}")
-
 
 @bot.tree.command(name="register_sunday", description="Save Sunday snapshot")
 async def register_sunday(interaction: discord.Interaction) -> None:

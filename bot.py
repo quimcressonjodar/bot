@@ -695,7 +695,7 @@ async def delete_snaps(interaction: discord.Interaction) -> None:
             f"Failed deleting snapshots: {exc}"
         )
 
- @bot.event
+@bot.event
 async def on_ready():
     # Esto cambia el estado de Gris a Verde (Online)
     await bot.change_presence(
@@ -715,6 +715,4 @@ def validate_environment() -> None:
 if __name__ == "__main__":
     validate_environment()
     keep_alive()
-   
-    print(f'✅ {bot.user.name} is now ONLINE and ready!')
     bot.run(DISCORD_TOKEN)

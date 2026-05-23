@@ -29,7 +29,8 @@ def home():
     return "Bot activo"
 
 def run():
-    app.run(host='0.0.0.0', port=10000)
+    port = int(os.getenv("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     t = Thread(target=run)
@@ -312,7 +313,7 @@ async def register_monday(interaction: discord.Interaction) -> None:
         await interaction.followup.send(f"Failed to save Monday snapshot: {exc}")
 
 @bot.tree.command(name="top_clans", description="Top clans leaderboard con imagen")
-   async def top_clans(interaction: discord.Interaction):
+async def top_clans(interaction: discord.Interaction):
     await interaction.response.defer(thinking=True)
 
     data = await bot.clan_client.get_top_clans()
@@ -354,7 +355,7 @@ async def register_monday(interaction: discord.Interaction) -> None:
         embed=build_embed(page),
         file=file
     )
-        await msg.add_reaction("⬅️")
+    await msg.add_reaction("⬅️")
     await msg.add_reaction("➡️")
 
     def check(r, u):

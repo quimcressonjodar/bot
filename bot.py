@@ -3,6 +3,7 @@ import os
 import logging
 import asyncio
 import random
+import hashlib
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -393,13 +394,49 @@ async def top_clans(ctx: commands.Context):
         await ctx.send(f"⚠️ Error: {e}")
 
 
-@bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails")
+@bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails (Provably Fair)")
 async def flip(ctx: commands.Context):
-    result = random.choice(["Heads", "Tails"])
+    # 1. Obtenemos el ID único e imposible de falsificar que Discord generó para esta acción
+    unique_id = str(ctx.interaction.id if ctx.interaction else ctx.message.id)
+    
+    # 2. Convertimos el ID en un Hash SHA-256 único
+    hash_hex = hashlib.sha256(unique_id.encode()).hexdigest()
+    
+    # 3. Transformamos ese Hash en una semilla numérica para el buscador
+    seed_int = int(hash_hex, 16)
+    
+    # 4. Usamos una instancia LOCAL de random aislada para que nadie pueda alterar el orden
+    local_random = random.Random(seed_int)
+    result = local_random.choice(["Heads", "Tails"])
+    
     emoji = "🪙"
-    await ctx.send(f"{emoji} The coin is spinning... It landed on **{result}**!")
-
-
+    
+    # Estética del Embed según el resultado
+    embed_color = 0xffd700 if result == "Heads" else 0xc0c0c0
+    
+    embed = discord.Embed(
+        title=f"{emoji} ¡Moneda al aire!",
+        description=f"La moneda gira y cae en... **{result.upper()}** 🎯",
+        color=embed_color
+    )
+    
+    # Campos de verificación pública
+    embed.add_field(
+        name="🆔 ID de Verificación", 
+        value=f"`{unique_id}`", 
+        inline=False
+    )
+    embed.add_field(
+        name="🔒 Código Hash (SHA-256)", 
+        value=f"`{hash_hex[:32]}...`", 
+        inline=False
+    )
+    
+    embed.set_footer(
+        text="SISTEMA TRANSPARENTE • El resultado está ligado matemáticamente al ID de Discord."
+    )
+    
+    await ctx.send(embed=embed)
 @bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
 @app_commands.describe(name="Name of the skin (e.g., 1337)")
 async def item_lookup(ctx: commands.Context, name: str):
@@ -643,21 +680,23 @@ async def clan_info(ctx: commands.Context) -> None:
 @app_commands.describe(message="The message you want the bot to repeat")
 @app_commands.default_permissions(administrator=True) 
 async def say(ctx: commands.Context, message: str):
-    # Validamos que sea administrador
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
 
-    # Si el comando fue ejecutado como prefijo (!say), intentamos borrar el mensaje original
-    # para mantenerlo "anónimo" tal como funcionaría con un Slash Command.
-    if ctx.prefix is not None:
+    # Si usaste el prefijo (!say)
+    if ctx.interaction is None: 
         try:
-            await ctx.message.delete()
+            await ctx.message.delete() # Borra el mensaje donde escribiste el comando
         except discord.Forbidden:
-            pass # Si el bot no tiene permisos de borrar mensajes, ignoramos el error
-
-    # Respondemos con ephemeral (funciona nativamente en el slash, en prefijo manda msj normal)
-    await ctx.send("Message sent!", ephemeral=True)
-    await ctx.channel.send(message)
+            pass
+        # No mandamos confirmación, solo enviamos tu mensaje directamente
+        await ctx.send(message)
+    
+    # Si usaste el Slash Command (/say)
+    else:
+        # Aquí SÍ funciona el mensaje oculto
+        await ctx.send("Message sent!", ephemeral=True)
+        await ctx.channel.send(message)
 
 
 @bot.hybrid_command(name="delete_snaps", description="Delete Monday and Sunday snapshots")

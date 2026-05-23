@@ -2,19 +2,19 @@ import json
 import os
 import logging
 import asyncio
-from discord import app_commands
+import random
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-
 import aiohttp
 import discord
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
+
 try:
     from tabulate import tabulate
 except ImportError:
@@ -65,6 +65,7 @@ class ClanClient:
 
         async with self.session.get(url, headers=headers) as r:
             return await r.json()
+
     def __init__(self, api_base: str, api_key: str):
         self.api_base = api_base.rstrip("/")
         self.api_key = api_key
@@ -163,8 +164,11 @@ def save_snapshot(path: Path, data: dict[str, Any]) -> None:
         json.dump(data, file, ensure_ascii=False, indent=2)
 
 
-def is_admin(interaction: discord.Interaction) -> bool:
-    return bool(interaction.user.guild_permissions.administrator)
+# ACTUALIZADO: is_admin ahora verifica el context (ctx) de comandos híbridos
+def is_admin(ctx: commands.Context) -> bool:
+    if isinstance(ctx.author, discord.Member):
+        return bool(ctx.author.guild_permissions.administrator)
+    return False
 
 
 def extract_member_map(clan_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -241,13 +245,10 @@ def format_table(rows: list[list[Any]], headers: list[str]) -> str:
 
 class WeeklyXPBot(commands.Bot):
     def __init__(self, clan_client: ClanClient):
-        # Configuramos los intents AQUÍ
         intents = discord.Intents.default()
-        # intents.presences = True <-- ELIMINADO: No hace falta para tu propio estado
         intents.members = True
         intents.message_content = True
         
-        # Le pasamos el status y la activity directamente al constructor
         super().__init__(
             command_prefix="!", 
             intents=intents,
@@ -262,14 +263,16 @@ class WeeklyXPBot(commands.Bot):
         logger.info("Slash commands synced")
 
     async def on_ready(self):
-        # Solo dejamos el print/log, ya no necesitamos change_presence aquí
         logger.info(f"✅ ¡Bot conectado y listo como {self.user}!")
 
     async def close(self) -> None:
         await self.clan_client.close()
         await super().close()
+
+
 class TopClansPagination(discord.ui.View):
-    def __init__(self, interaction: discord.Interaction, clans: list, page: int, per_page: int):
+    # ACTUALIZADO: Ya no requiere 'interaction' en la inicialización
+    def __init__(self, clans: list, page: int, per_page: int):
         super().__init__(timeout=120)
         self.clans = clans
         self.page = page
@@ -297,16 +300,13 @@ class TopClansPagination(discord.ui.View):
         self.page = min(self.max_page, self.page + 1)
         await self.update_message(interaction)
 
+
 def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 10):
-    # Optimized dimensions
     width, height = 1000, 850 
     img = Image.new("RGB", (width, height), (30, 31, 34)) 
     draw = ImageDraw.Draw(img)
 
-    # MUCH LARGER FONTS
     try:
-        # If you have these .ttf files in your folder, use them. 
-        # Otherwise, arial is the standard fallback.
         font_normal = ImageFont.truetype("arial.ttf", 32)
         font_bold = ImageFont.truetype("arialbd.ttf", 32)
         font_title = ImageFont.truetype("arialbd.ttf", 52)
@@ -321,26 +321,21 @@ def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 1
     end = start + per_page
     sliced = clans[start:end]
 
-    # Header Title - Moved for better spacing
     draw.text((40, 40), "🏆 GLOBAL LEADERBOARD", fill=(255, 255, 255), font=font_title)
     
-    # Page Indicator - Placed clearly on the right
     page_text = f"PAGE {page+1} / {max(1, (len(clans)//per_page)+1)}"
     draw.text((width - 250, 55), page_text, fill=(150, 150, 150), font=font_bold)
 
-    # Table Column Settings
     y_offset = 140
-    # Adjusted X Positions for Big Text
     cols = [40, 150, 540, 800] 
     headers = ["RANK", "CLAN", "EXPERIENCE", "USERS"]
     
-    # Header Background
     draw.rectangle([(20, y_offset), (width - 20, y_offset + 70)], fill=(43, 45, 49))
     
     for x, text in zip(cols, headers):
         draw.text((x, y_offset + 15), text, fill=(88, 101, 242), font=font_header)
 
-    y_offset += 100 # Gap after header
+    y_offset += 100 
     rank = start + 1
 
     for c in sliced:
@@ -351,72 +346,83 @@ def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 1
         is_my_clan = name.lower() == "usasone!"
         
         if is_my_clan:
-            text_color = (255, 215, 0) # Gold
-            # Thicker border for the highlight
+            text_color = (255, 215, 0) 
             draw.rectangle([(20, y_offset - 10), (width - 20, y_offset + 55)], fill=(49, 51, 56), outline=(255, 215, 0), width=3)
             current_font = font_bold
         else:
             text_color = (220, 221, 222) 
             current_font = font_normal
 
-        # Draw Row Data with bigger spacing
         draw.text((cols[0], y_offset), f"#{rank}", fill=text_color, font=current_font)
         draw.text((cols[1], y_offset), name, fill=text_color, font=current_font)
         draw.text((cols[2], y_offset), f"{scores:,} XP", fill=text_color, font=current_font)
         draw.text((cols[3], y_offset), f"{members}", fill=text_color, font=current_font)
 
-        y_offset += 65 # More vertical space per row
+        y_offset += 65 
         rank += 1
 
-    # Footer line for style
     draw.rectangle([(20, height - 20), (width - 20, height - 15)], fill=(88, 101, 242))
 
     path = f"top_clans_page_{page}.png"
     img.save(path)
     return path
+
+
 clan_client = ClanClient(api_base=KIRKA_API_BASE, api_key=KIRKA_API_KEY)
 bot = WeeklyXPBot(clan_client=clan_client)
-@bot.tree.command(name="top_clans", description="View the top clans leaderboard")
-async def top_clans(interaction: discord.Interaction):
-    await interaction.response.defer(thinking=True)
+
+
+# ==============================================================
+# AQUÍ COMIENZAN LOS COMANDOS HÍBRIDOS (Prefijo y Slash)
+# ==============================================================
+
+@bot.hybrid_command(name="top_clans", description="View the top clans leaderboard")
+async def top_clans(ctx: commands.Context):
+    await ctx.defer()
     try:
         data = await bot.clan_client.get_top_clans()
         clans = data.get("results", [])
         if not clans:
-            return await interaction.followup.send("❌ No clan data found.")
+            return await ctx.send("❌ No clan data found.")
 
-        view = TopClansPagination(interaction, clans, 0, 10)
+        view = TopClansPagination(clans, 0, 10)
         image_path = generate_top_clans_image(clans, 0, 10)
         file = discord.File(image_path, filename="top_clans.png")
-        await interaction.followup.send(file=file, view=view)
+        await ctx.send(file=file, view=view)
     except Exception as e:
-        await interaction.followup.send(f"⚠️ Error: {e}")
-@bot.tree.command(name="item", description="Check skin details, rarity, and rarity-based value")
+        await ctx.send(f"⚠️ Error: {e}")
+
+
+@bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails")
+async def flip(ctx: commands.Context):
+    result = random.choice(["Heads", "Tails"])
+    emoji = "🪙"
+    await ctx.send(f"{emoji} The coin is spinning... It landed on **{result}**!")
+
+
+@bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
 @app_commands.describe(name="Name of the skin (e.g., 1337)")
-async def item_lookup(interaction: discord.Interaction, name: str):
-    await interaction.response.defer(thinking=True)
+async def item_lookup(ctx: commands.Context, name: str):
+    await ctx.defer()
     try:
         url = f"{KIRKA_API_BASE}/api/inventory/items"
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers={"ApiKey": KIRKA_API_KEY}) as r:
                 if r.status != 200:
-                    return await interaction.followup.send("❌ Failed to connect to Kirka API.")
+                    return await ctx.send("❌ Failed to connect to Kirka API.")
                 all_items = await r.json()
 
-        # Search for the item
         found_item = next((i for i in all_items if name.lower() in i.get('name', '').lower()), None)
 
         if not found_item:
-            return await interaction.followup.send(f"🔍 Item '**{name}**' not found.")
+            return await ctx.send(f"🔍 Item '**{name}**' not found.")
 
-        # Data extraction
         item_name = found_item.get('name', 'Unknown')
         rarity = found_item.get('rarity', 'COMMON').upper()
         item_type = found_item.get('type', 'ITEM').replace('_', ' ')
         total_owned = found_item.get('totalOwned', 0)
         image_url = found_item.get('renderUrl')
 
-        # Color coding for Rarity
         colors = {
             "COMMON": 0xaaaaaa, "RARE": 0x5555ff, "EPIC": 0xaa00aa,
             "LEGENDARY": 0xffaa00, "MYTHICAL": 0xff5555, "EXOTIC": 0x55ffff
@@ -428,11 +434,9 @@ async def item_lookup(interaction: discord.Interaction, name: str):
             color=colors.get(rarity, 0xffffff)
         )
 
-        # Main stats
         embed.add_field(name="Tier", value=f"**{rarity}**", inline=True)
         embed.add_field(name="Global Supply", value=f"**{total_owned:,}** owned", inline=True)
         
-        # Market Tip based on Supply
         if total_owned < 500:
             market_tip = "💎 **High Value:** Extremely rare supply."
         elif total_owned < 2000:
@@ -442,23 +446,22 @@ async def item_lookup(interaction: discord.Interaction, name: str):
         
         embed.add_field(name="Market Status", value=market_tip, inline=False)
 
-        # Set the skin image
         if image_url:
             embed.set_image(url=image_url)
 
         embed.set_footer(text="Data provided by Kirka.io")
-        await interaction.followup.send(embed=embed)
+        await ctx.send(embed=embed)
 
     except Exception as e:
-        await interaction.followup.send(f"⚠️ An error occurred: {e}")
+        await ctx.send(f"⚠️ An error occurred: {e}")
 
-@bot.tree.command(name="register_monday", description="Save Monday baseline snapshot")
-async def register_monday(interaction: discord.Interaction) -> None:
-    if not is_admin(interaction):
-        await interaction.response.send_message("Admin only command.", ephemeral=True)
-        return
 
-    await interaction.response.defer(thinking=True)
+@bot.hybrid_command(name="register_monday", description="Save Monday baseline snapshot")
+async def register_monday(ctx: commands.Context) -> None:
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+
+    await ctx.defer()
     try:
         clan_data = await bot.clan_client.get_clan_data(CLAN_NAME)
         snapshot = {
@@ -467,20 +470,19 @@ async def register_monday(interaction: discord.Interaction) -> None:
             "members": extract_member_map(clan_data),
         }
         save_snapshot(MONDAY_SNAPSHOT_PATH, snapshot)
-        await interaction.followup.send(
+        await ctx.send(
             f"Monday snapshot saved in `{MONDAY_SNAPSHOT_PATH}` with {len(snapshot['members'])} members."
         )
     except Exception as exc:
-        await interaction.followup.send(f"Failed to save Monday snapshot: {exc}")
+        await ctx.send(f"Failed to save Monday snapshot: {exc}")
 
 
-@bot.tree.command(name="register_sunday", description="Save Sunday snapshot")
-async def register_sunday(interaction: discord.Interaction) -> None:
-    if not is_admin(interaction):
-        await interaction.response.send_message("Admin only command.", ephemeral=True)
-        return
+@bot.hybrid_command(name="register_sunday", description="Save Sunday snapshot")
+async def register_sunday(ctx: commands.Context) -> None:
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
 
-    await interaction.response.defer(thinking=True)
+    await ctx.defer()
     try:
         clan_data = await bot.clan_client.get_clan_data(CLAN_NAME)
         snapshot = {
@@ -489,34 +491,32 @@ async def register_sunday(interaction: discord.Interaction) -> None:
             "members": extract_member_map(clan_data),
         }
         save_snapshot(SUNDAY_SNAPSHOT_PATH, snapshot)
-        await interaction.followup.send(
+        await ctx.send(
             f"Sunday snapshot saved in `{SUNDAY_SNAPSHOT_PATH}` with {len(snapshot['members'])} members."
         )
     except Exception as exc:
-        await interaction.followup.send(f"Failed to save Sunday snapshot: {exc}")
+        await ctx.send(f"Failed to save Sunday snapshot: {exc}")
 
-@bot.tree.command(name="weekly_lb", description="Build weekly leaderboard from Monday/Sunday JSON files")
-async def weekly_lb(interaction: discord.Interaction) -> None:
-    if not is_admin(interaction):
-        await interaction.response.send_message("Admin only command.", ephemeral=True)
-        return
 
-    await interaction.response.defer(thinking=True)
+@bot.hybrid_command(name="weekly_lb", description="Build weekly leaderboard from Monday/Sunday JSON files")
+async def weekly_lb(ctx: commands.Context) -> None:
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+
+    await ctx.defer()
 
     try:
         monday_data = load_snapshot(MONDAY_SNAPSHOT_PATH)
         sunday_data = load_snapshot(SUNDAY_SNAPSHOT_PATH)
 
         if not monday_data or not sunday_data:
-            await interaction.followup.send(
-                "Need both files first. Run /register_monday and /register_sunday before /weekly_lb."
+            return await ctx.send(
+                "Need both files first. Run `/register_monday` and `/register_sunday` before `/weekly_lb`."
             )
-            return
 
         rows = build_weekly_rows(monday_data["members"], sunday_data["members"])
 
         lines = []
-
         header = f"{'Player':<18} {'Short ID':<10} {'XP':>10}   Status"
         lines.append(header)
         lines.append("-" * 60)
@@ -528,31 +528,25 @@ async def weekly_lb(interaction: discord.Interaction) -> None:
             xp = f"{row[3]:,}"
             status = row[4]
 
-            # =========================
-            # PLAYER NAME COLORS BY ROLE
-            # =========================
             if role == "LEADER":
-                player_color = "\u001b[33;1m"   # Bright Yellow
+                player_color = "\u001b[33;1m"
             elif role == "OFFICER":
-                player_color = "\u001b[34;1m"   # Bright Blue
+                player_color = "\u001b[34;1m"
             elif role == "NEWBIE":
-                player_color = "\u001b[36m"     # Cyan
+                player_color = "\u001b[36m"
             else:
-                player_color = "\u001b[37m"     # White
+                player_color = "\u001b[37m"
 
-            # =========================
-            # STATUS COLORS
-            # =========================
             if status == "OK":
-                status_color = "\u001b[32m"     # Green
+                status_color = "\u001b[32m"
             elif status == "MISSING":
-                status_color = "\u001b[31m"     # Red
+                status_color = "\u001b[31m"
             elif status == "REVIEW":
-                status_color = "\u001b[33m"     # Yellow
+                status_color = "\u001b[33m"
             elif status == "JOINED":
-                status_color = "\u001b[36m"     # Cyan
+                status_color = "\u001b[36m"
             elif status == "LEFT":
-                status_color = "\u001b[35m"     # Magenta
+                status_color = "\u001b[35m"
             else:
                 status_color = "\u001b[0m"
 
@@ -564,7 +558,6 @@ async def weekly_lb(interaction: discord.Interaction) -> None:
                 f"{xp:>10}   "
                 f"{status_color}{status}{reset}"
             )
-
             lines.append(line)
 
         report_header = (
@@ -574,56 +567,50 @@ async def weekly_lb(interaction: discord.Interaction) -> None:
             f"Sunday: {sunday_data['timestamp_utc']}\n\n"
         )
 
-        # =========================
-        # SPLIT INTO MULTIPLE MESSAGES
-        # =========================
         chunks = []
         current_chunk = report_header + "```ansi\n"
 
         for line in lines:
-            test_chunk = current_chunk + line + "\n```"
-
+            test_chunk = current_chunk + line + "\n
+```"
             if len(test_chunk) > 1900:
                 current_chunk += "```"
                 chunks.append(current_chunk)
-
-                current_chunk = "```ansi\n" + line + "\n"
+                current_chunk = "
+```ansi\n" + line + "\n"
             else:
                 current_chunk += line + "\n"
 
         current_chunk += "```"
         chunks.append(current_chunk)
 
-        # =========================
-        # SEND MESSAGES
-        # =========================
         for i, chunk in enumerate(chunks):
             if i == 0:
-                await interaction.followup.send(chunk)
+                await ctx.send(chunk)
             else:
-                await interaction.channel.send(chunk)
+                await ctx.channel.send(chunk)
 
     except Exception as exc:
-        await interaction.followup.send(f"Failed to build leaderboard: {exc}")
-@bot.tree.command(name="set_xp", description="Set weekly XP requirement (admin only)")
+        await ctx.send(f"Failed to build leaderboard: {exc}")
+
+
+@bot.hybrid_command(name="set_xp", description="Set weekly XP requirement (admin only)")
 @app_commands.describe(xp="New weekly XP requirement")
-async def set_xp(interaction: discord.Interaction, xp: int) -> None:
+async def set_xp(ctx: commands.Context, xp: int) -> None:
     global WEEKLY_XP_REQUIREMENT
-    if not is_admin(interaction):
-        await interaction.response.send_message("Admin only command.", ephemeral=True)
-        return
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
 
     if xp <= 0:
-        await interaction.response.send_message("XP requirement must be greater than 0.", ephemeral=True)
-        return
+        return await ctx.send("XP requirement must be greater than 0.", ephemeral=True)
 
     WEEKLY_XP_REQUIREMENT = xp
-    await interaction.response.send_message(f"Weekly XP requirement updated to {WEEKLY_XP_REQUIREMENT:,} XP.")
+    await ctx.send(f"Weekly XP requirement updated to {WEEKLY_XP_REQUIREMENT:,} XP.")
 
 
-@bot.tree.command(name="clan_info", description="Detailed statistics for the current clan")
-async def clan_info(interaction: discord.Interaction) -> None:
-    await interaction.response.defer(thinking=True)
+@bot.hybrid_command(name="clan_info", description="Detailed statistics for the current clan")
+async def clan_info(ctx: commands.Context) -> None:
+    await ctx.defer()
     try:
         clan_data = await bot.clan_client.get_clan_data(CLAN_NAME)
         members = clan_data.get("members", [])
@@ -636,49 +623,52 @@ async def clan_info(interaction: discord.Interaction) -> None:
 
         embed = discord.Embed(
             title=f"🏰 Clan Profile: {clan_data.get('name', CLAN_NAME)}",
-            description=f"```\n{desc}\n```",
-            color=0xffd700, # Gold color
+            description=f"
+```\n{desc}\n```",
+            color=0xffd700,
             timestamp=datetime.now(timezone.utc),
         )
         
-        # Using Emojis in Embeds is fine (Discord supports them, unlike the images)
         embed.add_field(name="👥 Total Members", value=f"**{len(members)}** / 100", inline=True)
         embed.add_field(name="⭐ Lifetime XP", value=f"**{all_scores:,}**", inline=True)
         embed.add_field(name="📅 Monthly XP", value=f"**{month_scores:,}**", inline=True)
-        
-        # Leader info (Hardcoded as requested)
         embed.add_field(name="👑 Clan Leader", value="`AIMTOME`", inline=False)
-        
         embed.set_footer(text="Kirka.io API System • Updated")
-        # Add a cool thumbnail if the clan has an icon (optional)
-        embed.set_author(name="Clan Intelligence Module", icon_url=interaction.user.display_avatar.url)
+        
+        embed.set_author(name="Clan Intelligence Module", icon_url=ctx.author.display_avatar.url)
 
-        await interaction.followup.send(embed=embed)
+        await ctx.send(embed=embed)
     except Exception as exc:
-        await interaction.followup.send(f"❌ Error fetching clan info: {exc}")
-       
+        await ctx.send(f"❌ Error fetching clan info: {exc}")
 
-@bot.tree.command(name="say", description="Make the bot say something (Admin only)")
+
+@bot.hybrid_command(name="say", description="Make the bot say something (Admin only)")
 @app_commands.describe(message="The message you want the bot to repeat")
-@app_commands.default_permissions(administrator=True) # Solo admins pueden verlo/usarlo
-async def say(interaction: discord.Interaction, message: str):
-    # 'ephemeral=True' hace que la confirmación solo la veas tú
-    # Esto evita que quede rastro de quién usó el comando en el chat
-    await interaction.response.send_message("Message sent!", ephemeral=True)
-    
-    # El bot envía el mensaje al canal actual
-    await interaction.channel.send(message)
-@bot.tree.command(name="delete_snaps", description="Delete Monday and Sunday snapshots")
-async def delete_snaps(interaction: discord.Interaction) -> None:
-    if not is_admin(interaction):
-        await interaction.response.send_message(
-            "Admin only command.",
-            ephemeral=True
-        )
-        return
+@app_commands.default_permissions(administrator=True) 
+async def say(ctx: commands.Context, message: str):
+    # Validamos que sea administrador
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+
+    # Si el comando fue ejecutado como prefijo (!say), intentamos borrar el mensaje original
+    # para mantenerlo "anónimo" tal como funcionaría con un Slash Command.
+    if ctx.prefix is not None:
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass # Si el bot no tiene permisos de borrar mensajes, ignoramos el error
+
+    # Respondemos con ephemeral (funciona nativamente en el slash, en prefijo manda msj normal)
+    await ctx.send("Message sent!", ephemeral=True)
+    await ctx.channel.send(message)
+
+
+@bot.hybrid_command(name="delete_snaps", description="Delete Monday and Sunday snapshots")
+async def delete_snaps(ctx: commands.Context) -> None:
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
 
     deleted = []
-
     try:
         if MONDAY_SNAPSHOT_PATH.exists():
             MONDAY_SNAPSHOT_PATH.unlink()
@@ -689,18 +679,12 @@ async def delete_snaps(interaction: discord.Interaction) -> None:
             deleted.append("Sunday")
 
         if deleted:
-            await interaction.response.send_message(
-                f"Deleted snapshots: {', '.join(deleted)}"
-            )
+            await ctx.send(f"Deleted snapshots: {', '.join(deleted)}")
         else:
-            await interaction.response.send_message(
-                "No snapshot files found."
-            )
+            await ctx.send("No snapshot files found.")
 
     except Exception as exc:
-        await interaction.response.send_message(
-            f"Failed deleting snapshots: {exc}"
-        )
+        await ctx.send(f"Failed deleting snapshots: {exc}")
 
 
 def validate_environment() -> None:

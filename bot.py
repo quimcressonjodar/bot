@@ -377,7 +377,66 @@ async def top_clans(interaction: discord.Interaction):
         await interaction.followup.send(file=file, view=view)
     except Exception as e:
         await interaction.followup.send(f"⚠️ Error: {e}")
+@bot.tree.command(name="item", description="Check skin details, rarity, and rarity-based value")
+@app_commands.describe(name="Name of the skin (e.g., 1337)")
+async def item_lookup(interaction: discord.Interaction, name: str):
+    await interaction.response.defer(thinking=True)
+    try:
+        url = f"{KIRKA_API_BASE}/api/inventory/items"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers={"ApiKey": KIRKA_API_KEY}) as r:
+                if r.status != 200:
+                    return await interaction.followup.send("❌ Failed to connect to Kirka API.")
+                all_items = await r.json()
 
+        # Search for the item
+        found_item = next((i for i in all_items if name.lower() in i.get('name', '').lower()), None)
+
+        if not found_item:
+            return await interaction.followup.send(f"🔍 Item '**{name}**' not found.")
+
+        # Data extraction
+        item_name = found_item.get('name', 'Unknown')
+        rarity = found_item.get('rarity', 'COMMON').upper()
+        item_type = found_item.get('type', 'ITEM').replace('_', ' ')
+        total_owned = found_item.get('totalOwned', 0)
+        image_url = found_item.get('renderUrl')
+
+        # Color coding for Rarity
+        colors = {
+            "COMMON": 0xaaaaaa, "RARE": 0x5555ff, "EPIC": 0xaa00aa,
+            "LEGENDARY": 0xffaa00, "MYTHICAL": 0xff5555, "EXOTIC": 0x55ffff
+        }
+        
+        embed = discord.Embed(
+            title=f"✨ {item_name}",
+            description=f"**Category:** {item_type}",
+            color=colors.get(rarity, 0xffffff)
+        )
+
+        # Main stats
+        embed.add_field(name="Tier", value=f"**{rarity}**", inline=True)
+        embed.add_field(name="Global Supply", value=f"**{total_owned:,}** owned", inline=True)
+        
+        # Market Tip based on Supply
+        if total_owned < 500:
+            market_tip = "💎 **High Value:** Extremely rare supply."
+        elif total_owned < 2000:
+            market_tip = "⚖️ **Medium Value:** Limited edition."
+        else:
+            market_tip = "🛒 **Common Item:** High supply, lower price."
+        
+        embed.add_field(name="Market Status", value=market_tip, inline=False)
+
+        # Set the skin image
+        if image_url:
+            embed.set_image(url=image_url)
+
+        embed.set_footer(text="Data provided by Kirka.io • Price depends on demand")
+        await interaction.followup.send(embed=embed)
+
+    except Exception as e:
+        await interaction.followup.send(f"⚠️ An error occurred: {e}")
 
 @bot.tree.command(name="register_monday", description="Save Monday baseline snapshot")
 async def register_monday(interaction: discord.Interaction) -> None:

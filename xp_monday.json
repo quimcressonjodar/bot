@@ -1,0 +1,594 @@
+{
+  "timestamp_utc": "2026-05-22T16:19:05.204221+00:00",
+  "clan_name": "UsAsOne!",
+  "members": {
+    "586b6fb0-011f-4373-90fc-b7d97600b89b": {
+      "name": "Koenigsegg_v8",
+      "shortId": "6KIQAM",
+      "role": "NEWBIE",
+      "allScores": 191255
+    },
+    "guest-09f2d7bf-4c56-4fee-ad57-9114175f756b": {
+      "name": "Luffy",
+      "shortId": "O5IACZ",
+      "role": "NEWBIE",
+      "allScores": 24280
+    },
+    "824f5346-12a0-4467-82a0-38d74053b17e": {
+      "name": "LegacyAgain",
+      "shortId": "LP4857",
+      "role": "OFFICER",
+      "allScores": 261355
+    },
+    "Gz7vDsByrXSEwKYek3a6mgVwdFb2": {
+      "name": "lolnoob",
+      "shortId": "SVN4K2",
+      "role": "NEWBIE",
+      "allScores": 150765
+    },
+    "cY45RbBiChU33NcagimgpS8e0aU2": {
+      "name": "BLACK_WAVES",
+      "shortId": "Y7PALY",
+      "role": "NEWBIE",
+      "allScores": 36060
+    },
+    "7RhnanD1ASQCRfuQ29X4teQtNSv1": {
+      "name": "Master.",
+      "shortId": "8E5L09",
+      "role": "NEWBIE",
+      "allScores": 81560
+    },
+    "zZz87cQTxZa6acnMrIfIG7HKqkx1": {
+      "name": "imbetter",
+      "shortId": "UDMYQA",
+      "role": "NEWBIE",
+      "allScores": 18400
+    },
+    "eb18ce53-e733-4a83-ba02-c19842e21adc": {
+      "name": "ILLPROTECTU",
+      "shortId": "BLWAUX",
+      "role": "NEWBIE",
+      "allScores": 30660
+    },
+    "4cd8e590-cdb7-4181-9f56-ef85d2b743f4": {
+      "name": "Sylph",
+      "shortId": "6R8E65",
+      "role": "NEWBIE",
+      "allScores": 20290
+    },
+    "c1af8af4-3139-4622-99a8-db9975a4d259": {
+      "name": "xqxq",
+      "shortId": "HS0P78",
+      "role": "NEWBIE",
+      "allScores": 0
+    },
+    "fM3azDzCKTfZvI3VwtpqlyaAdrz2": {
+      "name": "THE_Re@per",
+      "shortId": "ZW9VEH",
+      "role": "NEWBIE",
+      "allScores": 29065
+    },
+    "3dba516b-7a6c-4e8f-87cb-6755369733b7": {
+      "name": "fnpw",
+      "shortId": "FN7SGX",
+      "role": "NEWBIE",
+      "allScores": 42275
+    },
+    "bfe86d3e-ea69-4142-b4e7-651d2c7e39c8": {
+      "name": "Iconic",
+      "shortId": "N0GEHR",
+      "role": "NEWBIE",
+      "allScores": 54960
+    },
+    "fc9286d3-4a21-493b-822c-e02b5173f99c": {
+      "name": "Zenith.",
+      "shortId": "FN4MY1",
+      "role": "NEWBIE",
+      "allScores": 3040
+    },
+    "f1c6940c-5a94-4af4-ba69-fb763d71ebb4": {
+      "name": "Lord_Gazzel",
+      "shortId": "PGW05Z",
+      "role": "NEWBIE",
+      "allScores": 108400
+    },
+    "d8ac7c18-bedb-4592-8d61-01eab13d3052": {
+      "name": "Emerald",
+      "shortId": "6PQN9Z",
+      "role": "NEWBIE",
+      "allScores": 700
+    },
+    "affa5217-0008-4111-907d-11cf17e48e76": {
+      "name": "siam_0",
+      "shortId": "Y4DHTE",
+      "role": "NEWBIE",
+      "allScores": 69650
+    },
+    "7b0dc4d0-24c7-488e-81a0-89b6059e00fa": {
+      "name": "xivy",
+      "shortId": "0KJ2YJ",
+      "role": "NEWBIE",
+      "allScores": 1500
+    },
+    "c5eaa225-6ffd-453e-b8b0-1d95a11a4f17": {
+      "name": "[EGD]GOAT",
+      "shortId": "IYFXUY",
+      "role": "NEWBIE",
+      "allScores": 40130
+    },
+    "ef11b5a1-fd0f-4a0e-96a8-2f654d9a39d3": {
+      "name": "JaYeD",
+      "shortId": "SBHHL8",
+      "role": "NEWBIE",
+      "allScores": 8355
+    },
+    "f825bcae-9af1-4614-8e45-113bc31ec983": {
+      "name": "Chihir0.",
+      "shortId": "IU58BL",
+      "role": "NEWBIE",
+      "allScores": 70310
+    },
+    "46913425-79a1-4f04-8052-f5058c92c150": {
+      "name": "steeze.",
+      "shortId": "ZZZEFB",
+      "role": "NEWBIE",
+      "allScores": 9035
+    },
+    "11d1ceed-951f-483c-8902-c47dc0d58c38": {
+      "name": "[UsAs1]titigx",
+      "shortId": "SR0CEX",
+      "role": "OFFICER",
+      "allScores": 2164704
+    },
+    "e45aa737-06bb-430a-a142-c7d5afc8d9ba": {
+      "name": "1#newbie",
+      "shortId": "5Y2LUX",
+      "role": "NEWBIE",
+      "allScores": 40040
+    },
+    "4c6c40ee-a8e5-41b0-8736-0d7c0a31830d": {
+      "name": "Jolly",
+      "shortId": "RUBIES",
+      "role": "OFFICER",
+      "allScores": 10060
+    },
+    "6e97bb3a-32b8-4ee1-a2a7-3d02b82956f8": {
+      "name": "solo.",
+      "shortId": "3H3L0S",
+      "role": "NEWBIE",
+      "allScores": 346975
+    },
+    "745ddc76-ceb8-4e5f-8b1a-f5981c23d994": {
+      "name": "L0RD0fTheNorth",
+      "shortId": "BJMC35",
+      "role": "NEWBIE",
+      "allScores": 264595
+    },
+    "db44ee19-ff33-46f9-95f8-944df904198d": {
+      "name": "Him.",
+      "shortId": "YTMPPJ",
+      "role": "NEWBIE",
+      "allScores": 260090
+    },
+    "45bb24ff-916c-4fc9-b971-a44da861c644": {
+      "name": "FCKHAIDANG[VN]",
+      "shortId": "5RWBBY",
+      "role": "NEWBIE",
+      "allScores": 124030
+    },
+    "rLL8KrpVU1hEOUSRs6NQMWpqSOc2": {
+      "name": "coqueta",
+      "shortId": "OAEQ6M",
+      "role": "NEWBIE",
+      "allScores": 107825
+    },
+    "b3d1d8da-24aa-451c-b685-17702bb82f15": {
+      "name": "Glitch",
+      "shortId": "ANBOJR",
+      "role": "NEWBIE",
+      "allScores": 66355
+    },
+    "f11a14e8-834d-4c81-bb55-e503b56bc4e1": {
+      "name": "BLACKBAMSE",
+      "shortId": "4D0O4G",
+      "role": "NEWBIE",
+      "allScores": 46625
+    },
+    "4add4259-bba7-4b96-86db-0609cd82563d": {
+      "name": "Newbie",
+      "shortId": "AS2PVN",
+      "role": "NEWBIE",
+      "allScores": 57785
+    },
+    "8e4dd944-e478-41ae-9f12-87a90772aa6c": {
+      "name": "^3in1^",
+      "shortId": "NMA4EE",
+      "role": "NEWBIE",
+      "allScores": 99080
+    },
+    "TQzJPcvGWzUtgZVikKEVYkw6BGJ3": {
+      "name": "Zatra_BunnyV4",
+      "shortId": "M7NVF2",
+      "role": "NEWBIE",
+      "allScores": 290370
+    },
+    "66dGH3TZ1GNZrMtOaRH3939RFjv1": {
+      "name": "Imissher_VN",
+      "shortId": "ZV5FKZ",
+      "role": "NEWBIE",
+      "allScores": 155810
+    },
+    "82e99c4e-d502-4a8a-aa7d-814fa0387633": {
+      "name": "WALF",
+      "shortId": "LWTE94",
+      "role": "NEWBIE",
+      "allScores": 92640
+    },
+    "guest-b77654df-ce78-463f-be13-7f60d95f8fe9": {
+      "name": "[UsAsOn]Silly",
+      "shortId": "CDVSHX",
+      "role": "NEWBIE",
+      "allScores": 166000
+    },
+    "guest-40f61f1d-6094-4394-9ebb-3f8857779473": {
+      "name": "--Void--",
+      "shortId": "LC7TFQ",
+      "role": "NEWBIE",
+      "allScores": 114295
+    },
+    "fe4387e6-23cf-4422-8cae-ea39e6024582": {
+      "name": "goshhh",
+      "shortId": "SSBSST",
+      "role": "OFFICER",
+      "allScores": 217100
+    },
+    "5de09bb1-010f-4089-b17a-69446780e533": {
+      "name": "[EGD]Efe",
+      "shortId": "NV7JJW",
+      "role": "NEWBIE",
+      "allScores": 134195
+    },
+    "292212a2-c353-4442-baa1-9a94abfb6b10": {
+      "name": "sweetie_fox",
+      "shortId": "T73FKC",
+      "role": "OFFICER",
+      "allScores": 782400
+    },
+    "WkeUmBVtX2dpwa0aReJnYUd258z1": {
+      "name": "Benyqt",
+      "shortId": "E3Y7SQ",
+      "role": "NEWBIE",
+      "allScores": 148280
+    },
+    "e10393a7-49ff-42d7-855a-8900eff93a2c": {
+      "name": "Waffles",
+      "shortId": "XX40OB",
+      "role": "NEWBIE",
+      "allScores": 28245
+    },
+    "bd2199ef-66da-4e23-a8f3-e201d2707078": {
+      "name": "[PH]24/7",
+      "shortId": "YHV0T7",
+      "role": "NEWBIE",
+      "allScores": 48500
+    },
+    "0b7dd845-f3a1-4c09-915a-ea95605537ab": {
+      "name": "Chevalechik^^",
+      "shortId": "RWH3Z0",
+      "role": "OFFICER",
+      "allScores": 491650
+    },
+    "6e96cbad-888e-4efd-bd88-73b43c669daf": {
+      "name": "-CAT-",
+      "shortId": "9LIVES",
+      "role": "OFFICER",
+      "allScores": 912325
+    },
+    "mAf4P4dEuhPw0UzXDT4yugHYUPk1": {
+      "name": "[UsAs1]_ko___",
+      "shortId": "G8QCQZ",
+      "role": "OFFICER",
+      "allScores": 333510
+    },
+    "5eefeff3-9441-45b7-88e3-105867b56c09": {
+      "name": "crax",
+      "shortId": "6HKRWM",
+      "role": "NEWBIE",
+      "allScores": 207920
+    },
+    "98285a6a-b4b5-4453-af3c-6cf0fd49d8d9": {
+      "name": "FoReVeR!",
+      "shortId": "04U5IN",
+      "role": "NEWBIE",
+      "allScores": 150935
+    },
+    "0757c36c-efb2-42dc-8165-523088fe66e1": {
+      "name": "real_badass",
+      "shortId": "UXXK5B",
+      "role": "NEWBIE",
+      "allScores": 85450
+    },
+    "432c2d12-41ee-41fa-bcdf-5165c4050707": {
+      "name": "DAIZY_EXCEL",
+      "shortId": "1A3TML",
+      "role": "NEWBIE",
+      "allScores": 123090
+    },
+    "8130e18e-ff15-4f5b-a4e4-e3b8692ee32b": {
+      "name": "Torque_",
+      "shortId": "SMOKED",
+      "role": "OFFICER",
+      "allScores": 377395
+    },
+    "ioGAIiM2VVh5oWY61xSZH7XKs943": {
+      "name": "sevi",
+      "shortId": "DET378",
+      "role": "NEWBIE",
+      "allScores": 142675
+    },
+    "e15467c6-5a4e-4bb2-8e42-cc670db399df": {
+      "name": "Nebula",
+      "shortId": "7A7WV8",
+      "role": "NEWBIE",
+      "allScores": 302290
+    },
+    "287119fe-d055-4d21-b222-fa6f668e0d9c": {
+      "name": "VANDREX",
+      "shortId": "YA4U8O",
+      "role": "OFFICER",
+      "allScores": 501195
+    },
+    "ZsHoBQdG2IeeYxnTKaimSnmjyy82": {
+      "name": "IuliiVespere",
+      "shortId": "C12E3M",
+      "role": "NEWBIE",
+      "allScores": 51340
+    },
+    "5827a906-a110-4320-9d87-b221e93b9b77": {
+      "name": "GL!TCH3D_D34TH",
+      "shortId": "9BNV2G",
+      "role": "NEWBIE",
+      "allScores": 102970
+    },
+    "guest-3f810b01-f734-485d-b8cf-e832555a9cad": {
+      "name": "osfrid",
+      "shortId": "IA9BOB",
+      "role": "NEWBIE",
+      "allScores": 192505
+    },
+    "dde0da8a-87f3-4294-bf44-5b5aaf07c020": {
+      "name": "AIMTOME",
+      "shortId": "8AFZL2",
+      "role": "LEADER",
+      "allScores": 507355
+    },
+    "f20d745a-4f90-4e97-b44a-358fb5fdccad": {
+      "name": "BavumaIsBack",
+      "shortId": "5Y9IRC",
+      "role": "NEWBIE",
+      "allScores": 391480
+    },
+    "20b0c68e-ab81-4ea4-b2a2-f7dd685e3bc5": {
+      "name": "Samiullah",
+      "shortId": "XCEBNO",
+      "role": "NEWBIE",
+      "allScores": 88470
+    },
+    "abce0b7b-a5ee-4bae-b599-63185581fa40": {
+      "name": "MR_RESPECT",
+      "shortId": "6WH8YI",
+      "role": "NEWBIE",
+      "allScores": 285640
+    },
+    "guest-b46067d7-0a3c-4a1f-b1d9-a2bfe8e269de": {
+      "name": "Zentureos",
+      "shortId": "IH2ICF",
+      "role": "NEWBIE",
+      "allScores": 141150
+    },
+    "43f91cbd-a1c2-44d0-a492-eee761a45cde": {
+      "name": "Eliana-is-TEA",
+      "shortId": "J3NNQU",
+      "role": "NEWBIE",
+      "allScores": 22915
+    },
+    "0dfbecc3-938f-4f9a-9aa7-0d01a097c3a8": {
+      "name": "crap",
+      "shortId": "STBIL8",
+      "role": "NEWBIE",
+      "allScores": 253675
+    },
+    "6f2602cc-6009-483d-9748-a84c822279bd": {
+      "name": "ENDERGOD",
+      "shortId": "RSB5XW",
+      "role": "NEWBIE",
+      "allScores": 43180
+    },
+    "0afc7be3-b5a9-4cb6-9b8d-3f5a3138b9c7": {
+      "name": "Avocadoo",
+      "shortId": "O2LJFU",
+      "role": "OFFICER",
+      "allScores": 700440
+    },
+    "m79N7mrRZScntnq3Bs1jxycNqzg1": {
+      "name": "Glitch",
+      "shortId": "KPXUAR",
+      "role": "NEWBIE",
+      "allScores": 152480
+    },
+    "guest-9d08f068-adf2-4144-87ac-3df25c6fe270": {
+      "name": "Butcher",
+      "shortId": "9XFEP6",
+      "role": "NEWBIE",
+      "allScores": 137320
+    },
+    "02506a6c-de4d-4da9-833f-35e586b9b089": {
+      "name": "Hafla_",
+      "shortId": "H9H0OI",
+      "role": "NEWBIE",
+      "allScores": 161560
+    },
+    "TfTd2smwNuby0aoewZZgkNvfxkI3": {
+      "name": "Skull_Bulgaria",
+      "shortId": "X9OLXL",
+      "role": "NEWBIE",
+      "allScores": 205900
+    },
+    "2b2a2f37-ba75-4232-862c-b66747820da0": {
+      "name": "ALICE",
+      "shortId": "BPSA73",
+      "role": "NEWBIE",
+      "allScores": 22120
+    },
+    "8d69e918-1187-4820-816b-844282f75759": {
+      "name": "vvvi",
+      "shortId": "IDC62D",
+      "role": "OFFICER",
+      "allScores": 192190
+    },
+    "70ea75c2-259b-428e-a693-e5b48ddccaae": {
+      "name": "DEAD",
+      "shortId": "4UPM84",
+      "role": "NEWBIE",
+      "allScores": 14550
+    },
+    "8jm0LfTqPuaqAGEISFRSXi3kA4J2": {
+      "name": "Gameryt",
+      "shortId": "Y9KZHZ",
+      "role": "NEWBIE",
+      "allScores": 91045
+    },
+    "0cf9671d-faa3-415b-a9dd-b9719a1af856": {
+      "name": "Penguin_yt",
+      "shortId": "17UIT4",
+      "role": "NEWBIE",
+      "allScores": 117340
+    },
+    "97a11dbd-c7dd-447a-9433-25a191a6869c": {
+      "name": "Newbie",
+      "shortId": "PQVCUO",
+      "role": "NEWBIE",
+      "allScores": 25570
+    },
+    "v9XEZ21q3zS2RMCmuJuR27Um2ul1": {
+      "name": "hehehe",
+      "shortId": "J897E6",
+      "role": "OFFICER",
+      "allScores": 240815
+    },
+    "2c275829-ce0e-4569-9691-693ac42732fb": {
+      "name": "UAOsusyvac2023",
+      "shortId": "FNYF5Z",
+      "role": "NEWBIE",
+      "allScores": 6015
+    },
+    "ec244aa6-dc52-4b96-baaf-e37e2f5ef19c": {
+      "name": "cheers",
+      "shortId": "PIXWRL",
+      "role": "OFFICER",
+      "allScores": 668715
+    },
+    "e379dc23-26e2-4da6-8177-0f307a3705d7": {
+      "name": "Moaz",
+      "shortId": "WX2ARX",
+      "role": "OFFICER",
+      "allScores": 233070
+    },
+    "37aLncTgVsRZVfPMqT3cRC8vwsI2": {
+      "name": "(EGD)Kaan",
+      "shortId": "7UNTD9",
+      "role": "NEWBIE",
+      "allScores": 5980
+    },
+    "335553f4-5229-43ef-a1b9-27f8f1ab9b93": {
+      "name": "Opium",
+      "shortId": "RI5K9W",
+      "role": "NEWBIE",
+      "allScores": 92220
+    },
+    "70184f38-6b61-4ca3-bf66-2cdbc3f42f1b": {
+      "name": "Kirka.ioISASS",
+      "shortId": "Z1WXJR",
+      "role": "NEWBIE",
+      "allScores": 70660
+    },
+    "f023e4fb-125b-46b2-a036-ad07cc5ea38a": {
+      "name": "aimpill",
+      "shortId": "GRBD1E",
+      "role": "NEWBIE",
+      "allScores": 11135
+    },
+    "867a5e10-e6af-44af-961c-ce3d00033320": {
+      "name": "3ady",
+      "shortId": "N4VLFY",
+      "role": "OFFICER",
+      "allScores": 238630
+    },
+    "atwD25iBdVSGdSLjmyTrObipTtf1": {
+      "name": "LEADER",
+      "shortId": "YLZBU5",
+      "role": "NEWBIE",
+      "allScores": 110545
+    },
+    "0aa4b82d-c493-46e5-b15e-1a5be70aca94": {
+      "name": "cc-baals",
+      "shortId": "71G00F",
+      "role": "NEWBIE",
+      "allScores": 112500
+    },
+    "941e8007-d173-4d61-a5fe-959f990ab350": {
+      "name": "OOgway",
+      "shortId": "EJV5Z9",
+      "role": "NEWBIE",
+      "allScores": 119955
+    },
+    "13b24829-c64d-419c-be63-d763f6e055c4": {
+      "name": "Fear",
+      "shortId": "IZ172J",
+      "role": "NEWBIE",
+      "allScores": 69895
+    },
+    "75a76f90-9470-483b-b05a-792478fa419a": {
+      "name": "Femboy",
+      "shortId": "31K8NU",
+      "role": "NEWBIE",
+      "allScores": 60890
+    },
+    "83364ed5-101e-4a26-8a69-372da4bad353": {
+      "name": "Viopus",
+      "shortId": "SC0N3D",
+      "role": "NEWBIE",
+      "allScores": 69865
+    },
+    "34f8f3a3-088e-45dd-badd-4e80aca43934": {
+      "name": "Night.",
+      "shortId": "IGADFZ",
+      "role": "NEWBIE",
+      "allScores": 57955
+    },
+    "c21aabca-5f2b-46fb-9c6a-5fc86574bfb8": {
+      "name": "capy",
+      "shortId": "T8B961",
+      "role": "NEWBIE",
+      "allScores": 125570
+    },
+    "06de5cb4-09ea-438c-9251-6718364cf016": {
+      "name": "Vex.",
+      "shortId": "382KZX",
+      "role": "NEWBIE",
+      "allScores": 50920
+    },
+    "SNjPM3lZmwd4wQGeLn4X8FcFtao2": {
+      "name": "no4nay_ubiytsa",
+      "shortId": "5BAXUL",
+      "role": "NEWBIE",
+      "allScores": 34105
+    },
+    "Ijxt9FKgFRdkz63KsY1z7h3OckR2": {
+      "name": "blackshadow",
+      "shortId": "VYMT7F",
+      "role": "NEWBIE",
+      "allScores": 35505
+    }
+  }
+}

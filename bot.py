@@ -444,6 +444,40 @@ async def clan_info(interaction: discord.Interaction) -> None:
         await interaction.followup.send(embed=embed)
     except Exception as exc:
         await interaction.followup.send(f"Failed clan_info: {exc}")
+@bot.tree.command(name="delete_snaps", description="Delete Monday and Sunday snapshots")
+async def delete_snaps(interaction: discord.Interaction) -> None:
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Admin only command.",
+            ephemeral=True
+        )
+        return
+
+    deleted = []
+
+    try:
+        if MONDAY_SNAPSHOT_PATH.exists():
+            MONDAY_SNAPSHOT_PATH.unlink()
+            deleted.append("Monday")
+
+        if SUNDAY_SNAPSHOT_PATH.exists():
+            SUNDAY_SNAPSHOT_PATH.unlink()
+            deleted.append("Sunday")
+
+        if deleted:
+            await interaction.response.send_message(
+                f"Deleted snapshots: {', '.join(deleted)}"
+            )
+        else:
+            await interaction.response.send_message(
+                "No snapshot files found."
+            )
+
+    except Exception as exc:
+        await interaction.response.send_message(
+            f"Failed deleting snapshots: {exc}"
+        )
+
 
 
 

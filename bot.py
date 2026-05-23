@@ -284,19 +284,20 @@ class TopClansPagination(discord.ui.View):
         self.page = min(self.max_page, self.page + 1)
         await self.update_message(interaction)
 
-
 def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 10):
-    # Larger dimensions for better readability
-    width, height = 950, 700 
-    img = Image.new("RGB", (width, height), (30, 31, 34)) # Discord Darker Background
+    # Optimized dimensions
+    width, height = 1000, 850 
+    img = Image.new("RGB", (width, height), (30, 31, 34)) 
     draw = ImageDraw.Draw(img)
 
-    # Increase font sizes
+    # MUCH LARGER FONTS
     try:
-        font_normal = ImageFont.truetype("arial.ttf", 26)
-        font_bold = ImageFont.truetype("arialbd.ttf", 26)
-        font_title = ImageFont.truetype("arialbd.ttf", 42)
-        font_header = ImageFont.truetype("arialbd.ttf", 28)
+        # If you have these .ttf files in your folder, use them. 
+        # Otherwise, arial is the standard fallback.
+        font_normal = ImageFont.truetype("arial.ttf", 32)
+        font_bold = ImageFont.truetype("arialbd.ttf", 32)
+        font_title = ImageFont.truetype("arialbd.ttf", 52)
+        font_header = ImageFont.truetype("arialbd.ttf", 34)
     except:
         font_normal = ImageFont.load_default()
         font_bold = font_normal
@@ -307,23 +308,26 @@ def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 1
     end = start + per_page
     sliced = clans[start:end]
 
-    # Header Title
-    draw.text((40, 30), f"🏆 GLOBAL CLAN LEADERBOARD", fill=(255, 255, 255), font=font_title)
-    draw.text((width - 220, 45), f"PAGE {page+1} OF {max(1, (len(clans)//per_page)+1)}", fill=(150, 150, 150), font=font_normal)
+    # Header Title - Moved for better spacing
+    draw.text((40, 40), "🏆 GLOBAL LEADERBOARD", fill=(255, 255, 255), font=font_title)
+    
+    # Page Indicator - Placed clearly on the right
+    page_text = f"PAGE {page+1} / {max(1, (len(clans)//per_page)+1)}"
+    draw.text((width - 250, 55), page_text, fill=(150, 150, 150), font=font_bold)
 
     # Table Column Settings
-    y_offset = 110
-    # X Positions for: Rank, Clan Name, XP, Members
-    cols = [40, 140, 520, 780] 
-    headers = ["RANK", "CLAN NAME", "TOTAL EXPERIENCE", "MEMBERS"]
+    y_offset = 140
+    # Adjusted X Positions for Big Text
+    cols = [40, 150, 540, 800] 
+    headers = ["RANK", "CLAN", "EXPERIENCE", "USERS"]
     
-    # Draw Header Background
-    draw.rectangle([(30, y_offset), (width - 30, y_offset + 50)], fill=(43, 45, 49))
+    # Header Background
+    draw.rectangle([(20, y_offset), (width - 20, y_offset + 70)], fill=(43, 45, 49))
     
     for x, text in zip(cols, headers):
-        draw.text((x, y_offset + 10), text, fill=(88, 101, 242), font=font_header) # Discord Blue Color
+        draw.text((x, y_offset + 15), text, fill=(88, 101, 242), font=font_header)
 
-    y_offset += 75
+    y_offset += 100 # Gap after header
     rank = start + 1
 
     for c in sliced:
@@ -331,24 +335,28 @@ def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 1
         scores = c.get("scores", 0)
         members = c.get("membersCount", 0)
 
-        # Highlighting UsAsOne!
         is_my_clan = name.lower() == "usasone!"
+        
         if is_my_clan:
             text_color = (255, 215, 0) # Gold
-            draw.rectangle([(30, y_offset - 5), (width - 30, y_offset + 40)], fill=(49, 51, 56), outline=(255, 215, 0), width=2)
+            # Thicker border for the highlight
+            draw.rectangle([(20, y_offset - 10), (width - 20, y_offset + 55)], fill=(49, 51, 56), outline=(255, 215, 0), width=3)
             current_font = font_bold
         else:
-            text_color = (220, 221, 222) # Off-white
+            text_color = (220, 221, 222) 
             current_font = font_normal
 
-        # Draw Row Data
+        # Draw Row Data with bigger spacing
         draw.text((cols[0], y_offset), f"#{rank}", fill=text_color, font=current_font)
         draw.text((cols[1], y_offset), name, fill=text_color, font=current_font)
         draw.text((cols[2], y_offset), f"{scores:,} XP", fill=text_color, font=current_font)
-        draw.text((cols[3], y_offset), f"{members} USERS", fill=text_color, font=current_font)
+        draw.text((cols[3], y_offset), f"{members}", fill=text_color, font=current_font)
 
-        y_offset += 50 # More space between rows
+        y_offset += 65 # More vertical space per row
         rank += 1
+
+    # Footer line for style
+    draw.rectangle([(20, height - 20), (width - 20, height - 15)], fill=(88, 101, 242))
 
     path = f"top_clans_page_{page}.png"
     img.save(path)

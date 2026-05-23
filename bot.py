@@ -255,12 +255,17 @@ class WeeklyXPBot(commands.Bot):
         await self.tree.sync()
         logger.info("Slash commands synced")
 
+    # Mueve el on_ready AQUÍ ADENTRO:
+    async def on_ready(self):
+        logger.info(f"✅ ¡Bot conectado y listo como {self.user}!")
+        await self.change_presence(
+            status=discord.Status.online, 
+            activity=discord.Game(name="Kirka.io 🏆")
+        )
+
     async def close(self) -> None:
         await self.clan_client.close()
         await super().close()
-
-clan_client = ClanClient(api_base=KIRKA_API_BASE, api_key=KIRKA_API_KEY)
-bot = WeeklyXPBot(clan_client=clan_client)
 class TopClansPagination(discord.ui.View):
     def __init__(self, interaction: discord.Interaction, clans: list, page: int, per_page: int):
         super().__init__(timeout=120)
@@ -693,15 +698,6 @@ async def delete_snaps(interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             f"Failed deleting snapshots: {exc}"
         )
-
-@bot.event
-async def on_ready():
-    # Esto cambia el estado de Gris a Verde (Online)
-    await bot.change_presence(
-        status=discord.Status.online, 
-        activity=discord.Game(name="Kirka.io 🏆")
-    )
-
 
 
 def validate_environment() -> None:

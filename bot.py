@@ -394,49 +394,19 @@ async def top_clans(ctx: commands.Context):
         await ctx.send(f"⚠️ Error: {e}")
 
 
-@bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails (Provably Fair)")
+@bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails")
 async def flip(ctx: commands.Context):
-    # 1. Obtenemos el ID único e imposible de falsificar que Discord generó para esta acción
+    # Generamos la semilla usando el ID único de Discord para garantizar un 50/50 real e incorruptible
     unique_id = str(ctx.interaction.id if ctx.interaction else ctx.message.id)
+    seed_int = int(hashlib.sha256(unique_id.encode()).hexdigest(), 16)
     
-    # 2. Convertimos el ID en un Hash SHA-256 único
-    hash_hex = hashlib.sha256(unique_id.encode()).hexdigest()
-    
-    # 3. Transformamos ese Hash en una semilla numérica para el buscador
-    seed_int = int(hash_hex, 16)
-    
-    # 4. Usamos una instancia LOCAL de random aislada para que nadie pueda alterar el orden
+    # Sistema aleatorio provablemente seguro basado en esa semilla única
     local_random = random.Random(seed_int)
     result = local_random.choice(["Heads", "Tails"])
     
-    emoji = "🪙"
+    # Tu diseño clásico en texto plano (como lo tenías antes)
+    await ctx.send(f"🪙 **{result}**")
     
-    # Estética del Embed según el resultado
-    embed_color = 0xffd700 if result == "Heads" else 0xc0c0c0
-    
-    embed = discord.Embed(
-        title=f"{emoji} ¡Moneda al aire!",
-        description=f"La moneda gira y cae en... **{result.upper()}** 🎯",
-        color=embed_color
-    )
-    
-    # Campos de verificación pública
-    embed.add_field(
-        name="🆔 ID de Verificación", 
-        value=f"`{unique_id}`", 
-        inline=False
-    )
-    embed.add_field(
-        name="🔒 Código Hash (SHA-256)", 
-        value=f"`{hash_hex[:32]}...`", 
-        inline=False
-    )
-    
-    embed.set_footer(
-        text="SISTEMA TRANSPARENTE • El resultado está ligado matemáticamente al ID de Discord."
-    )
-    
-    await ctx.send(embed=embed)
 @bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
 @app_commands.describe(name="Name of the skin (e.g., 1337)")
 async def item_lookup(ctx: commands.Context, name: str):

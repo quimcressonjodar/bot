@@ -1,3 +1,9 @@
+intents = discord.Intents.default()
+intents.presences = True      # <--- ESTO ES OBLIGATORIO
+intents.members = True        # <--- ESTO TAMBIÉN
+intents.message_content = True 
+
+bot = commands.Bot(command_prefix="!", intents=intents)
 import json
 import os
 import logging
@@ -703,4 +709,12 @@ def validate_environment() -> None:
 if __name__ == "__main__":
     validate_environment()
     keep_alive()
+    @bot.event
+async def on_ready():
+    # Esto cambia el estado de Gris a Verde (Online)
+    await bot.change_presence(
+        status=discord.Status.online, 
+        activity=discord.Game(name="Kirka.io 🏆")
+    )
+    print(f'✅ {bot.user.name} is now ONLINE and ready!')
     bot.run(DISCORD_TOKEN)

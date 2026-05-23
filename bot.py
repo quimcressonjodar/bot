@@ -1,9 +1,3 @@
-intents = discord.Intents.default()
-intents.presences = True      # <--- ESTO ES OBLIGATORIO
-intents.members = True        # <--- ESTO TAMBIÉN
-intents.message_content = True 
-
-bot = commands.Bot(command_prefix="!", intents=intents)
 import json
 import os
 import logging
@@ -247,7 +241,13 @@ def format_table(rows: list[list[Any]], headers: list[str]) -> str:
 
 class WeeklyXPBot(commands.Bot):
     def __init__(self, clan_client: ClanClient):
-        super().__init__(command_prefix="!", intents=discord.Intents.default())
+        # Configuramos los intents AQUÍ
+        intents = discord.Intents.default()
+        intents.presences = True
+        intents.members = True
+        intents.message_content = True
+        
+        super().__init__(command_prefix="!", intents=intents)
         self.clan_client = clan_client
 
     async def setup_hook(self) -> None:
@@ -258,7 +258,6 @@ class WeeklyXPBot(commands.Bot):
     async def close(self) -> None:
         await self.clan_client.close()
         await super().close()
-
 
 clan_client = ClanClient(api_base=KIRKA_API_BASE, api_key=KIRKA_API_KEY)
 bot = WeeklyXPBot(clan_client=clan_client)

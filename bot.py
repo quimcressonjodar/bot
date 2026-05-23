@@ -3,6 +3,7 @@ import os
 import logging
 import asyncio
 import random
+import hashlib
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -264,6 +265,11 @@ class WeeklyXPBot(commands.Bot):
 
     async def on_ready(self):
         logger.info(f"✅ ¡Bot conectado y listo como {self.user}!")
+        # Forzamos la actualización de estado para quitar el modo Offline
+        await self.change_presence(
+            status=discord.Status.online, 
+            activity=discord.Game(name="Kirka.io 🏆")
+        )
 
     async def close(self) -> None:
         await self.clan_client.close()
@@ -395,14 +401,22 @@ async def top_clans(ctx: commands.Context):
 
 @bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails")
 async def flip(ctx: commands.Context):
+    # 1. Enviamos el mensaje inicial
+    msg = await ctx.send("Flipping the coin... 🪙")
     
-    # Sistema aleatorio provablemente seguro basado en esa semilla única
+    # 2. Recreamos la semilla de forma justa (te faltaba esta parte en tu código)
+    unique_id = str(ctx.interaction.id if ctx.interaction else ctx.message.id)
+    seed_int = int(hashlib.sha256(unique_id.encode()).hexdigest(), 16)
+    
+    # 3. Calculamos el resultado
     local_random = random.Random(seed_int)
     result = local_random.choice(["Heads", "Tails"])
     
-    # Tu diseño clásico en texto plano (como lo tenías antes)
-    await ctx.send(f"Fliping the coin... 🪙 **{result}**")
+    # 4. Hacemos una micropausa de 1.5 segundos para darle emoción a la tirada
+    await asyncio.sleep(1.5)
     
+    # 5. Editamos el mensaje con el resultado final
+    await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
 @bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
 @app_commands.describe(name="Name of the skin (e.g., 1337)")
 async def item_lookup(ctx: commands.Context, name: str):

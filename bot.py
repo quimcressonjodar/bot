@@ -3,7 +3,6 @@ import os
 import logging
 import asyncio
 import random
-import hashlib
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -396,16 +395,13 @@ async def top_clans(ctx: commands.Context):
 
 @bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails")
 async def flip(ctx: commands.Context):
-    # Generamos la semilla usando el ID único de Discord para garantizar un 50/50 real e incorruptible
-    unique_id = str(ctx.interaction.id if ctx.interaction else ctx.message.id)
-    seed_int = int(hashlib.sha256(unique_id.encode()).hexdigest(), 16)
     
     # Sistema aleatorio provablemente seguro basado en esa semilla única
     local_random = random.Random(seed_int)
     result = local_random.choice(["Heads", "Tails"])
     
     # Tu diseño clásico en texto plano (como lo tenías antes)
-    await ctx.send(f"🪙 **{result}**")
+    await ctx.send(f"Fliping the coin... 🪙 **{result}**")
     
 @bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
 @app_commands.describe(name="Name of the skin (e.g., 1337)")

@@ -621,8 +621,7 @@ async def clan_info(ctx: commands.Context) -> None:
 
         embed = discord.Embed(
             title=f"🏰 Clan Profile: {clan_data.get('name', CLAN_NAME)}",
-            description=f"
-```\n{desc}\n```",
+            description=f"```\n{desc}\n```",
             color=0xffd700,
             timestamp=datetime.now(timezone.utc),
         )

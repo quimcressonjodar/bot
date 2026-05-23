@@ -571,13 +571,11 @@ async def weekly_lb(ctx: commands.Context) -> None:
         current_chunk = report_header + "```ansi\n"
 
         for line in lines:
-            test_chunk = current_chunk + line + "\n
-```"
+            test_chunk = current_chunk + line + "\n```"
             if len(test_chunk) > 1900:
                 current_chunk += "```"
                 chunks.append(current_chunk)
-                current_chunk = "
-```ansi\n" + line + "\n"
+                current_chunk = "```ansi\n" + line + "\n"
             else:
                 current_chunk += line + "\n"
 

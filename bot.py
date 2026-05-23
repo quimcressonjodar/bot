@@ -401,10 +401,10 @@ async def top_clans(ctx: commands.Context):
 
 @bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails")
 async def flip(ctx: commands.Context):
-    # 1. Enviamos el mensaje inicial
-    msg = await ctx.send("Flipping the coin... 🪙")
+    # 1. Enviamos el mensaje inicial SIN el emoji
+    msg = await ctx.send("Flipping the coin...")
     
-    # 2. Recreamos la semilla de forma justa (te faltaba esta parte en tu código)
+    # 2. Recreamos la semilla de forma justa
     unique_id = str(ctx.interaction.id if ctx.interaction else ctx.message.id)
     seed_int = int(hashlib.sha256(unique_id.encode()).hexdigest(), 16)
     
@@ -412,10 +412,10 @@ async def flip(ctx: commands.Context):
     local_random = random.Random(seed_int)
     result = local_random.choice(["Heads", "Tails"])
     
-    # 4. Hacemos una micropausa de 1.5 segundos para darle emoción a la tirada
+    # 4. Hacemos una micropausa de 1.5 segundos para la intriga
     await asyncio.sleep(1.5)
     
-    # 5. Editamos el mensaje con el resultado final
+    # 5. Editamos el mensaje para que aparezca el emoji JUNTO al resultado
     await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
 @bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
 @app_commands.describe(name="Name of the skin (e.g., 1337)")

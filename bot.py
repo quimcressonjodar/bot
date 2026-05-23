@@ -55,14 +55,14 @@ HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
 
 class ClanClient:
     async def get_top_clans(self):
-    url = f"{self.api_base}/api/leaderboard/clan"
-    headers = {
-        "ApiKey": self.api_key,
-        "accept": "application/json"
-    }
+        url = f"{self.api_base}/api/leaderboard/clan"
+        headers = {
+            "ApiKey": self.api_key,
+            "accept": "application/json"
+        }
 
-    async with self.session.get(url, headers=headers) as r:
-        return await r.json()
+        async with self.session.get(url, headers=headers) as r:
+            return await r.json()
     def __init__(self, api_base: str, api_key: str):
         self.api_base = api_base.rstrip("/")
         self.api_key = api_key

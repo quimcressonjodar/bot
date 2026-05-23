@@ -432,7 +432,7 @@ async def item_lookup(interaction: discord.Interaction, name: str):
         if image_url:
             embed.set_image(url=image_url)
 
-        embed.set_footer(text="Data provided by Kirka.io • Price depends on demand")
+        embed.set_footer(text="Data provided by Kirka.io")
         await interaction.followup.send(embed=embed)
 
     except Exception as e:

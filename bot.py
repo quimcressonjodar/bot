@@ -444,23 +444,32 @@ async def eight_ball(ctx: commands.Context, question: str):
     
     await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="item", description="Check skin details, rarity, and rarity-based value")
-@app_commands.describe(name="Name of the skin (e.g., 1337)")
+@bot.hybrid_command(name="item", description="Check skin details with strict search")
+@app_commands.describe(name="Exact name of the skin (e.g., Nova)")
 async def item_lookup(ctx: commands.Context, name: str):
     await ctx.defer()
     try:
         url = f"{KIRKA_API_BASE}/api/inventory/items"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers={"ApiKey": KIRKA_API_KEY}) as r:
-                if r.status != 200:
-                    return await ctx.send("❌ Failed to connect to Kirka API.")
-                all_items = await r.json()
+        all_items = await bot.clan_client._request_json_with_retry("GET", url)
 
-        found_item = next((i for i in all_items if name.lower() in i.get('name', '').lower()), None)
+        # 1. BUSQUEDA ESTRICTA (Comparación exacta ignorando mayúsculas)
+        found_item = next((i for i in all_items if i.get('name', '').lower() == name.lower()), None)
 
+        # 2. SI NO HAY COINCIDENCIA EXACTA, BUSCAMOS PARECIDOS
         if not found_item:
-            return await ctx.send(f"🔍 Item '**{name}**' not found.")
+            # Filtramos todos los que contengan la palabra para sugerirlos
+            suggestions = [i.get('name') for i in all_items if name.lower() in i.get('name', '').lower()]
+            # Limitamos a las primeras 10 sugerencias para no llenar el chat
+            suggestions = suggestions[:10]
 
+            error_msg = f"🔍 **Item not found:** `{name}`"
+            if suggestions:
+                list_str = "\n".join([f"• {s}" for s in suggestions])
+                error_msg += f"\n\n**Did you mean one of these?**\n{list_str}"
+            
+            return await ctx.send(error_msg)
+
+        # 3. SI LO ENCONTRÓ (Continúa el código normal)
         item_name = found_item.get('name', 'Unknown')
         rarity = found_item.get('rarity', 'COMMON').upper()
         item_type = found_item.get('type', 'ITEM').replace('_', ' ')

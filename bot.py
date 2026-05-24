@@ -182,11 +182,35 @@ class PetSelectionView(discord.ui.View):
 
     def __init__(self, user, pets):
 
-        super().__init__(timeout=60)
+        super().__init__(timeout=300)
 
+        self.user = user
         self.selected_pet = None
+        self.message = None
 
         self.add_item(PetSelect(user, pets))
+
+    async def on_timeout(self):
+
+        for child in self.children:
+            child.disabled = True
+
+        embed = discord.Embed(
+            title="⌛ Battle Cancelled",
+            description=(
+                "The battle request expired due to inactivity.\n\n"
+                "No pet was selected in time."
+            ),
+            color=0xff0000
+        )
+
+        try:
+            await self.message.edit(
+                embed=embed,
+                view=self
+            )
+        except:
+            pass
 
 
 class ClanClient:
@@ -1900,29 +1924,31 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
         if balance < pet_data["price"]:
             return await ctx.send("❌ You don't have enough coins for this pet.", ephemeral=True)
 
-        pet_instance = {
-    "pet_id": str(uuid.uuid4()),
-    "type": pet_data["type"],
-    "hp": pet_data["hp"],
-    "damage": pet_data["damage"]
-}
+                pet_instance = {
+            "pet_id": str(uuid.uuid4()),
+            "type": pet_data["type"],
+            "hp": pet_data["hp"],
+            "damage": pet_data["damage"]
+        }
+
         pets_col.update_one(
-             {"_id": user_id},
+            {"_id": user_id},
             {
                 "$push": {
                     "pets": pet_instance
-             }
-        },
-        upsert=True
-)
+                }
+            },
+            upsert=True
+        )
 
-update_wallet(user_id, -pet_data["price"])
+        update_wallet(user_id, -pet_data["price"])
 
         embed = discord.Embed(
             title="🎉 Pet Adopted!",
             description=f"You successfully bought a {pet_data['emoji']} {pet_key.capitalize()}!\nUse `/battle` to fight other members.",
             color=0x00ff00
         )
+
         await ctx.send(embed=embed)
 @bot.hybrid_command(name="battle", description="Challenge another player")
 async def battle(ctx: commands.Context, opponent: discord.Member):

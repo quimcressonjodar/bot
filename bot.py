@@ -447,8 +447,11 @@ class BattleView(discord.ui.View):
                 ephemeral=True
             )
 
-        attacker_pet = pets_col.find_one({"_id": str(self.challenger.id)})
-        defender_pet = pets_col.find_one({"_id": str(self.opponent.id)})
+        attacker_data = pets_col.find_one({"_id": str(self.challenger.id)})
+        defender_data = pets_col.find_one({"_id": str(self.opponent.id)})
+
+        attacker_pet = attacker_data["pets"][0]
+        defender_pet = defender_data["pets"][0]
 
         attacker_power = attacker_pet["damage"] * random.uniform(0.8, 1.3)
         defender_power = defender_pet["damage"] * random.uniform(0.8, 1.3)
@@ -1899,34 +1902,54 @@ async def help_command(ctx: commands.Context):
 
     await ctx.send(embed=embed)
 @bot.hybrid_command(name="shop", description="View and buy animals for battle")
-@app_commands.describe(action="Choose 'view' to see the shop or 'buy' to purchase", pet_name="Name of the pet to buy")
+@app_commands.describe(
+    action="Choose 'view' to see the shop or 'buy' to purchase",
+    pet_name="Name of the pet to buy"
+)
 async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None):
+
     user_id = str(ctx.author.id)
 
     if action.lower() == "view":
-        embed = discord.Embed(title="🏪 Pet Shop", description="Welcome to the battle pet shop!", color=0x3498db)
+
+        embed = discord.Embed(
+            title="🏪 Pet Shop",
+            description="Welcome to the battle pet shop!",
+            color=0x3498db
+        )
+
         for name, stats in PET_SHOP.items():
+
             embed.add_field(
-                name=f"{stats['emoji']} {name.capitalize()} - 🪙 {stats['price']} coins",
-                value=f"HP: {stats['hp']} | Damage: {stats['damage']}",
+                name=f"{stats['emoji']} {name.capitalize()} - 🪙 {stats['price']:,}",
+                value=f"❤️ HP: {stats['hp']} | ⚔️ Damage: {stats['damage']}",
                 inline=False
             )
+
         return await ctx.send(embed=embed)
 
     elif action.lower() == "buy":
-        if not pet_name or pet_name.lower() not in PET_SHOP:
-            return await ctx.send("❌ Please specify a valid pet name from the shop.", ephemeral=True)
+
+        if not pet_name:
+            return await ctx.send("❌ Please specify a pet name.")
 
         pet_key = pet_name.lower()
+
+        if pet_key not in PET_SHOP:
+            return await ctx.send("❌ That pet does not exist.")
+
         pet_data = PET_SHOP[pet_key]
+
         balance = get_wallet(user_id)
 
         if balance < pet_data["price"]:
-            return await ctx.send("❌ You don't have enough coins for this pet.", ephemeral=True)
+            return await ctx.send(
+                f"❌ You need 🪙 {pet_data['price']:,} coins."
+            )
 
         pet_instance = {
             "pet_id": str(uuid.uuid4()),
-            "type": pet_data["type"],
+            "type": pet_key,
             "hp": pet_data["hp"],
             "damage": pet_data["damage"]
         }
@@ -1944,117 +1967,49 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
         update_wallet(user_id, -pet_data["price"])
 
         embed = discord.Embed(
-            title="🎉 Pet Adopted!",
-            description=f"You successfully bought a {pet_data['emoji']} {pet_key.capitalize()}!\nUse `/battle` to fight other members.",
+            title="🎉 Pet Purchased",
+            description=(
+                f"You bought a "
+                f"{pet_data['emoji']} "
+                f"**{pet_key.capitalize()}**!"
+            ),
             color=0x00ff00
         )
 
         await ctx.send(embed=embed)
-@bot.hybrid_command(name="battle", description="Challenge another player")
-async def battle(ctx: commands.Context, opponent: discord.Member):
 
-    if opponent.bot:
+        await ctx.send(embed=embed)
+@bot.hybrid_command(name="battle", description="Battle another member")
+@app_commands.describe(member="The member you want to fight")
+async def battle(ctx: commands.Context, member: discord.Member):
+
+    if member.bot:
         return await ctx.send("❌ You cannot battle bots.")
 
-    if opponent.id == ctx.author.id:
+    if member.id == ctx.author.id:
         return await ctx.send("❌ You cannot battle yourself.")
 
-    challenger_data = pets_col.find_one({"_id": str(ctx.author.id)})
-    opponent_data = pets_col.find_one({"_id": str(opponent.id)})
+    attacker_data = pets_col.find_one({"_id": str(ctx.author.id)})
+    defender_data = pets_col.find_one({"_id": str(member.id)})
 
-    if not challenger_data or not challenger_data.get("pets"):
+    if not attacker_data or not attacker_data.get("pets"):
         return await ctx.send("❌ You don't own any pets.")
 
-    if not opponent_data or not opponent_data.get("pets"):
-        return await ctx.send("❌ This user has no pets.")
+    if not defender_data or not defender_data.get("pets"):
+        return await ctx.send("❌ That user doesn't own any pets.")
 
-    challenger_view = PetSelectionView(
-        ctx.author,
-        challenger_data["pets"]
-    )
-
-    opponent_view = PetSelectionView(
-        opponent,
-        opponent_data["pets"]
-    )
-
-    embed1 = discord.Embed(
-        title="🐾 Choose Your Pet",
-        description="Select the pet you'll send into battle.",
-        color=0x00ff99
-    )
-
-    await ctx.send(
-        content=ctx.author.mention,
-        embed=embed1,
-        view=challenger_view
-    )
-
-    embed2 = discord.Embed(
-        title="⚔️ Battle Request",
-        description=(
-            f"{ctx.author.mention} challenged you.\n"
-            f"Choose your fighter."
-        ),
-        color=0xff9900
-    )
-
-    await ctx.send(
-        content=opponent.mention,
-        embed=embed2,
-        view=opponent_view
-    )
-
-    await asyncio.sleep(15)
-
-    if not challenger_view.selected_pet:
-        return await ctx.send("❌ Challenger didn't select a pet.")
-
-    if not opponent_view.selected_pet:
-        return await ctx.send("❌ Opponent didn't select a pet.")
-
-    pet1 = challenger_view.selected_pet
-    pet2 = opponent_view.selected_pet
-
-    pet1_power = pet1["damage"] * random.uniform(0.8, 1.4)
-    pet2_power = pet2["damage"] * random.uniform(0.8, 1.4)
-
-    battle_events = [
-        "🌩️ Thunder crashes across the arena.",
-        "🔥 Lava erupts beneath the fighters.",
-        "⚡ Electricity surges through the battlefield.",
-        "☠️ Ancient spirits awaken nearby.",
-        "🌪️ Violent winds shake the arena."
-    ]
-
-    event = random.choice(battle_events)
-
-    if pet1_power > pet2_power:
-        winner = ctx.author
-        winning_pet = pet1
-    else:
-        winner = opponent
-        winning_pet = pet2
-
-    reward = random.randint(500, 1200)
-
-    update_wallet(str(winner.id), reward)
+    view = BattleView(ctx.author, member)
 
     embed = discord.Embed(
-        title="⚔️ EPIC PET BATTLE",
+        title="⚔️ Pet Battle Request",
         description=(
-            f"{event}\n\n"
-            f"🐾 {ctx.author.display_name} used **{pet1['type'].capitalize()}**\n"
-            f"🐾 {opponent.display_name} used **{pet2['type'].capitalize()}**\n\n"
-            f"💥 The battle shakes the entire arena...\n\n"
-            f"👑 Winner: {winner.mention}\n"
-            f"🏆 Winning Pet: **{winning_pet['type'].capitalize()}**\n"
-            f"💰 Prize: 🪙 {reward:,}"
+            f"{member.mention}, "
+            f"{ctx.author.mention} challenged you to a pet battle!"
         ),
-        color=0xff4500
+        color=0xff5500
     )
 
-    await ctx.send(embed=embed)
+    await ctx.send(embed=embed, view=view)
 
 @battle.error
 async def battle_error(ctx: commands.Context, error):
@@ -2062,7 +2017,7 @@ async def battle_error(ctx: commands.Context, error):
         minutes = int(error.retry_after // 60)
         seconds = int(error.retry_after % 60)
         await ctx.send(f"⏳ Your pet is resting. Try again in {minutes}m {seconds}s.", ephemeral=True)
-@bot.hybrid_command(name="pets", description="View your pet collection")
+@bot.hybrid_command(name="pets", description="View your pets")
 async def pets(ctx: commands.Context):
 
     data = pets_col.find_one({"_id": str(ctx.author.id)})
@@ -2072,20 +2027,19 @@ async def pets(ctx: commands.Context):
 
     embed = discord.Embed(
         title=f"🐾 {ctx.author.display_name}'s Pets",
-        color=0x00ff99
+        color=0x3498db
     )
 
-    description = ""
+    for pet in data["pets"]:
 
-    for index, pet in enumerate(data["pets"], start=1):
-
-        description += (
-            f"**{index}. {pet['type'].capitalize()}**\n"
-            f"❤️ HP: {pet['hp']}\n"
-            f"⚔️ Damage: {pet['damage']}\n\n"
+        embed.add_field(
+            name=f"🐾 {pet['type'].capitalize()}",
+            value=(
+                f"❤️ HP: {pet['hp']}\n"
+                f"⚔️ Damage: {pet['damage']}"
+            ),
+            inline=False
         )
-
-    embed.description = description
 
     await ctx.send(embed=embed)
 

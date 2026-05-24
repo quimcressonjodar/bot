@@ -139,45 +139,87 @@ PET_SHOP = {
 }
 
 class PetSelect(discord.ui.Select):
-
-    def __init__(self, user, pets):
-
-        self.user = user
-        self.pets = pets
-
-        options = []
-
-        for index, pet in enumerate(pets):
-
-            options.append(
-                discord.SelectOption(
-                    label=f"{pet['type'].capitalize()}",
-                    description=f"HP {pet['hp']} | DMG {pet['damage']}",
-                    value=str(index)
-                )
-            )
-
-        super().__init__(
-            placeholder="Choose your pet...",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
+    def __init__(self, player, pets, view):
+        self.player = player
+        self.view_ref = view
+        options = [
+            discord.SelectOption(
+                label=f"{p['type'].capitalize()} (HP: {p['hp']} | DMG: {p['damage']})",
+                value=p['id'],
+                description=f"ID: {p['id'][:8]}..."
+            ) for p in pets[:25]
+        ]
+        super().__init__(placeholder=f"{player.display_name}, choose your pet!", options=options)
 
     async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.player.id:
+            return await interaction.response.send_message("This is not your turn to select!", ephemeral=True)
 
-        if interaction.user.id != self.user.id:
-            return await interaction.response.send_message(
-                "❌ This menu isn't for you.",
-                ephemeral=True
-            )
+        # Store choice
+        if self.player.id == self.view_ref.p1.id:
+            self.view_ref.p1_choice = self.values[0]
+        else:
+            self.view_ref.p2_choice = self.values[0]
 
-        self.view.selected_pet = self.pets[int(self.values[0])]
+        await interaction.response.send_message(f"✅ You selected your pet!", ephemeral=True)
 
-        await interaction.response.send_message(
-            f"✅ Selected **{self.view.selected_pet['type'].capitalize()}**",
-            ephemeral=True
+        # Check if both have selected
+        if self.view_ref.p1_choice and self.view_ref.p2_choice:
+            await self.resolve_battle(interaction)
+
+    async def resolve_battle(self, interaction: discord.Interaction):
+        # 1. Fetch full pet data from DB
+        p1_data = pets_col.find_one({"_id": str(self.view_ref.p1.id)})
+        p2_data = pets_col.find_one({"_id": str(self.view_ref.p2.id)})
+
+        pet1 = next(p for p in p1_data['pets'] if p['id'] == self.view_ref.p1_choice)
+        pet2 = next(p for p in p2_data['pets'] if p['id'] == self.view_ref.p2_choice)
+
+        # 2. Battle Simulation
+        hp1, dmg1 = pet1['hp'], pet1['damage']
+        hp2, dmg2 = pet2['hp'], pet2['damage']
+        
+        log = []
+        turn = 1
+        while hp1 > 0 and hp2 > 0 and turn <= 10:
+            # Player 1 attacks
+            hit1 = random.randint(int(dmg1*0.8), int(dmg1*1.2))
+            hp2 -= hit1
+            log.append(f"💥 **{self.view_ref.p1.display_name}'s {pet1['type']}** hits for **{hit1}**!")
+            
+            if hp2 <= 0: break
+
+            # Player 2 attacks
+            hit2 = random.randint(int(dmg2*0.8), int(dmg2*1.2))
+            hp1 -= hit2
+            log.append(f"💥 **{self.view_ref.p2.display_name}'s {pet2['type']}** hits for **{hit2}**!")
+            turn += 1
+
+        # 3. Determine Winner
+        winner = None
+        reward = random.randint(100, 300)
+
+        if hp1 > hp2:
+            winner = self.view_ref.p1
+            eco_col.update_one({"_id": str(winner.id)}, {"$inc": {"wallet": reward}})
+        elif hp2 > hp1:
+            winner = self.view_ref.p2
+            eco_col.update_one({"_id": str(winner.id)}, {"$inc": {"wallet": reward}})
+
+        # 4. Final Result Embed
+        embed = discord.Embed(
+            title="⚔️ Battle Result",
+            description="\n".join(log[-6:]), # Show last 6 turns
+            color=discord.Color.gold()
         )
+        
+        if winner:
+            embed.add_field(name="🏆 Winner", value=f"{winner.mention} won the battle and received **{reward} coins**!")
+        else:
+            embed.add_field(name="🤝 Draw", value="The battle ended in a tie!")
+
+        # Update the original message to remove buttons/selects and show result
+        await interaction.message.edit(content="🏁 The battle has ended!", embed=embed, view=None)
 class PetSelectionView(discord.ui.View):
 
     def __init__(self, user, pets):
@@ -431,84 +473,33 @@ class WeeklyXPBot(commands.Bot):
         await self.clan_client.close()
         await super().close()
 class BattleView(discord.ui.View):
-
-    def __init__(self, challenger, opponent):
+    def __init__(self, p1, p2):
         super().__init__(timeout=60)
+        self.p1 = p1
+        self.p2 = p2
+        self.p1_choice = None
+        self.p2_choice = None
 
-        self.challenger = challenger
-        self.opponent = opponent
+    @discord.ui.button(label="Accept Challenge", style=discord.ButtonStyle.green)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.p2.id:
+            return await interaction.response.send_message("Only the challenged person can accept!", ephemeral=True)
 
-    @discord.ui.button(label="⚔ Accept Battle", style=discord.ButtonStyle.green)
-    async def accept(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+        # Remove the accept button and show selection menus
+        self.clear_items()
+        
+        p1_pets = pets_col.find_one({"_id": str(self.p1.id)})
+        p2_pets = pets_col.find_one({"_id": str(self.p2.id)})
 
-        if interaction.user != self.opponent:
-            return await interaction.response.send_message(
-                "❌ This is not your battle request.",
-                ephemeral=True
-            )
+        if not p1_pets or not p1_pets.get("pets"):
+            return await interaction.response.send_message(f"{self.p1.display_name} doesn't have any pets!", ephemeral=True)
+        if not p2_pets or not p2_pets.get("pets"):
+            return await interaction.response.send_message(f"You don't have any pets!", ephemeral=True)
 
-        challenger_data = pets_col.find_one(
-            {"_id": str(self.challenger.id)}
-        )
+        self.add_item(PetSelect(self.p1, p1_pets['pets'], self))
+        self.add_item(PetSelect(self.p2, p2_pets['pets'], self))
 
-        opponent_data = pets_col.find_one(
-            {"_id": str(self.opponent.id)}
-        )
-
-        challenger_view = PetSelectionView(
-            self.challenger,
-            challenger_data["pets"]
-        )
-
-        await interaction.response.send_message(
-            f"{self.challenger.mention}, choose your pet!",
-            view=challenger_view
-        )
-
-        await challenger_view.wait()
-
-        opponent_view = PetSelectionView(
-            self.opponent,
-            opponent_data["pets"]
-        )
-
-        await interaction.followup.send(
-            f"{self.opponent.mention}, choose your pet!",
-            view=opponent_view
-        )
-
-        await opponent_view.wait()
-
-        attacker_pet = challenger_view.selected_pet
-        defender_pet = opponent_view.selected_pet
-
-        # RESTO DE TU CÓDIGO DE BATALLA
-
-    # RESTO DE TU CÓDIGO DE BATALLA AQUÍ)
-
-    @discord.ui.button(label="Decline", style=discord.ButtonStyle.red, emoji="❌")
-    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        if interaction.user.id != self.opponent.id:
-            return await interaction.response.send_message(
-                "❌ This is not your battle request.",
-                ephemeral=True
-            )
-
-        embed = discord.Embed(
-            title="❌ Battle Declined",
-            description=f"{self.opponent.mention} declined the battle request.",
-            color=0xff0000
-        )
-
-        for child in self.children:
-            child.disabled = True
-
-        await interaction.response.edit_message(embed=embed, view=self)
+        await interaction.response.edit_message(content="**Selection Phase:** Both players must choose their pet!", view=self)
 
 
 class TopClansPagination(discord.ui.View):

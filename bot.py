@@ -255,6 +255,7 @@ class WeeklyXPBot(commands.Bot):
             intents=intents,
             status=discord.Status.online,
             activity=discord.Game(name="Kirka.io 🏆")
+            help_command=None
         )
         self.clan_client = clan_client
 
@@ -759,6 +760,43 @@ async def rps(ctx: commands.Context):
     )
     view = RPSView(ctx.author)
     await ctx.send(embed=embed, view=view)
+@bot.hybrid_command(name="help", description="Show all available commands")
+async def help_command(ctx: commands.Context):
+    embed = discord.Embed(
+        title="🏆 Kirka.io Bot | Command List",
+        description="Here is a list of all available commands to manage the clan and have fun! 🎮",
+        color=0x2b2d31 # Color oscuro elegante de Discord
+    )
+
+    # Comandos Públicos
+    public_cmds = (
+        "**`/top_clans`** - View the global Kirka.io top clans leaderboard.\n"
+        "**`/clan_info`** - View detailed statistics and info for our clan.\n"
+        "**`/item [name]`** - Check a skin's rarity, global supply, and market value.\n"
+        "**`/flip`** - Flip a coin (Heads or Tails).\n"
+        "**`/8ball [question]`** - Ask the magic 8-ball a question.\n"
+        "**`/rps`** - Play Rock, Paper, Scissors against the bot."
+    )
+    embed.add_field(name="🌍 Public Commands", value=public_cmds, inline=False)
+
+    # Comandos de Administrador
+    admin_cmds = (
+        "**`/register_monday`** - Save the clan's XP baseline (Monday).\n"
+        "**`/register_sunday`** - Save the clan's XP snapshot (Sunday).\n"
+        "**`/weekly_lb`** - Generate the weekly XP leaderboard.\n"
+        "**`/set_xp [xp]`** - Update the weekly XP requirement.\n"
+        "**`/delete_snaps`** - Clear the saved weekly snapshots.\n"
+        "**`/say [msg]`** - Make the bot repeat your message."
+    )
+    embed.add_field(name="🛡️ Admin Commands", value=admin_cmds, inline=False)
+
+    # Footer con el contacto de bugs
+    embed.set_footer(
+        text="🐛 Found a bug or have an issue? Contact: @clxzon_", 
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.send(embed=embed)
 
 
 @bot.hybrid_command(name="delete_snaps", description="Delete Monday and Sunday snapshots")

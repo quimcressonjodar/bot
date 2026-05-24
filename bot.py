@@ -458,6 +458,13 @@ def parse_duration(duration_str: str):
 async def ban(ctx: commands.Context, member: discord.Member, reason: str = "No reason provided"):
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
+    
+    # Intentamos enviar el MD antes de banear
+    try:
+        await member.send(f"🔨 You have been **banned** from **{ctx.guild.name}**.\n**Reason:** {reason}")
+    except discord.Forbidden:
+        pass # Si tiene los MDs cerrados, simplemente lo ignoramos y seguimos
+        
     try:
         await member.ban(reason=reason)
         await ctx.send(f"🔨 **{member.name}** has been permanently banned. Reason: {reason}")
@@ -483,6 +490,13 @@ async def unban(ctx: commands.Context, user_id: str):
 async def kick(ctx: commands.Context, member: discord.Member, reason: str = "No reason provided"):
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
+    
+    # Intentamos enviar el MD antes de expulsar
+    try:
+        await member.send(f"👢 You have been **kicked** from **{ctx.guild.name}**.\n**Reason:** {reason}")
+    except discord.Forbidden:
+        pass
+        
     try:
         await member.kick(reason=reason)
         await ctx.send(f"👢 **{member.name}** has been kicked from the server. Reason: {reason}")
@@ -499,6 +513,12 @@ async def timeout(ctx: commands.Context, member: discord.Member, duration: str, 
     time_delta = parse_duration(duration)
     if not time_delta:
         return await ctx.send("❌ Invalid duration format! Use formats like `10m` (minutes), `2h` (hours), or `1d` (days).", ephemeral=True)
+    
+    # Intentamos enviar el MD antes de aplicar el timeout
+    try:
+        await member.send(f"🔇 You have been **timed out** in **{ctx.guild.name}** for `{duration}`.\n**Reason:** {reason}")
+    except discord.Forbidden:
+        pass # Si tiene los MDs cerrados, simplemente lo ignoramos y seguimos
     
     try:
         await member.timeout(time_delta, reason=reason)
@@ -608,6 +628,12 @@ async def warn(ctx: commands.Context, member: discord.Member, reason: str):
     }
     warns_data[user_id].append(new_warn)
     save_warns(warns_data)
+    
+    # Intentamos enviar el MD para avisarle del Warn
+    try:
+        await member.send(f"⚠️ You received a **warning** in **{ctx.guild.name}**.\n**Reason:** {reason}\n*You now have {len(warns_data[user_id])} warnings.*")
+    except discord.Forbidden:
+        pass
     
     embed = discord.Embed(
         title="⚠️ Member Warned",

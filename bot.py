@@ -22,20 +22,62 @@ pets_col = db["pets"]
 warns_col = db["warns"]
 snaps_col = db["snapshots"]
 eco_col = db["economy"]
-def get_balance(user_id: str) -> int:
-    """Gets the balance of a user. If it doesn't exist, returns 0."""
+def get_user_data(user_id: str):
     user = eco_col.find_one({"_id": user_id})
-    return user["balance"] if user else 0
 
-def update_balance(user_id: str, amount: int) -> int:
-    """Adds or subtracts money and returns the new balance."""
-    result = eco_col.find_one_and_update(
+    if not user:
+        user = {
+            "_id": user_id,
+            "wallet": 0,
+            "bank": 0
+        }
+        eco_col.insert_one(user)
+
+    # MIGRACIÓN automática del antiguo balance
+    if "balance" in user:
+        wallet_amount = user.get("balance", 0)
+
+        eco_col.update_one(
+            {"_id": user_id},
+            {
+                "$set": {
+                    "wallet": wallet_amount,
+                    "bank": 0
+                },
+                "$unset": {
+                    "balance": ""
+                }
+            }
+        )
+
+        user["wallet"] = wallet_amount
+        user["bank"] = 0
+
+    return user
+
+
+def get_wallet(user_id: str) -> int:
+    return get_user_data(user_id)["wallet"]
+
+
+def get_bank(user_id: str) -> int:
+    return get_user_data(user_id)["bank"]
+
+
+def update_wallet(user_id: str, amount: int):
+    eco_col.update_one(
         {"_id": user_id},
-        {"$inc": {"balance": amount}},
-        upsert=True,
-        return_document=pymongo.ReturnDocument.AFTER
+        {"$inc": {"wallet": amount}},
+        upsert=True
     )
-    return result["balance"]
+
+
+def update_bank(user_id: str, amount: int):
+    eco_col.update_one(
+        {"_id": user_id},
+        {"$inc": {"bank": amount}},
+        upsert=True
+    )
 
 try:
     from tabulate import tabulate
@@ -313,6 +355,95 @@ class WeeklyXPBot(commands.Bot):
     async def close(self) -> None:
         await self.clan_client.close()
         await super().close()
+class BattleView(discord.ui.View):
+
+    def __init__(self, challenger, opponent):
+        super().__init__(timeout=60)
+
+        self.challenger = challenger
+        self.opponent = opponent
+
+    @discord.ui.button(label="Accept Battle", style=discord.ButtonStyle.green, emoji="⚔️")
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if interaction.user.id != self.opponent.id:
+            return await interaction.response.send_message(
+                "❌ This is not your battle request.",
+                ephemeral=True
+            )
+
+        attacker_pet = pets_col.find_one({"_id": str(self.challenger.id)})
+        defender_pet = pets_col.find_one({"_id": str(self.opponent.id)})
+
+        attacker_power = attacker_pet["damage"] * random.uniform(0.8, 1.3)
+        defender_power = defender_pet["damage"] * random.uniform(0.8, 1.3)
+
+        battle_events = [
+            "🌩️ A thunderstorm shakes the arena.",
+            "🔥 The battlefield erupts in flames.",
+            "🌑 Darkness surrounds both pets.",
+            "⚡ Electric energy surges through the arena.",
+            "❄️ A freezing wind slows everyone down.",
+            "☠️ Ancient spirits awaken beneath the battlefield."
+        ]
+
+        event = random.choice(battle_events)
+
+        attacker_hits = defender_pet["hp"] / attacker_power
+        defender_hits = attacker_pet["hp"] / defender_power
+
+        if attacker_hits <= defender_hits:
+            winner = self.challenger
+            loser = self.opponent
+            winning_pet = attacker_pet
+        else:
+            winner = self.opponent
+            loser = self.challenger
+            winning_pet = defender_pet
+
+        reward = random.randint(300, 900)
+
+        update_wallet(str(winner.id), reward)
+
+        embed = discord.Embed(
+            title="⚔️ EPIC PET BATTLE",
+            description=(
+                f"{event}\n\n"
+                f"🐾 **{self.challenger.display_name}** summoned **{attacker_pet['type'].capitalize()}**\n"
+                f"🐾 **{self.opponent.display_name}** summoned **{defender_pet['type'].capitalize()}**\n\n"
+                f"💥 The arena explodes with chaos...\n"
+                f"🩸 Both pets fight with everything they have...\n\n"
+                f"👑 **Winner:** {winner.mention}\n"
+                f"🏆 Pet: **{winning_pet['type'].capitalize()}**\n"
+                f"💰 Reward: 🪙 {reward:,}"
+            ),
+            color=0xff4500
+        )
+
+        for child in self.children:
+            child.disabled = True
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Decline", style=discord.ButtonStyle.red, emoji="❌")
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if interaction.user.id != self.opponent.id:
+            return await interaction.response.send_message(
+                "❌ This is not your battle request.",
+                ephemeral=True
+            )
+
+        embed = discord.Embed(
+            title="❌ Battle Declined",
+            description=f"{self.opponent.mention} declined the battle request.",
+            color=0xff0000
+        )
+
+        for child in self.children:
+            child.disabled = True
+
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
 class TopClansPagination(discord.ui.View):
@@ -824,41 +955,144 @@ async def avatar(ctx: commands.Context, member: discord.Member = None):
     embed.set_image(url=target.display_avatar.url)
     await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="balance", aliases=["bal"], description="Check how many coins you have")
+@bot.hybrid_command(name="balance", aliases=["bal"], description="Check your economy profile")
 async def balance(ctx: commands.Context, member: discord.Member = None):
     target = member or ctx.author
-    money = get_balance(str(target.id))
-    
+
+    wallet = get_wallet(str(target.id))
+    bank = get_bank(str(target.id))
+
+    total = wallet + bank
+
     embed = discord.Embed(
-        title=f"💳 {target.display_name}'s Account",
-        description=f"Current balance: 🪙 {money:,} coins",
+        title=f"💳 {target.display_name}'s Economy",
         color=0x2b2d31
     )
-    await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="work", description="Work to earn some coins")
-@commands.cooldown(1, 3600, commands.BucketType.user)
-async def work(ctx: commands.Context):
-    earnings = random.randint(100, 400)
-    
-    jobs = [
-        "made a custom CSS theme for a game UI and got paid",
-        "went for a run with music blasting and found on the ground",
-        "programmed a super complex Python event and the client gave you",
-        "sold lemonade at your front door and made",
-        "mined crypto with your toaster and earned"
-    ]
-    
-    reason = random.choice(jobs)
-    new_balance = update_balance(str(ctx.author.id), earnings)
-    
+    embed.add_field(
+        name="💵 Wallet",
+        value=f"🪙 {wallet:,}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="🏦 Bank",
+        value=f"🪙 {bank:,}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="📈 Total Net Worth",
+        value=f"🪙 {total:,}",
+        inline=False
+    )
+
+    embed.set_thumbnail(url=target.display_avatar.url)
+
+    await ctx.send(embed=embed)
+@bot.hybrid_command(name="deposit", aliases=["dep"], description="Deposit coins into your bank")
+async def deposit(ctx: commands.Context, amount: str):
+    user_id = str(ctx.author.id)
+
+    wallet = get_wallet(user_id)
+
+    if amount.lower() == "all":
+        amount = wallet
+    else:
+        try:
+            amount = int(amount)
+        except:
+            return await ctx.send("❌ Invalid amount.", ephemeral=True)
+
+    if amount <= 0:
+        return await ctx.send("❌ Amount must be positive.", ephemeral=True)
+
+    if amount > wallet:
+        return await ctx.send("❌ You don't have enough coins.", ephemeral=True)
+
+    update_wallet(user_id, -amount)
+    update_bank(user_id, amount)
+
     embed = discord.Embed(
-        title="💼 Payday!",
-        description=f"Well done! Today you {reason} 🪙 {earnings} coins.\n\nYou now have {new_balance:,} coins in total.",
+        title="🏦 Deposit Successful",
+        description=f"You deposited 🪙 {amount:,} coins into your bank.",
         color=0x00ff00
     )
+
+    await ctx.send(embed=embed)
+@bot.hybrid_command(name="withdraw", aliases=["with"], description="Withdraw coins from your bank")
+async def withdraw(ctx: commands.Context, amount: str):
+    user_id = str(ctx.author.id)
+
+    bank = get_bank(user_id)
+
+    if amount.lower() == "all":
+        amount = bank
+    else:
+        try:
+            amount = int(amount)
+        except:
+            return await ctx.send("❌ Invalid amount.", ephemeral=True)
+
+    if amount <= 0:
+        return await ctx.send("❌ Amount must be positive.", ephemeral=True)
+
+    if amount > bank:
+        return await ctx.send("❌ You don't have enough bank coins.", ephemeral=True)
+
+    update_bank(user_id, -amount)
+    update_wallet(user_id, amount)
+
+    embed = discord.Embed(
+        title="💸 Withdrawal Successful",
+        description=f"You withdrew 🪙 {amount:,} coins from your bank.",
+        color=0x3498db
+    )
+
     await ctx.send(embed=embed)
 
+@bot.hybrid_command(name="work", description="Work to earn coins")
+@commands.cooldown(1, 2700, commands.BucketType.user) # 45 mins
+async def work(ctx: commands.Context):
+
+    earnings = random.randint(250, 800)
+
+    jobs = [
+        "developed a futuristic Discord bot for a billionaire",
+        "won a late-night poker tournament",
+        "repaired a military drone for a secret agency",
+        "hacked into an abandoned crypto vault",
+        "worked overtime at a cyberpunk nightclub",
+        "delivered illegal space tacos across the galaxy",
+        "streamed games for 14 hours straight",
+        "sold rare dragon eggs on the black market",
+        "worked as a bodyguard for a mafia boss",
+        "found ancient treasure hidden underground",
+        "completed dangerous bounty hunter missions",
+        "managed a shady underground casino",
+        "worked at a futuristic AI laboratory",
+        "helped a millionaire recover lost crypto",
+        "participated in illegal street races",
+        "sold enchanted weapons to traveling merchants",
+        "worked as a mercenary during clan wars",
+        "created viral memes that exploded online",
+        "found money hidden behind a vending machine",
+        "worked at a haunted hotel overnight"
+    ]
+
+    reason = random.choice(jobs)
+
+    update_wallet(str(ctx.author.id), earnings)
+
+    embed = discord.Embed(
+        title="💼 Work Complete",
+        description=f"You {reason} and earned 🪙 **{earnings:,}** coins.",
+        color=0x00ff99
+    )
+
+    embed.set_footer(text="Come back in 45 minutes for another shift.")
+
+    await ctx.send(embed=embed)
 @work.error
 async def work_error(ctx: commands.Context, error):
     if isinstance(error, commands.CommandOnCooldown):
@@ -947,41 +1181,78 @@ async def pay(ctx: commands.Context, member: discord.Member, amount: int):
     )
     await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="rob", description="Try to steal coins from another member")
+@bot.hybrid_command(name="rob", description="Attempt to rob another member")
 @commands.cooldown(1, 7200, commands.BucketType.user)
 async def rob(ctx: commands.Context, member: discord.Member):
+
     thief_id = str(ctx.author.id)
     target_id = str(member.id)
-    
+
     if thief_id == target_id:
         return await ctx.send("❌ You cannot rob yourself.", ephemeral=True)
-        
-    target_balance = get_balance(target_id)
-    if target_balance < 100:
-        return await ctx.send("❌ This user is too poor to rob.", ephemeral=True)
-        
+
+    target_wallet = get_wallet(target_id)
+
+    if target_wallet < 300:
+        return await ctx.send("❌ This user doesn't have enough wallet coins to rob.", ephemeral=True)
+
+    success_messages = [
+        "jumped through a window like a movie thief",
+        "pickpocketed them during a crowded concert",
+        "used fake security credentials to access their vault",
+        "escaped through the rooftops after the robbery",
+        "executed the perfect stealth mission",
+        "used smoke grenades and escaped unseen",
+        "hacked their crypto wallet remotely"
+    ]
+
+    fail_messages = [
+        "tripped the alarm system",
+        "got caught by security cameras",
+        "accidentally robbed a police officer",
+        "left fingerprints everywhere",
+        "triggered laser security defenses",
+        "was betrayed by your getaway driver",
+        "got tackled by bodyguards"
+    ]
+
     success = random.choice([True, False])
-    
+
     if success:
-        stolen = random.randint(10, int(target_balance * 0.3))
-        update_balance(target_id, -stolen)
-        new_balance = update_balance(thief_id, stolen)
-        
+
+        stolen = random.randint(150, int(target_wallet * 0.35))
+
+        update_wallet(target_id, -stolen)
+        update_wallet(thief_id, stolen)
+
+        msg = random.choice(success_messages)
+
         embed = discord.Embed(
-            title="🥷 Robbery Successful!",
-            description=f"You sneaked in and stole 🪙 {stolen:,} coins from {member.display_name}!\nYou now have 🪙 {new_balance:,}.",
+            title="🥷 Successful Robbery",
+            description=(
+                f"You {msg}.\n\n"
+                f"You stole 🪙 **{stolen:,}** from {member.mention}."
+            ),
             color=0x00ff00
         )
+
     else:
-        fine = random.randint(50, 200)
-        new_balance = update_balance(thief_id, -fine)
-        
+
+        fine = random.randint(150, 500)
+
+        update_wallet(thief_id, -fine)
+
+        msg = random.choice(fail_messages)
+
         embed = discord.Embed(
-            title="👮 Busted!",
-            description=f"You got caught trying to rob {member.display_name} and paid a fine of 🪙 {fine:,} coins.\nYou now have 🪙 {new_balance:,}.",
+            title="🚨 Robbery Failed",
+            description=(
+                f"You {msg}.\n\n"
+                f"You paid a fine of 🪙 **{fine:,}**."
+            ),
             color=0xff0000
         )
-        
+
     await ctx.send(embed=embed)
 
 @rob.error
@@ -1517,42 +1788,53 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
             color=0x00ff00
         )
         await ctx.send(embed=embed)
-@bot.hybrid_command(name="battle", description="Challenge another member to a pet battle")
-@app_commands.describe(opponent="The member you want to fight")
-@commands.cooldown(1, 300, commands.BucketType.user)
+@bot.hybrid_command(name="battle", description="Challenge another player to an epic pet battle")
 async def battle(ctx: commands.Context, opponent: discord.Member):
-    attacker_id = str(ctx.author.id)
-    defender_id = str(opponent.id)
 
-    if attacker_id == defender_id:
+    if opponent.bot:
+        return await ctx.send("❌ You cannot battle bots.", ephemeral=True)
+
+    if opponent.id == ctx.author.id:
         return await ctx.send("❌ You cannot battle yourself.", ephemeral=True)
 
-    attacker_pet = pets_col.find_one({"_id": attacker_id})
-    defender_pet = pets_col.find_one({"_id": defender_id})
+    attacker_pet = pets_col.find_one({"_id": str(ctx.author.id)})
+    defender_pet = pets_col.find_one({"_id": str(opponent.id)})
 
     if not attacker_pet:
-        return await ctx.send("❌ You need to buy a pet from the `/shop` first.", ephemeral=True)
+        return await ctx.send("❌ You need a pet first. Use `/shop buy`.", ephemeral=True)
+
     if not defender_pet:
-        return await ctx.send("❌ Your opponent doesn't have a pet yet.", ephemeral=True)
+        return await ctx.send("❌ This user doesn't own a pet.", ephemeral=True)
 
-    attacker_power = attacker_pet["damage"] * random.uniform(0.8, 1.2)
-    defender_power = defender_pet["damage"] * random.uniform(0.8, 1.2)
+    embed = discord.Embed(
+        title="⚔️ Battle Challenge",
+        description=(
+            f"{ctx.author.mention} has challenged {opponent.mention} to a legendary pet battle.\n\n"
+            f"🔥 Only one pet will dominate the arena.\n"
+            f"⚡ Accept the challenge below."
+        ),
+        color=0xff9900
+    )
 
-    attacker_hits = defender_pet["hp"] / attacker_power
-    defender_hits = attacker_pet["hp"] / defender_power
+    embed.add_field(
+        name="🐾 Challenger Pet",
+        value=attacker_pet["type"].capitalize(),
+        inline=True
+    )
 
-    embed = discord.Embed(title="⚔️ Pet Battle!", color=0xff4500)
-    
-    if attacker_hits <= defender_hits:
-        prize = random.randint(100, 300)
-        update_balance(attacker_id, prize)
-        embed.description = f"{ctx.author.display_name}'s {attacker_pet['type']} defeated {opponent.display_name}'s {defender_pet['type']}!\n\nYou earned 🪙 {prize} coins."
-    else:
-        prize = random.randint(100, 300)
-        update_balance(defender_id, prize)
-        embed.description = f"{opponent.display_name}'s {defender_pet['type']} defeated {ctx.author.display_name}'s {attacker_pet['type']}!\n\nThey earned 🪙 {prize} coins."
+    embed.add_field(
+        name="🐾 Opponent Pet",
+        value=defender_pet["type"].capitalize(),
+        inline=True
+    )
 
-    await ctx.send(embed=embed)
+    view = BattleView(ctx.author, opponent)
+
+    await ctx.send(
+        content=opponent.mention,
+        embed=embed,
+        view=view
+    )
 
 @battle.error
 async def battle_error(ctx: commands.Context, error):
@@ -1560,24 +1842,24 @@ async def battle_error(ctx: commands.Context, error):
         minutes = int(error.retry_after // 60)
         seconds = int(error.retry_after % 60)
         await ctx.send(f"⏳ Your pet is resting. Try again in {minutes}m {seconds}s.", ephemeral=True)
-@bot.hybrid_command(name="mypets", description="View your owned pets")
+@bot.hybrid_command(name="mypets", description="Mira las mascotas que tienes")
 async def mypets(ctx: commands.Context) -> None:
-    user_id_str = str(ctx.author.id)
-    user_id_int = ctx.author.id
-    
-    user_pets = list(pets_col.find({"_id": {"$in": [user_id_str, user_id_int]}}))
+    # Buscamos todas las mascotas que pertenecen al usuario
+    user_pets = list(pets_col.find({"owner_id": str(ctx.author.id)}))
     
     if not user_pets:
-        await ctx.send("You don't have any pets yet. Go get one!", ephemeral=True)
+        await ctx.send("No tienes ninguna mascota todavía. ¡Ve a conseguir una!", ephemeral=True)
         return
 
-    embed = discord.Embed(title=f"🐾 {ctx.author.display_name}'s Pets", color=discord.Color.blue())
+    # Creamos un embed para mostrar la lista
+    embed = discord.Embed(title=f"🐾 Mascotas de {ctx.author.display_name}", color=discord.Color.blue())
     
     description = ""
     for i, pet in enumerate(user_pets, 1):
-        pet_type = pet.get('type', 'Unknown')
+        # Asegúrate de que el documento en MongoDB tenga los campos 'type' y 'level'
+        pet_type = pet.get('type', 'Desconocida')
         pet_level = pet.get('level', 1)
-        description += f"{i}. **{pet_type}** (Level: {pet_level})\n"
+        description += f"{i}. **{pet_type}** (Nivel: {pet_level})\n"
     
     embed.description = description
     await ctx.send(embed=embed)

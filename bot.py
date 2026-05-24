@@ -1103,38 +1103,73 @@ async def work_error(ctx: commands.Context, error):
 @bot.hybrid_command(name="gamble", description="Gamble your coins on a 50/50 chance")
 @app_commands.describe(amount="The amount of coins you want to bet (or 'all')")
 async def gamble(ctx: commands.Context, amount: str):
-    user_id = str(ctx.author.id)
-    current_balance = get_balance(user_id)
-    
-    if amount.lower() == "all":
-        bet = current_balance
-    else:
-        try:
-            bet = int(amount)
-        except ValueError:
-            return await ctx.send("❌ Please enter a valid number or 'all'.", ephemeral=True)
-            
-    if bet <= 0:
-        return await ctx.send("❌ You must bet at least 1 coin.", ephemeral=True)
-        
-    if bet > current_balance:
-        return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {current_balance:,}.", ephemeral=True)
-        
-    wins = random.choice([True, False])
-    
-    if wins:
-        new_balance = update_balance(user_id, bet)
-        color = 0x00ff00
-        title = "🎰 YOU WON!"
-        message = f"You won 🪙 {bet:,} coins.\nYour new balance is 🪙 {new_balance:,}."
-    else:
-        new_balance = update_balance(user_id, -bet)
-        color = 0xff0000
-        title = "📉 You lost!"
-        message = f"You lost 🪙 {bet:,} coins.\nYour new balance is 🪙 {new_balance:,}."
-        
-    embed = discord.Embed(title=title, description=message, color=color)
-    await ctx.send(embed=embed)
+
+    try:
+
+        user_id = str(ctx.author.id)
+
+        current_wallet = get_wallet(user_id)
+
+        if amount.lower() == "all":
+            bet = current_wallet
+        else:
+            try:
+                bet = int(amount)
+            except ValueError:
+                return await ctx.send(
+                    "❌ Please enter a valid number or 'all'.",
+                    ephemeral=True
+                )
+
+        if bet <= 0:
+            return await ctx.send(
+                "❌ You must bet at least 1 coin.",
+                ephemeral=True
+            )
+
+        if bet > current_wallet:
+            return await ctx.send(
+                f"❌ You only have 🪙 {current_wallet:,} in your wallet.",
+                ephemeral=True
+            )
+
+        wins = random.choice([True, False])
+
+        if wins:
+
+            update_wallet(user_id, bet)
+
+            new_balance = get_wallet(user_id)
+
+            embed = discord.Embed(
+                title="🎰 JACKPOT!",
+                description=(
+                    f"You won 🪙 **{bet:,}** coins!\n\n"
+                    f"💵 Wallet Balance: 🪙 **{new_balance:,}**"
+                ),
+                color=0x00ff00
+            )
+
+        else:
+
+            update_wallet(user_id, -bet)
+
+            new_balance = get_wallet(user_id)
+
+            embed = discord.Embed(
+                title="📉 You Lost",
+                description=(
+                    f"You lost 🪙 **{bet:,}** coins.\n\n"
+                    f"💵 Wallet Balance: 🪙 **{new_balance:,}**"
+                ),
+                color=0xff0000
+            )
+
+        await ctx.send(embed=embed)
+
+    except Exception as e:
+        logger.exception("GAMBLE COMMAND ERROR")
+        await ctx.send(f"Error: {e}")
 @bot.hybrid_command(name="daily", description="Claim your daily free coins")
 @commands.cooldown(1, 86400, commands.BucketType.user)
 async def daily(ctx: commands.Context):
@@ -1287,33 +1322,52 @@ async def rob_error(ctx: commands.Context, error):
     if isinstance(error, commands.CommandOnCooldown):
         minutes = int(error.retry_after // 60)
         await ctx.send(f"⏳ The cops are still looking for you! Lay low for {minutes}m.", ephemeral=True)
-@bot.hybrid_command(name="leaderboard", aliases=["lb", "top"], description="Shows the richest members in the server")
+@bot.hybrid_command(name="leaderboard", aliases=["lb", "top"], description="Shows the richest members")
 async def leaderboard(ctx: commands.Context):
-    top_users = eco_col.find().sort("wallet", -1).limit(10)
-    
+
+    users = list(eco_col.find())
+
+    users.sort(
+        key=lambda u: u.get("wallet", 0) + u.get("bank", 0),
+        reverse=True
+    )
+
+    users = users[:10]
+
     embed = discord.Embed(
-        title="🏆 Economy Leaderboard",
-        description="The richest members of the clan:\n\n",
+        title="🏆 Global Economy Leaderboard",
         color=0xffd700
     )
-    
-    position = 1
-    for user_data in top_users:
+
+    description = ""
+
+    for index, user_data in enumerate(users, start=1):
+
         user_id = int(user_data["_id"])
-        balance = user_data.get("wallet", 0) + user_data.get("bank", 0)
-        
+
+        total = user_data.get("wallet", 0) + user_data.get("bank", 0)
+
         member = ctx.guild.get_member(user_id)
+
         if member:
             name = member.display_name
         else:
             name = f"Unknown User ({user_id})"
-            
-        embed.description += f"{position}. {name} - 🪙 {balance:,}\n"
-        position += 1
-        
-    if position == 1:
-        embed.description = "The economy is empty. Start working!"
-        
+
+        medals = {
+            1: "🥇",
+            2: "🥈",
+            3: "🥉"
+        }
+
+        medal = medals.get(index, f"`#{index}`")
+
+        description += (
+            f"{medal} **{name}** — 🪙 {total:,}\n"
+        )
+
+    embed.description = description
+
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="top_clans", description="View the top clans leaderboard")
@@ -1790,7 +1844,7 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
 
         pet_key = pet_name.lower()
         pet_data = PET_SHOP[pet_key]
-        balance = get_balance(user_id)
+        balance = get_wallet(user_id)
 
         if balance < pet_data["price"]:
             return await ctx.send("❌ You don't have enough coins for this pet.", ephemeral=True)
@@ -1799,7 +1853,7 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
         if existing_pet:
             return await ctx.send(f"❌ You already own a {existing_pet['type']}!", ephemeral=True)
 
-        update_balance(user_id, -pet_data["price"])
+        update_wallet(user_id, -pet_data["price"])
         pets_col.insert_one({
             "_id": user_id,
             "type": pet_key,

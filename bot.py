@@ -1139,7 +1139,9 @@ async def gamble(ctx: commands.Context, amount: str):
 @commands.cooldown(1, 86400, commands.BucketType.user)
 async def daily(ctx: commands.Context):
     reward = 1000
-    new_balance = update_balance(str(ctx.author.id), reward)
+    update_wallet(str(ctx.author.id), reward)
+
+    new_balance = get_wallet(str(ctx.author.id))
     
     embed = discord.Embed(
         title="🎁 Daily Reward",
@@ -1155,30 +1157,55 @@ async def daily_error(ctx: commands.Context, error):
         minutes = int((error.retry_after % 3600) // 60)
         await ctx.send(f"⏳ You already claimed your daily reward. Try again in {hours}h {minutes}m.", ephemeral=True)
 
-@bot.hybrid_command(name="pay", description="Give coins to another member")
-@app_commands.describe(member="The user to pay", amount="How many coins to send")
+@bot.hybrid_command(name="pay", description="Send coins to another member")
+@app_commands.describe(member="The member to send coins to", amount="Amount of coins")
 async def pay(ctx: commands.Context, member: discord.Member, amount: int):
-    if amount <= 0:
-        return await ctx.send("❌ You must send at least 1 coin.", ephemeral=True)
-        
+
     sender_id = str(ctx.author.id)
     receiver_id = str(member.id)
-    
+
+    if member.bot:
+        return await ctx.send("❌ You cannot send coins to bots.", ephemeral=True)
+
     if sender_id == receiver_id:
         return await ctx.send("❌ You cannot pay yourself.", ephemeral=True)
-        
-    sender_balance = get_balance(sender_id)
-    if sender_balance < amount:
-        return await ctx.send(f"❌ You do not have enough coins. You only have 🪙 {sender_balance:,}.", ephemeral=True)
-        
-    update_balance(sender_id, -amount)
-    update_balance(receiver_id, amount)
-    
+
+    if amount <= 0:
+        return await ctx.send("❌ Amount must be greater than 0.", ephemeral=True)
+
+    sender_wallet = get_wallet(sender_id)
+
+    if sender_wallet < amount:
+        return await ctx.send(
+            f"❌ You only have 🪙 {sender_wallet:,} in your wallet.",
+            ephemeral=True
+        )
+
+    # TRANSFER
+    update_wallet(sender_id, -amount)
+    update_wallet(receiver_id, amount)
+
     embed = discord.Embed(
-        title="💸 Payment Successful",
-        description=f"You successfully sent 🪙 {amount:,} coins to {member.mention}.",
-        color=0x00ff00
+        title="💸 Payment Sent",
+        description=(
+            f"{ctx.author.mention} sent 🪙 **{amount:,}** coins "
+            f"to {member.mention}."
+        ),
+        color=0x00ff99
     )
+
+    embed.add_field(
+        name="📤 Sender Wallet",
+        value=f"🪙 {get_wallet(sender_id):,}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="📥 Receiver Wallet",
+        value=f"🪙 {get_wallet(receiver_id):,}",
+        inline=True
+    )
+
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="rob", description="Attempt to rob another member")
@@ -1262,7 +1289,7 @@ async def rob_error(ctx: commands.Context, error):
         await ctx.send(f"⏳ The cops are still looking for you! Lay low for {minutes}m.", ephemeral=True)
 @bot.hybrid_command(name="leaderboard", aliases=["lb", "top"], description="Shows the richest members in the server")
 async def leaderboard(ctx: commands.Context):
-    top_users = eco_col.find().sort("balance", -1).limit(10)
+    top_users = eco_col.find().sort("wallet", -1).limit(10)
     
     embed = discord.Embed(
         title="🏆 Economy Leaderboard",
@@ -1273,7 +1300,7 @@ async def leaderboard(ctx: commands.Context):
     position = 1
     for user_data in top_users:
         user_id = int(user_data["_id"])
-        balance = user_data["balance"]
+        balance = user_data.get("wallet", 0) + user_data.get("bank", 0)
         
         member = ctx.guild.get_member(user_id)
         if member:

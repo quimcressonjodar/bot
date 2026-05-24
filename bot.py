@@ -660,7 +660,7 @@ async def set_xp(ctx: commands.Context, xp: int) -> None:
 @bot.hybrid_command(name="sayembed", description="Send a custom embed message (Admin only)")
 @app_commands.describe(
     title="Title of the embed",
-    description="The main text of the embed",
+    description="The main text of the embed (Use \\n for new lines)",
     color="Hex color code (e.g. 2b2d31 or ff0000)"
 )
 @app_commands.default_permissions(administrator=True) 
@@ -668,11 +668,13 @@ async def sayembed(ctx: commands.Context, title: str, description: str, color: s
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
 
-    # Convertir el color hex a entero para discord.py
+    # ---> ESTA ES LA LÍNEA NUEVA QUE ARREGLA LOS SALTOS <---
+    description = description.replace("\\n", "\n")
+
     try:
         color_int = int(color.lstrip('#'), 16)
     except ValueError:
-        color_int = 0x2b2d31 # Color oscuro por defecto si hay error
+        color_int = 0x2b2d31 
 
     embed = discord.Embed(title=title, description=description, color=color_int)
 

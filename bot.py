@@ -438,70 +438,55 @@ class BattleView(discord.ui.View):
         self.challenger = challenger
         self.opponent = opponent
 
-    @discord.ui.button(label="Accept Battle", style=discord.ButtonStyle.green, emoji="⚔️")
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="⚔ Accept Battle", style=discord.ButtonStyle.green)
+async def accept(
+    self,
+    interaction: discord.Interaction,
+    button: discord.ui.Button
+):
 
-        if interaction.user.id != self.opponent.id:
-            return await interaction.response.send_message(
-                "❌ This is not your battle request.",
-                ephemeral=True
-            )
-
-        attacker_data = pets_col.find_one({"_id": str(self.challenger.id)})
-        defender_data = pets_col.find_one({"_id": str(self.opponent.id)})
-
-        attacker_pet = attacker_data["pets"][0]
-        defender_pet = defender_data["pets"][0]
-
-        attacker_power = attacker_pet["damage"] * random.uniform(0.8, 1.3)
-        defender_power = defender_pet["damage"] * random.uniform(0.8, 1.3)
-
-        battle_events = [
-            "🌩️ A thunderstorm shakes the arena.",
-            "🔥 The battlefield erupts in flames.",
-            "🌑 Darkness surrounds both pets.",
-            "⚡ Electric energy surges through the arena.",
-            "❄️ A freezing wind slows everyone down.",
-            "☠️ Ancient spirits awaken beneath the battlefield."
-        ]
-
-        event = random.choice(battle_events)
-
-        attacker_hits = defender_pet["hp"] / attacker_power
-        defender_hits = attacker_pet["hp"] / defender_power
-
-        if attacker_hits <= defender_hits:
-            winner = self.challenger
-            loser = self.opponent
-            winning_pet = attacker_pet
-        else:
-            winner = self.opponent
-            loser = self.challenger
-            winning_pet = defender_pet
-
-        reward = random.randint(300, 900)
-
-        update_wallet(str(winner.id), reward)
-
-        embed = discord.Embed(
-            title="⚔️ EPIC PET BATTLE",
-            description=(
-                f"{event}\n\n"
-                f"🐾 **{self.challenger.display_name}** summoned **{attacker_pet['type'].capitalize()}**\n"
-                f"🐾 **{self.opponent.display_name}** summoned **{defender_pet['type'].capitalize()}**\n\n"
-                f"💥 The arena explodes with chaos...\n"
-                f"🩸 Both pets fight with everything they have...\n\n"
-                f"👑 **Winner:** {winner.mention}\n"
-                f"🏆 Pet: **{winning_pet['type'].capitalize()}**\n"
-                f"💰 Reward: 🪙 {reward:,}"
-            ),
-            color=0xff4500
+    if interaction.user != self.opponent:
+        return await interaction.response.send_message(
+            "❌ This is not your battle request.",
+            ephemeral=True
         )
 
-        for child in self.children:
-            child.disabled = True
+    challenger_data = pets_col.find_one(
+        {"_id": str(self.challenger.id)}
+    )
 
-        await interaction.response.edit_message(embed=embed, view=self)
+    opponent_data = pets_col.find_one(
+        {"_id": str(self.opponent.id)}
+    )
+
+    challenger_view = PetSelectionView(
+        self.challenger,
+        challenger_data["pets"]
+    )
+
+    await interaction.response.send_message(
+        f"{self.challenger.mention}, choose your pet!",
+        view=challenger_view
+    )
+
+    await challenger_view.wait()
+
+    opponent_view = PetSelectionView(
+        self.opponent,
+        opponent_data["pets"]
+    )
+
+    await interaction.followup.send(
+        f"{self.opponent.mention}, choose your pet!",
+        view=opponent_view
+    )
+
+    await opponent_view.wait()
+
+    attacker_pet = challenger_view.selected_pet
+    defender_pet = opponent_view.selected_pet
+
+    # RESTO DE TU CÓDIGO DE BATALLA AQUÍ)
 
     @discord.ui.button(label="Decline", style=discord.ButtonStyle.red, emoji="❌")
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2009,7 +1994,11 @@ async def battle(ctx: commands.Context, member: discord.Member):
         color=0xff5500
     )
 
-    await ctx.send(embed=embed, view=view)
+    await ctx.send(
+    content=f"{member.mention}",
+    embed=embed,
+    view=view
+)
 
 @battle.error
 async def battle_error(ctx: commands.Context, error):

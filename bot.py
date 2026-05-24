@@ -882,6 +882,122 @@ async def gamble(ctx: commands.Context, amount: str):
         
     embed = discord.Embed(title=title, description=message, color=color)
     await ctx.send(embed=embed)
+@bot.hybrid_command(name="daily", description="Claim your daily free coins")
+@commands.cooldown(1, 86400, commands.BucketType.user)
+async def daily(ctx: commands.Context):
+    reward = 1000
+    new_balance = update_balance(str(ctx.author.id), reward)
+    
+    embed = discord.Embed(
+        title="🎁 Daily Reward",
+        description=f"You claimed your daily 🪙 {reward} coins.\nCome back tomorrow for more! Your balance is now 🪙 {new_balance:,}.",
+        color=0x00ff00
+    )
+    await ctx.send(embed=embed)
+
+@daily.error
+async def daily_error(ctx: commands.Context, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        hours = int(error.retry_after // 3600)
+        minutes = int((error.retry_after % 3600) // 60)
+        await ctx.send(f"⏳ You already claimed your daily reward. Try again in {hours}h {minutes}m.", ephemeral=True)
+
+@bot.hybrid_command(name="pay", description="Give coins to another member")
+@app_commands.describe(member="The user to pay", amount="How many coins to send")
+async def pay(ctx: commands.Context, member: discord.Member, amount: int):
+    if amount <= 0:
+        return await ctx.send("❌ You must send at least 1 coin.", ephemeral=True)
+        
+    sender_id = str(ctx.author.id)
+    receiver_id = str(member.id)
+    
+    if sender_id == receiver_id:
+        return await ctx.send("❌ You cannot pay yourself.", ephemeral=True)
+        
+    sender_balance = get_balance(sender_id)
+    if sender_balance < amount:
+        return await ctx.send(f"❌ You do not have enough coins. You only have 🪙 {sender_balance:,}.", ephemeral=True)
+        
+    update_balance(sender_id, -amount)
+    update_balance(receiver_id, amount)
+    
+    embed = discord.Embed(
+        title="💸 Payment Successful",
+        description=f"You successfully sent 🪙 {amount:,} coins to {member.mention}.",
+        color=0x00ff00
+    )
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="rob", description="Try to steal coins from another member")
+@commands.cooldown(1, 7200, commands.BucketType.user)
+async def rob(ctx: commands.Context, member: discord.Member):
+    thief_id = str(ctx.author.id)
+    target_id = str(member.id)
+    
+    if thief_id == target_id:
+        return await ctx.send("❌ You cannot rob yourself.", ephemeral=True)
+        
+    target_balance = get_balance(target_id)
+    if target_balance < 100:
+        return await ctx.send("❌ This user is too poor to rob.", ephemeral=True)
+        
+    success = random.choice([True, False])
+    
+    if success:
+        stolen = random.randint(10, int(target_balance * 0.3))
+        update_balance(target_id, -stolen)
+        new_balance = update_balance(thief_id, stolen)
+        
+        embed = discord.Embed(
+            title="🥷 Robbery Successful!",
+            description=f"You sneaked in and stole 🪙 {stolen:,} coins from {member.display_name}!\nYou now have 🪙 {new_balance:,}.",
+            color=0x00ff00
+        )
+    else:
+        fine = random.randint(50, 200)
+        new_balance = update_balance(thief_id, -fine)
+        
+        embed = discord.Embed(
+            title="👮 Busted!",
+            description=f"You got caught trying to rob {member.display_name} and paid a fine of 🪙 {fine:,} coins.\nYou now have 🪙 {new_balance:,}.",
+            color=0xff0000
+        )
+        
+    await ctx.send(embed=embed)
+
+@rob.error
+async def rob_error(ctx: commands.Context, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        minutes = int(error.retry_after // 60)
+        await ctx.send(f"⏳ The cops are still looking for you! Lay low for {minutes}m.", ephemeral=True)
+@bot.hybrid_command(name="leaderboard", aliases=["lb", "top"], description="Shows the richest members in the server")
+async def leaderboard(ctx: commands.Context):
+    top_users = eco_col.find().sort("balance", -1).limit(10)
+    
+    embed = discord.Embed(
+        title="🏆 Economy Leaderboard",
+        description="The richest members of the clan:\n\n",
+        color=0xffd700
+    )
+    
+    position = 1
+    for user_data in top_users:
+        user_id = int(user_data["_id"])
+        balance = user_data["balance"]
+        
+        member = ctx.guild.get_member(user_id)
+        if member:
+            name = member.display_name
+        else:
+            name = f"Unknown User ({user_id})"
+            
+        embed.description += f"{position}. {name} - 🪙 {balance:,}\n"
+        position += 1
+        
+    if position == 1:
+        embed.description = "The economy is empty. Start working!"
+        
+    await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="top_clans", description="View the top clans leaderboard")
 async def top_clans(ctx: commands.Context):

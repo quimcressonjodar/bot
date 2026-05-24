@@ -418,6 +418,351 @@ async def on_member_remove(member: discord.Member):
         color=0xff2a2a
     )
     await channel.send(embed=embed)
+# ==============================================================
+# SATELLITE: SISTEMA DE ADVERTENCIAS (BASE DE DATOS EN JSON)
+# ==============================================================
+WARNS_PATH = Path("warns.json")
+
+def load_warns() -> dict:
+    if not WARNS_PATH.exists():
+        return {}
+    with WARNS_PATH.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_warns(data: dict):
+    with WARNS_PATH.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def parse_duration(duration_str: str):
+    """Parsea formatos como 10m, 2h, 1d a un objeto timedelta válido"""
+    from datetime import timedelta
+    try:
+        if duration_str.endswith("m"):
+            return timedelta(minutes=int(duration_str[:-1]))
+        elif duration_str.endswith("h"):
+            return timedelta(hours=int(duration_str[:-1]))
+        elif duration_str.endswith("d"):
+            return timedelta(days=int(duration_str[:-1]))
+        else:
+            return timedelta(minutes=int(duration_str))
+    except ValueError:
+        return None
+
+# ==============================================================
+# CATEGORÍA 1: CASTIGOS Y SANCIONES
+# ==============================================================
+
+@bot.hybrid_command(name="ban", description="Ban a member from the server (Admin only)")
+@app_commands.describe(member="The member to ban", reason="The reason for the ban")
+@app_commands.default_permissions(administrator=True)
+async def ban(ctx: commands.Context, member: discord.Member, reason: str = "No reason provided"):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    try:
+        await member.ban(reason=reason)
+        await ctx.send(f"🔨 **{member.name}** has been permanently banned. Reason: {reason}")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to ban user: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="unban", description="Unban a user by their Discord ID (Admin only)")
+@app_commands.describe(user_id="The unique ID of the user to unban")
+@app_commands.default_permissions(administrator=True)
+async def unban(ctx: commands.Context, user_id: str):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    try:
+        user = await bot.fetch_user(int(user_id))
+        await ctx.guild.unban(user)
+        await ctx.send(f"✅ Successfully unbanned **{user.name}** from the server.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to unban user. Make sure the ID is correct: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="kick", description="Kick a member from the server (Admin only)")
+@app_commands.describe(member="The member to kick", reason="The reason for the kick")
+@app_commands.default_permissions(administrator=True)
+async def kick(ctx: commands.Context, member: discord.Member, reason: str = "No reason provided"):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    try:
+        await member.kick(reason=reason)
+        await ctx.send(f"👢 **{member.name}** has been kicked from the server. Reason: {reason}")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to kick user: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="timeout", description="Timeout/Mute a member temporarily (Admin only)")
+@app_commands.describe(member="The member", duration="Duration (e.g. 10m, 2h, 1d)", reason="Reason for timeout")
+@app_commands.default_permissions(administrator=True)
+async def timeout(ctx: commands.Context, member: discord.Member, duration: str, reason: str = "No reason provided"):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    
+    time_delta = parse_duration(duration)
+    if not time_delta:
+        return await ctx.send("❌ Invalid duration format! Use formats like `10m` (minutes), `2h` (hours), or `1d` (days).", ephemeral=True)
+    
+    try:
+        await member.timeout(time_delta, reason=reason)
+        await ctx.send(f"🔇 **{member.name}** has been timed out for `{duration}`. Reason: {reason}")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to apply timeout: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="untimeout", description="Remove timeout from a member (Admin only)")
+@app_commands.describe(member="The member to untimeout")
+@app_commands.default_permissions(administrator=True)
+async def untimeout(ctx: commands.Context, member: discord.Member):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    try:
+        await member.timeout(None)
+        await ctx.send(f"🔊 Timeout removed. **{member.name}** can now talk again.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to remove timeout: {e}", ephemeral=True)
+
+
+# ==============================================================
+# CATEGORÍA 2: LIMPIEZA Y CONTROL DEL CHAT
+# ==============================================================
+
+@bot.hybrid_command(name="purge", description="Purge a specified amount of messages (Admin only)")
+@app_commands.describe(amount="Amount of messages to delete")
+@app_commands.default_permissions(administrator=True)
+async def purge(ctx: commands.Context, amount: int):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    if amount <= 0:
+        return await ctx.send("Please specify a number greater than 0.", ephemeral=True)
+    
+    await ctx.defer(ephemeral=True)
+    try:
+        deleted = await ctx.channel.purge(limit=amount)
+        await ctx.send(f"🧹 Successfully deleted **{len(deleted)}** messages.", ephemeral=True)
+    except Exception as e:
+        await ctx.send(f"❌ Failed to purge messages: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="lock", description="Lock a text channel (Admin only)")
+@app_commands.describe(channel="The channel to lock (Defaults to current)")
+@app_commands.default_permissions(administrator=True)
+async def lock(ctx: commands.Context, channel: discord.TextChannel = None):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    target_channel = channel or ctx.channel
+    try:
+        await target_channel.set_permissions(ctx.guild.default_role, send_messages=False)
+        await ctx.send(f"🔒 **{target_channel.mention}** has been locked down.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to lock channel: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="unlock", description="Unlock a previously locked channel (Admin only)")
+@app_commands.describe(channel="The channel to unlock (Defaults to current)")
+@app_commands.default_permissions(administrator=True)
+async def unlock(ctx: commands.Context, channel: discord.TextChannel = None):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    target_channel = channel or ctx.channel
+    try:
+        await target_channel.set_permissions(ctx.guild.default_role, send_messages=None)
+        await ctx.send(f"🔓 **{target_channel.mention}** is now unlocked.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to unlock channel: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="slowmode", description="Set slowmode delay for a channel (Admin only)")
+@app_commands.describe(seconds="Slowmode delay in seconds (0 to disable)", channel="The channel")
+@app_commands.default_permissions(administrator=True)
+async def slowmode(ctx: commands.Context, seconds: int, channel: discord.TextChannel = None):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    target_channel = channel or ctx.channel
+    try:
+        await target_channel.edit(slowmode_delay=seconds)
+        if seconds == 0:
+            await ctx.send(f"⏱️ Slowmode has been disabled in {target_channel.mention}.")
+        else:
+            await ctx.send(f"⏱️ Slowmode set to **{seconds}** seconds in {target_channel.mention}.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to set slowmode: {e}", ephemeral=True)
+
+
+# ==============================================================
+# CATEGORÍA 3: SISTEMA DE ADVERTENCIAS (WARNS)
+# ==============================================================
+
+@bot.hybrid_command(name="warn", description="Issue a warning to a member (Admin only)")
+@app_commands.describe(member="The member to warn", reason="The reason for the warning")
+@app_commands.default_permissions(administrator=True)
+async def warn(ctx: commands.Context, member: discord.Member, reason: str):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    
+    warns_data = load_warns()
+    user_id = str(member.id)
+    
+    if user_id not in warns_data:
+        warns_data[user_id] = []
+        
+    warn_id = str(len(warns_data[user_id]) + 1)
+    new_warn = {
+        "id": warn_id,
+        "reason": reason,
+        "moderator": ctx.author.name,
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    }
+    warns_data[user_id].append(new_warn)
+    save_warns(warns_data)
+    
+    embed = discord.Embed(
+        title="⚠️ Member Warned",
+        description=f"**User:** {member.mention}\n**Reason:** {reason}\n**Total Warns:** {len(warns_data[user_id])}",
+        color=0xffaa00
+    )
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="warns", description="Check a member's warning history (Admin only)")
+@app_commands.describe(member="The member to check")
+@app_commands.default_permissions(administrator=True)
+async def check_warns(ctx: commands.Context, member: discord.Member):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    
+    warns_data = load_warns()
+    user_id = str(member.id)
+    user_warns = warns_data.get(user_id, [])
+    
+    if not user_warns:
+        return await ctx.send(f"✅ **{member.name}** has a clean record (0 warnings).")
+        
+    embed = discord.Embed(title=f"⚠️ Warning Record: {member.name}", color=0xffaa00)
+    for w in user_warns:
+        embed.add_field(
+            name=f"ID: {w['id']} | {w['date']}",
+            value=f"**Reason:** {w['reason']}\n**Staff:** {w['moderator']}",
+            inline=False
+        )
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="delwarn", description="Delete a specific warning from a member (Admin only)")
+@app_commands.describe(member="The member", warn_id="The ID of the warning to remove")
+@app_commands.default_permissions(administrator=True)
+async def delwarn(ctx: commands.Context, member: discord.Member, warn_id: str):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    
+    warns_data = load_warns()
+    user_id = str(member.id)
+    user_warns = warns_data.get(user_id, [])
+    
+    updated_warns = [w for w in user_warns if w['id'] != warn_id]
+    
+    if len(updated_warns) == len(user_warns):
+        return await ctx.send("❌ Warning ID not found for this user.", ephemeral=True)
+    
+    # Re-indexar los warns restantes para que queden correlativos (1, 2, 3...)
+    for idx, w in enumerate(updated_warns):
+        w['id'] = str(idx + 1)
+        
+    warns_data[user_id] = updated_warns
+    save_warns(warns_data)
+    await ctx.send(f"✅ Successfully removed warning ID `{warn_id}` from **{member.name}**.")
+
+@bot.hybrid_command(name="clearwarns", description="Clear all warnings from a member (Admin only)")
+@app_commands.describe(member="The member to clear")
+@app_commands.default_permissions(administrator=True)
+async def clearwarns(ctx: commands.Context, member: discord.Member):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    
+    warns_data = load_warns()
+    user_id = str(member.id)
+    if user_id in warns_data:
+        del warns_data[user_id]
+        save_warns(warns_data)
+    await ctx.send(f"✅ Cleared all warnings for **{member.name}**.")
+
+
+# ==============================================================
+# CATEGORÍA 4: UTILIDADES DE GESTIÓN RÁPIDA
+# ==============================================================
+
+@bot.hybrid_command(name="setnick", description="Quickly change a member's nickname (Admin only)")
+@app_commands.describe(member="The member", nickname="New nickname (Leave empty to reset)")
+@app_commands.default_permissions(administrator=True)
+async def setnick(ctx: commands.Context, member: discord.Member, nickname: str = None):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    try:
+        await member.edit(nick=nickname)
+        await ctx.send(f"✅ Changed nickname for **{member.name}** to `{nickname or member.name}`.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to change nickname: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="role_add", description="Assign a role to a member (Admin only)")
+@app_commands.describe(member="The member", role="The role to assign")
+@app_commands.default_permissions(administrator=True)
+async def role_add(ctx: commands.Context, member: discord.Member, role: discord.Role):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    try:
+        await member.add_roles(role)
+        await ctx.send(f"✅ Assigned the role **{role.name}** to **{member.name}**.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to add role: {e}", ephemeral=True)
+
+@bot.hybrid_command(name="role_remove", description="Remove a role from a member (Admin only)")
+@app_commands.describe(member="The member", role="The role to remove")
+@app_commands.default_permissions(administrator=True)
+async def role_remove(ctx: commands.Context, member: discord.Member, role: discord.Role):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+    try:
+        await member.remove_roles(role)
+        await ctx.send(f"✅ Removed the role **{role.name}** from **{member.name}**.")
+    except Exception as e:
+        await ctx.send(f"❌ Failed to remove role: {e}", ephemeral=True)
+
+
+# ==============================================================
+# CATEGORÍA 5: AUDITORÍA E INFORMACIÓN
+# ==============================================================
+
+@bot.hybrid_command(name="userinfo", description="Display detailed information about a member")
+@app_commands.describe(member="The member to view (Defaults to yourself)")
+async def userinfo(ctx: commands.Context, member: discord.Member = None):
+    target = member or ctx.author
+    roles = [role.mention for role in target.roles[1:]] # Evita listar @everyone
+    
+    embed = discord.Embed(title=f"👤 User Profile: {target.name}", color=0x2b2d31)
+    embed.set_thumbnail(url=target.display_avatar.url)
+    
+    embed.add_field(name="User ID", value=f"`{target.id}`", inline=True)
+    embed.add_field(name="Server Nickname", value=target.nick or "None", inline=True)
+    embed.add_field(name="Account Created", value=target.created_at.strftime("%Y-%m-%d"), inline=True)
+    embed.add_field(name="Joined Server", value=target.joined_at.strftime("%Y-%m-%d") if target.joined_at else "Unknown", inline=True)
+    embed.add_field(name=f"Roles ({len(roles)})", value=" ".join(roles) if roles else "No roles assigned", inline=False)
+    
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="serverinfo", description="Display general information about this server")
+async def serverinfo(ctx: commands.Context):
+    guild = ctx.guild
+    embed = discord.Embed(title=f"🏰 Server Information: {guild.name}", color=0x2b2d31)
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+        
+    embed.add_field(name="Owner", value=guild.owner.mention if guild.owner else "Unknown", inline=True)
+    embed.add_field(name="Total Members", value=f"👥 {guild.member_count}", inline=True)
+    embed.add_field(name="Channels", value=f"📝 {len(guild.text_channels)} Text | 🔊 {len(guild.voice_channels)} Voice", inline=True)
+    embed.add_field(name="Created Date", value=guild.created_at.strftime("%Y-%m-%d"), inline=True)
+    embed.add_field(name="Boost Status", value=f"✨ Tier {guild.premium_tier} ({guild.premium_subscription_count} boosts)", inline=True)
+    embed.set_footer(text=f"Server ID: {guild.id}")
+    
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="avatar", description="Get a member's avatar in high resolution")
+@app_commands.describe(member="The member (Defaults to yourself)")
+async def avatar(ctx: commands.Context, member: discord.Member = None):
+    target = member or ctx.author
+    embed = discord.Embed(title=f"🖼️ Avatar of {target.name}", color=0x2b2d31)
+    embed.set_image(url=target.display_avatar.url)
+    await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="top_clans", description="View the top clans leaderboard")
 async def top_clans(ctx: commands.Context):
@@ -852,13 +1197,16 @@ async def help_command(ctx: commands.Context):
     embed.add_field(name="🌍 Public Commands", value=public_cmds, inline=False)
 
     # Comandos de Administrador
-    admin_cmds = (
-        "**`/register_monday`** - Save the clan's XP baseline (Monday).\n"
-        "**`/register_sunday`** - Save the clan's XP snapshot (Sunday).\n"
-        "**`/weekly_lb`** - Generate the weekly XP leaderboard.\n"
-        "**`/set_xp [xp]`** - Update the weekly XP requirement.\n"
-        "**`/delete_snaps`** - Clear the saved weekly snapshots.\n"
-        "**`/say [msg]`** - Make the bot repeat your message."
+   admin_cmds = (
+        "**`/register_monday / register_sunday`** - Manage snapshots.\n"
+        "**`/weekly_lb / set_xp / delete_snaps`** - Leaderboard config.\n"
+        "**`/purge [amount]`** - Delete messages from the channel.\n"
+        "**`/ban / unban / kick`** - Severe user punishments.\n"
+        "**`/timeout / untimeout`** - Mute or unmute members.\n"
+        "**`/lock / unlock / slowmode`** - Control chat flows.\n"
+        "**`/warn / warns / delwarn`** - Manage warning system.\n"
+        "**`/role_add / role_remove / setnick`** - Quick member management.\n"
+        "**`/say / sayembed`** - Make the bot talk."
     )
     embed.add_field(name="🛡️ Admin Commands", value=admin_cmds, inline=False)
 

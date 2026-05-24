@@ -18,6 +18,7 @@ from discord import app_commands
 from dotenv import load_dotenv
 client = pymongo.MongoClient(os.getenv("MONGO_URI"))
 db = client["kirka_bot"]
+pets_col = db["pets"]
 warns_col = db["warns"]
 snaps_col = db["snapshots"]
 eco_col = db["economy"]
@@ -75,6 +76,24 @@ HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "20"))
 HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
 WELCOME_CHANNEL_ID = 1206229312743809054 
+PET_SHOP = {
+    # Tier 1: Básicos
+    "dog":      {"price": 500,    "hp": 100, "damage": 20, "emoji": "🐕"},
+    "cat":      {"price": 600,    "hp": 80,  "damage": 25, "emoji": "🐈"},
+    
+    # Tier 2: Avanzados
+    "wolf":     {"price": 1500,   "hp": 150, "damage": 40, "emoji": "🐺"},
+    "bear":     {"price": 2500,   "hp": 250, "damage": 35, "emoji": "🐻"},
+    
+    # Tier 3: Épicos
+    "dragon":   {"price": 6000,   "hp": 350, "damage": 70, "emoji": "🐉"},
+    "golem":    {"price": 7500,   "hp": 550, "damage": 50, "emoji": "🗿"},
+    
+    # Tier 4: Míticos (Muy caros)
+    "phoenix":  {"price": 15000,  "hp": 400, "damage": 120, "emoji": "🐦‍🔥"},
+    "kraken":   {"price": 25000,  "hp": 600, "damage": 150, "emoji": "🦑"},
+    "titan":    {"price": 40000,  "hp": 1000, "damage": 200, "emoji": "👑"}
+}
 
 
 class ClanClient:
@@ -1452,6 +1471,95 @@ async def help_command(ctx: commands.Context):
     )
 
     await ctx.send(embed=embed)
+@bot.hybrid_command(name="shop", description="View and buy animals for battle")
+@app_commands.describe(action="Choose 'view' to see the shop or 'buy' to purchase", pet_name="Name of the pet to buy")
+async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None):
+    user_id = str(ctx.author.id)
+
+    if action.lower() == "view":
+        embed = discord.Embed(title="🏪 Pet Shop", description="Welcome to the battle pet shop!", color=0x3498db)
+        for name, stats in PET_SHOP.items():
+            embed.add_field(
+                name=f"{stats['emoji']} {name.capitalize()} - 🪙 {stats['price']} coins",
+                value=f"HP: {stats['hp']} | Damage: {stats['damage']}",
+                inline=False
+            )
+        return await ctx.send(embed=embed)
+
+    elif action.lower() == "buy":
+        if not pet_name or pet_name.lower() not in PET_SHOP:
+            return await ctx.send("❌ Please specify a valid pet name from the shop.", ephemeral=True)
+
+        pet_key = pet_name.lower()
+        pet_data = PET_SHOP[pet_key]
+        balance = get_balance(user_id)
+
+        if balance < pet_data["price"]:
+            return await ctx.send("❌ You don't have enough coins for this pet.", ephemeral=True)
+
+        existing_pet = pets_col.find_one({"_id": user_id})
+        if existing_pet:
+            return await ctx.send(f"❌ You already own a {existing_pet['type']}!", ephemeral=True)
+
+        update_balance(user_id, -pet_data["price"])
+        pets_col.insert_one({
+            "_id": user_id,
+            "type": pet_key,
+            "hp": pet_data["hp"],
+            "damage": pet_data["damage"],
+            "level": 1,
+            "xp": 0
+        })
+
+        embed = discord.Embed(
+            title="🎉 Pet Adopted!",
+            description=f"You successfully bought a {pet_data['emoji']} {pet_key.capitalize()}!\nUse `/battle` to fight other members.",
+            color=0x00ff00
+        )
+        await ctx.send(embed=embed)
+@bot.hybrid_command(name="battle", description="Challenge another member to a pet battle")
+@app_commands.describe(opponent="The member you want to fight")
+@commands.cooldown(1, 300, commands.BucketType.user)
+async def battle(ctx: commands.Context, opponent: discord.Member):
+    attacker_id = str(ctx.author.id)
+    defender_id = str(opponent.id)
+
+    if attacker_id == defender_id:
+        return await ctx.send("❌ You cannot battle yourself.", ephemeral=True)
+
+    attacker_pet = pets_col.find_one({"_id": attacker_id})
+    defender_pet = pets_col.find_one({"_id": defender_id})
+
+    if not attacker_pet:
+        return await ctx.send("❌ You need to buy a pet from the `/shop` first.", ephemeral=True)
+    if not defender_pet:
+        return await ctx.send("❌ Your opponent doesn't have a pet yet.", ephemeral=True)
+
+    attacker_power = attacker_pet["damage"] * random.uniform(0.8, 1.2)
+    defender_power = defender_pet["damage"] * random.uniform(0.8, 1.2)
+
+    attacker_hits = defender_pet["hp"] / attacker_power
+    defender_hits = attacker_pet["hp"] / defender_power
+
+    embed = discord.Embed(title="⚔️ Pet Battle!", color=0xff4500)
+    
+    if attacker_hits <= defender_hits:
+        prize = random.randint(100, 300)
+        update_balance(attacker_id, prize)
+        embed.description = f"{ctx.author.display_name}'s {attacker_pet['type']} defeated {opponent.display_name}'s {defender_pet['type']}!\n\nYou earned 🪙 {prize} coins."
+    else:
+        prize = random.randint(100, 300)
+        update_balance(defender_id, prize)
+        embed.description = f"{opponent.display_name}'s {defender_pet['type']} defeated {ctx.author.display_name}'s {attacker_pet['type']}!\n\nThey earned 🪙 {prize} coins."
+
+    await ctx.send(embed=embed)
+
+@battle.error
+async def battle_error(ctx: commands.Context, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        minutes = int(error.retry_after // 60)
+        seconds = int(error.retry_after % 60)
+        await ctx.send(f"⏳ Your pet is resting. Try again in {minutes}m {seconds}s.", ephemeral=True)
 
 
 @bot.hybrid_command(name="delete_snaps", description="Delete Monday and Sunday snapshots")

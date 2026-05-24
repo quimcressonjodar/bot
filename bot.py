@@ -5,6 +5,7 @@ import asyncio
 import random
 import hashlib
 import pymongo
+import uuid
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -136,6 +137,56 @@ PET_SHOP = {
     "kraken":   {"price": 25000,  "hp": 600, "damage": 150, "emoji": "🦑"},
     "titan":    {"price": 40000,  "hp": 1000, "damage": 200, "emoji": "👑"}
 }
+
+class PetSelect(discord.ui.Select):
+
+    def __init__(self, user, pets):
+
+        self.user = user
+        self.pets = pets
+
+        options = []
+
+        for index, pet in enumerate(pets):
+
+            options.append(
+                discord.SelectOption(
+                    label=f"{pet['type'].capitalize()}",
+                    description=f"HP {pet['hp']} | DMG {pet['damage']}",
+                    value=str(index)
+                )
+            )
+
+        super().__init__(
+            placeholder="Choose your pet...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+
+        if interaction.user.id != self.user.id:
+            return await interaction.response.send_message(
+                "❌ This menu isn't for you.",
+                ephemeral=True
+            )
+
+        self.view.selected_pet = self.pets[int(self.values[0])]
+
+        await interaction.response.send_message(
+            f"✅ Selected **{self.view.selected_pet['type'].capitalize()}**",
+            ephemeral=True
+        )
+class PetSelectionView(discord.ui.View):
+
+    def __init__(self, user, pets):
+
+        super().__init__(timeout=60)
+
+        self.selected_pet = None
+
+        self.add_item(PetSelect(user, pets))
 
 
 class ClanClient:
@@ -1849,19 +1900,23 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
         if balance < pet_data["price"]:
             return await ctx.send("❌ You don't have enough coins for this pet.", ephemeral=True)
 
-        existing_pet = pets_col.find_one({"_id": user_id})
-        if existing_pet:
-            return await ctx.send(f"❌ You already own a {existing_pet['type']}!", ephemeral=True)
+        pet_instance = {
+    "pet_id": str(uuid.uuid4()),
+    "type": pet_data["type"],
+    "hp": pet_data["hp"],
+    "damage": pet_data["damage"]
+}
+        pets_col.update_one(
+             {"_id": user_id},
+            {
+                "$push": {
+                    "pets": pet_instance
+             }
+        },
+        upsert=True
+)
 
-        update_wallet(user_id, -pet_data["price"])
-        pets_col.insert_one({
-            "_id": user_id,
-            "type": pet_key,
-            "hp": pet_data["hp"],
-            "damage": pet_data["damage"],
-            "level": 1,
-            "xp": 0
-        })
+update_wallet(user_id, -pet_data["price"])
 
         embed = discord.Embed(
             title="🎉 Pet Adopted!",
@@ -1869,53 +1924,111 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
             color=0x00ff00
         )
         await ctx.send(embed=embed)
-@bot.hybrid_command(name="battle", description="Challenge another player to an epic pet battle")
+@bot.hybrid_command(name="battle", description="Challenge another player")
 async def battle(ctx: commands.Context, opponent: discord.Member):
 
     if opponent.bot:
-        return await ctx.send("❌ You cannot battle bots.", ephemeral=True)
+        return await ctx.send("❌ You cannot battle bots.")
 
     if opponent.id == ctx.author.id:
-        return await ctx.send("❌ You cannot battle yourself.", ephemeral=True)
+        return await ctx.send("❌ You cannot battle yourself.")
 
-    attacker_pet = pets_col.find_one({"_id": str(ctx.author.id)})
-    defender_pet = pets_col.find_one({"_id": str(opponent.id)})
+    challenger_data = pets_col.find_one({"_id": str(ctx.author.id)})
+    opponent_data = pets_col.find_one({"_id": str(opponent.id)})
 
-    if not attacker_pet:
-        return await ctx.send("❌ You need a pet first. Use `/shop buy`.", ephemeral=True)
+    if not challenger_data or not challenger_data.get("pets"):
+        return await ctx.send("❌ You don't own any pets.")
 
-    if not defender_pet:
-        return await ctx.send("❌ This user doesn't own a pet.", ephemeral=True)
+    if not opponent_data or not opponent_data.get("pets"):
+        return await ctx.send("❌ This user has no pets.")
 
-    embed = discord.Embed(
-        title="⚔️ Battle Challenge",
+    challenger_view = PetSelectionView(
+        ctx.author,
+        challenger_data["pets"]
+    )
+
+    opponent_view = PetSelectionView(
+        opponent,
+        opponent_data["pets"]
+    )
+
+    embed1 = discord.Embed(
+        title="🐾 Choose Your Pet",
+        description="Select the pet you'll send into battle.",
+        color=0x00ff99
+    )
+
+    await ctx.send(
+        content=ctx.author.mention,
+        embed=embed1,
+        view=challenger_view
+    )
+
+    embed2 = discord.Embed(
+        title="⚔️ Battle Request",
         description=(
-            f"{ctx.author.mention} has challenged {opponent.mention} to a legendary pet battle.\n\n"
-            f"🔥 Only one pet will dominate the arena.\n"
-            f"⚡ Accept the challenge below."
+            f"{ctx.author.mention} challenged you.\n"
+            f"Choose your fighter."
         ),
         color=0xff9900
     )
 
-    embed.add_field(
-        name="🐾 Challenger Pet",
-        value=attacker_pet["type"].capitalize(),
-        inline=True
-    )
-
-    embed.add_field(
-        name="🐾 Opponent Pet",
-        value=defender_pet["type"].capitalize(),
-        inline=True
-    )
-
-    view = BattleView(ctx.author, opponent)
-
     await ctx.send(
         content=opponent.mention,
-        embed=embed,
-        view=view
+        embed=embed2,
+        view=opponent_view
     )
+
+    await asyncio.sleep(15)
+
+    if not challenger_view.selected_pet:
+        return await ctx.send("❌ Challenger didn't select a pet.")
+
+    if not opponent_view.selected_pet:
+        return await ctx.send("❌ Opponent didn't select a pet.")
+
+    pet1 = challenger_view.selected_pet
+    pet2 = opponent_view.selected_pet
+
+    pet1_power = pet1["damage"] * random.uniform(0.8, 1.4)
+    pet2_power = pet2["damage"] * random.uniform(0.8, 1.4)
+
+    battle_events = [
+        "🌩️ Thunder crashes across the arena.",
+        "🔥 Lava erupts beneath the fighters.",
+        "⚡ Electricity surges through the battlefield.",
+        "☠️ Ancient spirits awaken nearby.",
+        "🌪️ Violent winds shake the arena."
+    ]
+
+    event = random.choice(battle_events)
+
+    if pet1_power > pet2_power:
+        winner = ctx.author
+        winning_pet = pet1
+    else:
+        winner = opponent
+        winning_pet = pet2
+
+    reward = random.randint(500, 1200)
+
+    update_wallet(str(winner.id), reward)
+
+    embed = discord.Embed(
+        title="⚔️ EPIC PET BATTLE",
+        description=(
+            f"{event}\n\n"
+            f"🐾 {ctx.author.display_name} used **{pet1['type'].capitalize()}**\n"
+            f"🐾 {opponent.display_name} used **{pet2['type'].capitalize()}**\n\n"
+            f"💥 The battle shakes the entire arena...\n\n"
+            f"👑 Winner: {winner.mention}\n"
+            f"🏆 Winning Pet: **{winning_pet['type'].capitalize()}**\n"
+            f"💰 Prize: 🪙 {reward:,}"
+        ),
+        color=0xff4500
+    )
+
+    await ctx.send(embed=embed)
 
 @battle.error
 async def battle_error(ctx: commands.Context, error):
@@ -1923,26 +2036,31 @@ async def battle_error(ctx: commands.Context, error):
         minutes = int(error.retry_after // 60)
         seconds = int(error.retry_after % 60)
         await ctx.send(f"⏳ Your pet is resting. Try again in {minutes}m {seconds}s.", ephemeral=True)
-@bot.hybrid_command(name="mypets", description="Mira las mascotas que tienes")
-async def mypets(ctx: commands.Context) -> None:
-    # Buscamos todas las mascotas que pertenecen al usuario
-    user_pets = list(pets_col.find({"owner_id": str(ctx.author.id)}))
-    
-    if not user_pets:
-        await ctx.send("No tienes ninguna mascota todavía. ¡Ve a conseguir una!", ephemeral=True)
-        return
+@bot.hybrid_command(name="pets", description="View your pet collection")
+async def pets(ctx: commands.Context):
 
-    # Creamos un embed para mostrar la lista
-    embed = discord.Embed(title=f"🐾 Mascotas de {ctx.author.display_name}", color=discord.Color.blue())
-    
+    data = pets_col.find_one({"_id": str(ctx.author.id)})
+
+    if not data or not data.get("pets"):
+        return await ctx.send("❌ You don't own any pets.")
+
+    embed = discord.Embed(
+        title=f"🐾 {ctx.author.display_name}'s Pets",
+        color=0x00ff99
+    )
+
     description = ""
-    for i, pet in enumerate(user_pets, 1):
-        # Asegúrate de que el documento en MongoDB tenga los campos 'type' y 'level'
-        pet_type = pet.get('type', 'Desconocida')
-        pet_level = pet.get('level', 1)
-        description += f"{i}. **{pet_type}** (Nivel: {pet_level})\n"
-    
+
+    for index, pet in enumerate(data["pets"], start=1):
+
+        description += (
+            f"**{index}. {pet['type'].capitalize()}**\n"
+            f"❤️ HP: {pet['hp']}\n"
+            f"⚔️ Damage: {pet['damage']}\n\n"
+        )
+
     embed.description = description
+
     await ctx.send(embed=embed)
 
 

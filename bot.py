@@ -1924,7 +1924,7 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
         if balance < pet_data["price"]:
             return await ctx.send("❌ You don't have enough coins for this pet.", ephemeral=True)
 
-                pet_instance = {
+        pet_instance = {
             "pet_id": str(uuid.uuid4()),
             "type": pet_data["type"],
             "hp": pet_data["hp"],

@@ -1560,24 +1560,24 @@ async def battle_error(ctx: commands.Context, error):
         minutes = int(error.retry_after // 60)
         seconds = int(error.retry_after % 60)
         await ctx.send(f"⏳ Your pet is resting. Try again in {minutes}m {seconds}s.", ephemeral=True)
-@bot.hybrid_command(name="mypets", description="Mira las mascotas que tienes")
+@bot.hybrid_command(name="mypets", description="View your owned pets")
 async def mypets(ctx: commands.Context) -> None:
-    # Buscamos todas las mascotas que pertenecen al usuario
-    user_pets = list(pets_col.find({"owner_id": str(ctx.author.id)}))
+    user_id_str = str(ctx.author.id)
+    user_id_int = ctx.author.id
+    
+    user_pets = list(pets_col.find({"owner_id": {"$in": [user_id_str, user_id_int]}}))
     
     if not user_pets:
-        await ctx.send("No tienes ninguna mascota todavía. ¡Ve a conseguir una!", ephemeral=True)
+        await ctx.send("You don't have any pets yet. Go get one!", ephemeral=True)
         return
 
-    # Creamos un embed para mostrar la lista
-    embed = discord.Embed(title=f"🐾 Mascotas de {ctx.author.display_name}", color=discord.Color.blue())
+    embed = discord.Embed(title=f"🐾 {ctx.author.display_name}'s Pets", color=discord.Color.blue())
     
     description = ""
     for i, pet in enumerate(user_pets, 1):
-        # Asegúrate de que el documento en MongoDB tenga los campos 'type' y 'level'
-        pet_type = pet.get('type', 'Desconocida')
+        pet_type = pet.get('type', 'Unknown')
         pet_level = pet.get('level', 1)
-        description += f"{i}. **{pet_type}** (Nivel: {pet_level})\n"
+        description += f"{i}. **{pet_type}** (Level: {pet_level})\n"
     
     embed.description = description
     await ctx.send(embed=embed)

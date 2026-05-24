@@ -54,6 +54,7 @@ SUNDAY_SNAPSHOT_PATH = Path(os.getenv("SUNDAY_SNAPSHOT_FILE", "xp_sunday.json"))
 HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "20"))
 HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
+WELCOME_CHANNEL_ID = 1206229312743809054 
 
 
 class ClanClient:
@@ -380,9 +381,43 @@ clan_client = ClanClient(api_base=KIRKA_API_BASE, api_key=KIRKA_API_KEY)
 bot = WeeklyXPBot(clan_client=clan_client)
 
 
-# ==============================================================
-# AQUÍ COMIENZAN LOS COMANDOS HÍBRIDOS (Prefijo y Slash)
-# ==============================================================
+
+
+
+
+@bot.event
+async def on_member_join(member: discord.Member):
+    channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if not channel:
+        return
+
+    embed = discord.Embed(
+        title=f"Welcome to the server, {member.name}! 🎉",
+        description=(
+            f"Hello {member.mention}, we are glad to have you here!\n\n"
+            f"📜 **First Step:** Please, read the rules in <#1206222685143826485>\n"
+            f"⚔️ **Want to join?** If you want to apply for the clan, go to <#1206198139686617088>\n\n"
+            f"Enjoy your stay!"
+        ),
+        color=0x2b2d31
+    )
+    
+    embed.set_image(url="https://i.ibb.co/d4r7Z6f8/248-AB2-AF-21-F0-4384-A53-D-404328353301.png")
+    
+    await channel.send(content=f"Welcome {member.mention}!", embed=embed)
+
+@bot.event
+async def on_member_remove(member: discord.Member):
+    channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if not channel:
+        return
+
+    embed = discord.Embed(
+        title="Goodbye! 👋",
+        description=f"**{member.name}** has left the server. We will miss you!",
+        color=0xff2a2a
+    )
+    await channel.send(embed=embed)
 
 @bot.hybrid_command(name="top_clans", description="View the top clans leaderboard")
 async def top_clans(ctx: commands.Context):
@@ -660,7 +695,7 @@ async def set_xp(ctx: commands.Context, xp: int) -> None:
 @bot.hybrid_command(name="sayembed", description="Send a custom embed message (Admin only)")
 @app_commands.describe(
     title="Title of the embed",
-    description="The main text of the embed (Use \\n for new lines)",
+    description="The main text of the embed",
     color="Hex color code (e.g. 2b2d31 or ff0000)"
 )
 @app_commands.default_permissions(administrator=True) 
@@ -668,8 +703,6 @@ async def sayembed(ctx: commands.Context, title: str, description: str, color: s
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
 
-    # ---> ESTA ES LA LÍNEA NUEVA QUE ARREGLA LOS SALTOS <---
-    description = description.replace("\\n", "\n")
 
     try:
         color_int = int(color.lstrip('#'), 16)

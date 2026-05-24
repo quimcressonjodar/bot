@@ -255,7 +255,7 @@ class WeeklyXPBot(commands.Bot):
             command_prefix="!", 
             intents=intents,
             status=discord.Status.online,
-            activity=discord.Game(name="Kirka.io 🏆 - !help"),
+            activity=discord.Game(name="Kirka.io 🏆 !help"),
             help_command=None
         )
         self.clan_client = clan_client

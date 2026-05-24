@@ -159,18 +159,14 @@ class ClanClient:
         raise RuntimeError(f"Failed request after {HTTP_MAX_RETRIES} attempts: {last_error}")
 
 
-def load_snapshot(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return None
-    with path.open("r", encoding="utf-8") as file:
-doc = snaps_col.find_one({"_id": "monday"})
-data = doc["data"] if doc else None
+def load_snapshot(path) -> dict | None:
+    snap_id = str(path)
+    doc = snaps_col.find_one({"_id": snap_id})
+    return doc["data"] if doc else None
 
-
-def save_snapshot(path: Path, data: dict[str, Any]) -> None:
-    with path.open("w", encoding="utf-8") as file:
-    
-snaps_col.update_one({"_id": "monday"}, {"$set": {"data": snapshot}}, upsert=True)
+def save_snapshot(path, data: dict) -> None:
+    snap_id = str(path)
+    snaps_col.update_one({"_id": snap_id}, {"$set": {"data": data}}, upsert=True)
 
 
 # ACTUALIZADO: is_admin ahora verifica el context (ctx) de comandos híbridos
@@ -431,16 +427,11 @@ async def on_member_remove(member: discord.Member):
 WARNS_PATH = Path("warns.json")
 
 def load_warns() -> dict:
-    if not WARNS_PATH.exists():
-        return {}
-    with WARNS_PATH.open("r", encoding="utf-8") as f:
-
-doc = snaps_col.find_one({"_id": "monday"})
-data = doc["data"] if doc else None
+    doc = warns_col.find_one({"_id": "all_warns"})
+    return doc["data"] if doc else {}
 
 def save_warns(data: dict):
-    with WARNS_PATH.open("w", encoding="utf-8") as f:
-snaps_col.update_one({"_id": "monday"}, {"$set": {"data": snapshot}}, upsert=True)
+    warns_col.update_one({"_id": "all_warns"}, {"$set": {"data": data}}, upsert=True)
 
 def parse_duration(duration_str: str):
     """Parsea formatos como 10m, 2h, 1d a un objeto timedelta válido"""
@@ -1259,21 +1250,9 @@ async def delete_snaps(ctx: commands.Context) -> None:
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
 
-    deleted = []
     try:
-        if MONDAY_SNAPSHOT_PATH.exists():
-            MONDAY_SNAPSHOT_PATH.unlink()
-            deleted.append("Monday")
-
-        if SUNDAY_SNAPSHOT_PATH.exists():
-            SUNDAY_SNAPSHOT_PATH.unlink()
-            deleted.append("Sunday")
-
-        if deleted:
-            await ctx.send(f"Deleted snapshots: {', '.join(deleted)}")
-        else:
-            await ctx.send("No snapshot files found.")
-
+        snaps_col.delete_many({})
+        await ctx.send("Deleted snapshots: Monday, Sunday")
     except Exception as exc:
         await ctx.send(f"Failed deleting snapshots: {exc}")
 

@@ -1565,7 +1565,7 @@ async def mypets(ctx: commands.Context) -> None:
     user_id_str = str(ctx.author.id)
     user_id_int = ctx.author.id
     
-    user_pets = list(pets_col.find({"owner_id": {"$in": [user_id_str, user_id_int]}}))
+    user_pets = list(pets_col.find({"_id": {"$in": [user_id_str, user_id_int]}}))
     
     if not user_pets:
         await ctx.send("You don't have any pets yet. Go get one!", ephemeral=True)

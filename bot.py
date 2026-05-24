@@ -1197,7 +1197,7 @@ async def help_command(ctx: commands.Context):
     embed.add_field(name="🌍 Public Commands", value=public_cmds, inline=False)
 
     # Comandos de Administrador
-  admin_cmds = (
+    admin_cmds = (
         "**`/register_monday / register_sunday`** - Manage snapshots.\n"
         "**`/weekly_lb / set_xp / delete_snaps`** - Leaderboard config.\n"
         "**`/purge [amount]`** - Delete messages from the channel.\n"

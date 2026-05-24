@@ -440,51 +440,53 @@ class BattleView(discord.ui.View):
 
     @discord.ui.button(label="⚔ Accept Battle", style=discord.ButtonStyle.green)
     async def accept(
-    self,
-    interaction: discord.Interaction,
-    button: discord.ui.Button
-):
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
 
-    if interaction.user != self.opponent:
-        return await interaction.response.send_message(
-            "❌ This is not your battle request.",
-            ephemeral=True
+        if interaction.user != self.opponent:
+            return await interaction.response.send_message(
+                "❌ This is not your battle request.",
+                ephemeral=True
+            )
+
+        challenger_data = pets_col.find_one(
+            {"_id": str(self.challenger.id)}
         )
 
-    challenger_data = pets_col.find_one(
-        {"_id": str(self.challenger.id)}
-    )
+        opponent_data = pets_col.find_one(
+            {"_id": str(self.opponent.id)}
+        )
 
-    opponent_data = pets_col.find_one(
-        {"_id": str(self.opponent.id)}
-    )
+        challenger_view = PetSelectionView(
+            self.challenger,
+            challenger_data["pets"]
+        )
 
-    challenger_view = PetSelectionView(
-        self.challenger,
-        challenger_data["pets"]
-    )
+        await interaction.response.send_message(
+            f"{self.challenger.mention}, choose your pet!",
+            view=challenger_view
+        )
 
-    await interaction.response.send_message(
-        f"{self.challenger.mention}, choose your pet!",
-        view=challenger_view
-    )
+        await challenger_view.wait()
 
-    await challenger_view.wait()
+        opponent_view = PetSelectionView(
+            self.opponent,
+            opponent_data["pets"]
+        )
 
-    opponent_view = PetSelectionView(
-        self.opponent,
-        opponent_data["pets"]
-    )
+        await interaction.followup.send(
+            f"{self.opponent.mention}, choose your pet!",
+            view=opponent_view
+        )
 
-    await interaction.followup.send(
-        f"{self.opponent.mention}, choose your pet!",
-        view=opponent_view
-    )
+        await opponent_view.wait()
 
-    await opponent_view.wait()
+        attacker_pet = challenger_view.selected_pet
+        defender_pet = opponent_view.selected_pet
 
-    attacker_pet = challenger_view.selected_pet
-    defender_pet = opponent_view.selected_pet
+        # RESTO DE TU CÓDIGO DE BATALLA
 
     # RESTO DE TU CÓDIGO DE BATALLA AQUÍ)
 

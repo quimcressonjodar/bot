@@ -17,12 +17,14 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
+
 client = pymongo.MongoClient(os.getenv("MONGO_URI"))
 db = client["kirka_bot"]
 pets_col = db["pets"]
 warns_col = db["warns"]
 snaps_col = db["snapshots"]
 eco_col = db["economy"]
+
 def get_user_data(user_id: str):
     user = eco_col.find_one({"_id": user_id})
 
@@ -34,7 +36,6 @@ def get_user_data(user_id: str):
         }
         eco_col.insert_one(user)
 
-    # MIGRACIÓN automática del antiguo balance
     if "balance" in user:
         wallet_amount = user.get("balance", 0)
 
@@ -119,141 +120,18 @@ HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "20"))
 HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
 WELCOME_CHANNEL_ID = 1206229312743809054 
+
 PET_SHOP = {
-    # Tier 1: Básicos
     "dog":      {"price": 500,    "hp": 100, "damage": 20, "emoji": "🐕"},
     "cat":      {"price": 600,    "hp": 80,  "damage": 25, "emoji": "🐈"},
-    
-    # Tier 2: Avanzados
     "wolf":     {"price": 1500,   "hp": 150, "damage": 40, "emoji": "🐺"},
     "bear":     {"price": 2500,   "hp": 250, "damage": 35, "emoji": "🐻"},
-    
-    # Tier 3: Épicos
     "dragon":   {"price": 6000,   "hp": 350, "damage": 70, "emoji": "🐉"},
     "golem":    {"price": 7500,   "hp": 550, "damage": 50, "emoji": "🗿"},
-    
-    # Tier 4: Míticos (Muy caros)
     "phoenix":  {"price": 15000,  "hp": 400, "damage": 120, "emoji": "🐦‍🔥"},
     "kraken":   {"price": 25000,  "hp": 600, "damage": 150, "emoji": "🦑"},
     "titan":    {"price": 40000,  "hp": 1000, "damage": 200, "emoji": "👑"}
 }
-
-class PetSelect(discord.ui.Select):
-    def __init__(self, player, pets, view):
-        self.player = player
-        self.view_ref = view
-        options = [
-            discord.SelectOption(
-                label=f"{p['type'].capitalize()} (HP: {p['hp']} | DMG: {p['damage']})",
-                value=p['id'],
-                description=f"ID: {p['id'][:8]}..."
-            ) for p in pets[:25]
-        ]
-        super().__init__(placeholder=f"{player.display_name}, choose your pet!", options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        if interaction.user.id != self.player.id:
-            return await interaction.response.send_message("This is not your turn to select!", ephemeral=True)
-
-        # Store choice
-        if self.player.id == self.view_ref.p1.id:
-            self.view_ref.p1_choice = self.values[0]
-        else:
-            self.view_ref.p2_choice = self.values[0]
-
-        await interaction.response.send_message(f"✅ You selected your pet!", ephemeral=True)
-
-        # Check if both have selected
-        if self.view_ref.p1_choice and self.view_ref.p2_choice:
-            await self.resolve_battle(interaction)
-
-    async def resolve_battle(self, interaction: discord.Interaction):
-        # 1. Fetch full pet data from DB
-        p1_data = pets_col.find_one({"_id": str(self.view_ref.p1.id)})
-        p2_data = pets_col.find_one({"_id": str(self.view_ref.p2.id)})
-
-        pet1 = next(p for p in p1_data['pets'] if p['id'] == self.view_ref.p1_choice)
-        pet2 = next(p for p in p2_data['pets'] if p['id'] == self.view_ref.p2_choice)
-
-        # 2. Battle Simulation
-        hp1, dmg1 = pet1['hp'], pet1['damage']
-        hp2, dmg2 = pet2['hp'], pet2['damage']
-        
-        log = []
-        turn = 1
-        while hp1 > 0 and hp2 > 0 and turn <= 10:
-            # Player 1 attacks
-            hit1 = random.randint(int(dmg1*0.8), int(dmg1*1.2))
-            hp2 -= hit1
-            log.append(f"💥 **{self.view_ref.p1.display_name}'s {pet1['type']}** hits for **{hit1}**!")
-            
-            if hp2 <= 0: break
-
-            # Player 2 attacks
-            hit2 = random.randint(int(dmg2*0.8), int(dmg2*1.2))
-            hp1 -= hit2
-            log.append(f"💥 **{self.view_ref.p2.display_name}'s {pet2['type']}** hits for **{hit2}**!")
-            turn += 1
-
-        # 3. Determine Winner
-        winner = None
-        reward = random.randint(100, 300)
-
-        if hp1 > hp2:
-            winner = self.view_ref.p1
-            eco_col.update_one({"_id": str(winner.id)}, {"$inc": {"wallet": reward}})
-        elif hp2 > hp1:
-            winner = self.view_ref.p2
-            eco_col.update_one({"_id": str(winner.id)}, {"$inc": {"wallet": reward}})
-
-        # 4. Final Result Embed
-        embed = discord.Embed(
-            title="⚔️ Battle Result",
-            description="\n".join(log[-6:]), # Show last 6 turns
-            color=discord.Color.gold()
-        )
-        
-        if winner:
-            embed.add_field(name="🏆 Winner", value=f"{winner.mention} won the battle and received **{reward} coins**!")
-        else:
-            embed.add_field(name="🤝 Draw", value="The battle ended in a tie!")
-
-        # Update the original message to remove buttons/selects and show result
-        await interaction.message.edit(content="🏁 The battle has ended!", embed=embed, view=None)
-class PetSelectionView(discord.ui.View):
-
-    def __init__(self, user, pets):
-
-        super().__init__(timeout=300)
-
-        self.user = user
-        self.selected_pet = None
-        self.message = None
-
-        self.add_item(PetSelect(user, pets))
-
-    async def on_timeout(self):
-
-        for child in self.children:
-            child.disabled = True
-
-        embed = discord.Embed(
-            title="⌛ Battle Cancelled",
-            description=(
-                "The battle request expired due to inactivity.\n\n"
-                "No pet was selected in time."
-            ),
-            color=0xff0000
-        )
-
-        try:
-            await self.message.edit(
-                embed=embed,
-                view=self
-            )
-        except:
-            pass
-
 
 class ClanClient:
     async def get_top_clans(self):
@@ -362,7 +240,6 @@ def save_snapshot(path, data: dict) -> None:
     snaps_col.update_one({"_id": snap_id}, {"$set": {"data": data}}, upsert=True)
 
 
-# ACTUALIZADO: is_admin ahora verifica el context (ctx) de comandos híbridos
 def is_admin(ctx: commands.Context) -> bool:
     if isinstance(ctx.author, discord.Member):
         return bool(ctx.author.guild_permissions.administrator)
@@ -463,7 +340,6 @@ class WeeklyXPBot(commands.Bot):
 
     async def on_ready(self):
         logger.info(f"✅ ¡Bot conectado y listo como {self.user}!")
-        # Forzamos la actualización de estado para quitar el modo Offline
         await self.change_presence(
             status=discord.Status.online, 
             activity=discord.Game(name="Kirka.io 🏆")
@@ -472,38 +348,9 @@ class WeeklyXPBot(commands.Bot):
     async def close(self) -> None:
         await self.clan_client.close()
         await super().close()
-class BattleView(discord.ui.View):
-    def __init__(self, p1, p2):
-        super().__init__(timeout=60)
-        self.p1 = p1
-        self.p2 = p2
-        self.p1_choice = None
-        self.p2_choice = None
-
-    @discord.ui.button(label="Accept Challenge", style=discord.ButtonStyle.green)
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.p2.id:
-            return await interaction.response.send_message("Only the challenged person can accept!", ephemeral=True)
-
-        # Remove the accept button and show selection menus
-        self.clear_items()
-        
-        p1_pets = pets_col.find_one({"_id": str(self.p1.id)})
-        p2_pets = pets_col.find_one({"_id": str(self.p2.id)})
-
-        if not p1_pets or not p1_pets.get("pets"):
-            return await interaction.response.send_message(f"{self.p1.display_name} doesn't have any pets!", ephemeral=True)
-        if not p2_pets or not p2_pets.get("pets"):
-            return await interaction.response.send_message(f"You don't have any pets!", ephemeral=True)
-
-        self.add_item(PetSelect(self.p1, p1_pets['pets'], self))
-        self.add_item(PetSelect(self.p2, p2_pets['pets'], self))
-
-        await interaction.response.edit_message(content="**Selection Phase:** Both players must choose their pet!", view=self)
 
 
 class TopClansPagination(discord.ui.View):
-    # ACTUALIZADO: Ya no requiere 'interaction' en la inicialización
     def __init__(self, clans: list, page: int, per_page: int):
         super().__init__(timeout=120)
         self.clans = clans
@@ -642,9 +489,7 @@ async def on_member_remove(member: discord.Member):
         color=0xff2a2a
     )
     await channel.send(embed=embed)
-# ==============================================================
-# SATELLITE: SISTEMA DE ADVERTENCIAS (BASE DE DATOS EN JSON)
-# ==============================================================
+
 WARNS_PATH = Path("warns.json")
 
 def load_warns() -> dict:
@@ -655,7 +500,6 @@ def save_warns(data: dict):
     warns_col.update_one({"_id": "all_warns"}, {"$set": {"data": data}}, upsert=True)
 
 def parse_duration(duration_str: str):
-    """Parsea formatos como 10m, 2h, 1d a un objeto timedelta válido"""
     from datetime import timedelta
     try:
         if duration_str.endswith("m"):
@@ -669,9 +513,6 @@ def parse_duration(duration_str: str):
     except ValueError:
         return None
 
-# ==============================================================
-# CATEGORÍA 1: CASTIGOS Y SANCIONES
-# ==============================================================
 
 @bot.hybrid_command(name="ban", description="Ban a member from the server (Admin only)")
 @app_commands.describe(member="The member to ban", reason="The reason for the ban")
@@ -680,11 +521,10 @@ async def ban(ctx: commands.Context, member: discord.Member, reason: str = "No r
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
     
-    # Intentamos enviar el MD antes de banear
     try:
         await member.send(f"🔨 You have been **banned** from **{ctx.guild.name}**.\n**Reason:** {reason}")
     except discord.Forbidden:
-        pass # Si tiene los MDs cerrados, simplemente lo ignoramos y seguimos
+        pass
         
     try:
         await member.ban(reason=reason)
@@ -712,7 +552,6 @@ async def kick(ctx: commands.Context, member: discord.Member, reason: str = "No 
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
     
-    # Intentamos enviar el MD antes de expulsar
     try:
         await member.send(f"👢 You have been **kicked** from **{ctx.guild.name}**.\n**Reason:** {reason}")
     except discord.Forbidden:
@@ -735,11 +574,10 @@ async def timeout(ctx: commands.Context, member: discord.Member, duration: str, 
     if not time_delta:
         return await ctx.send("❌ Invalid duration format! Use formats like `10m` (minutes), `2h` (hours), or `1d` (days).", ephemeral=True)
     
-    # Intentamos enviar el MD antes de aplicar el timeout
     try:
         await member.send(f"🔇 You have been **timed out** in **{ctx.guild.name}** for `{duration}`.\n**Reason:** {reason}")
     except discord.Forbidden:
-        pass # Si tiene los MDs cerrados, simplemente lo ignoramos y seguimos
+        pass
     
     try:
         await member.timeout(time_delta, reason=reason)
@@ -759,10 +597,6 @@ async def untimeout(ctx: commands.Context, member: discord.Member):
     except Exception as e:
         await ctx.send(f"❌ Failed to remove timeout: {e}", ephemeral=True)
 
-
-# ==============================================================
-# CATEGORÍA 2: LIMPIEZA Y CONTROL DEL CHAT
-# ==============================================================
 
 @bot.hybrid_command(name="purge", description="Purge a specified amount of messages (Admin only)")
 @app_commands.describe(amount="Amount of messages to delete")
@@ -823,10 +657,6 @@ async def slowmode(ctx: commands.Context, seconds: int, channel: discord.TextCha
         await ctx.send(f"❌ Failed to set slowmode: {e}", ephemeral=True)
 
 
-# ==============================================================
-# CATEGORÍA 3: SISTEMA DE ADVERTENCIAS (WARNS)
-# ==============================================================
-
 @bot.hybrid_command(name="warn", description="Issue a warning to a member (Admin only)")
 @app_commands.describe(member="The member to warn", reason="The reason for the warning")
 @app_commands.default_permissions(administrator=True)
@@ -850,7 +680,6 @@ async def warn(ctx: commands.Context, member: discord.Member, reason: str):
     warns_data[user_id].append(new_warn)
     save_warns(warns_data)
     
-    # Intentamos enviar el MD para avisarle del Warn
     try:
         await member.send(f"⚠️ You received a **warning** in **{ctx.guild.name}**.\n**Reason:** {reason}\n*You now have {len(warns_data[user_id])} warnings.*")
     except discord.Forbidden:
@@ -902,7 +731,6 @@ async def delwarn(ctx: commands.Context, member: discord.Member, warn_id: str):
     if len(updated_warns) == len(user_warns):
         return await ctx.send("❌ Warning ID not found for this user.", ephemeral=True)
     
-    # Re-indexar los warns restantes para que queden correlativos (1, 2, 3...)
     for idx, w in enumerate(updated_warns):
         w['id'] = str(idx + 1)
         
@@ -924,10 +752,6 @@ async def clearwarns(ctx: commands.Context, member: discord.Member):
         save_warns(warns_data)
     await ctx.send(f"✅ Cleared all warnings for **{member.name}**.")
 
-
-# ==============================================================
-# CATEGORÍA 4: UTILIDADES DE GESTIÓN RÁPIDA
-# ==============================================================
 
 @bot.hybrid_command(name="setnick", description="Quickly change a member's nickname (Admin only)")
 @app_commands.describe(member="The member", nickname="New nickname (Leave empty to reset)")
@@ -966,15 +790,11 @@ async def role_remove(ctx: commands.Context, member: discord.Member, role: disco
         await ctx.send(f"❌ Failed to remove role: {e}", ephemeral=True)
 
 
-# ==============================================================
-# CATEGORÍA 5: AUDITORÍA E INFORMACIÓN
-# ==============================================================
-
 @bot.hybrid_command(name="userinfo", description="Display detailed information about a member")
 @app_commands.describe(member="The member to view (Defaults to yourself)")
 async def userinfo(ctx: commands.Context, member: discord.Member = None):
     target = member or ctx.author
-    roles = [role.mention for role in target.roles[1:]] # Evita listar @everyone
+    roles = [role.mention for role in target.roles[1:]] 
     
     embed = discord.Embed(title=f"👤 User Profile: {target.name}", color=0x2b2d31)
     embed.set_thumbnail(url=target.display_avatar.url)
@@ -1046,6 +866,7 @@ async def balance(ctx: commands.Context, member: discord.Member = None):
     embed.set_thumbnail(url=target.display_avatar.url)
 
     await ctx.send(embed=embed)
+
 @bot.hybrid_command(name="deposit", aliases=["dep"], description="Deposit coins into your bank")
 async def deposit(ctx: commands.Context, amount: str):
     user_id = str(ctx.author.id)
@@ -1076,6 +897,7 @@ async def deposit(ctx: commands.Context, amount: str):
     )
 
     await ctx.send(embed=embed)
+
 @bot.hybrid_command(name="withdraw", aliases=["with"], description="Withdraw coins from your bank")
 async def withdraw(ctx: commands.Context, amount: str):
     user_id = str(ctx.author.id)
@@ -1108,7 +930,7 @@ async def withdraw(ctx: commands.Context, amount: str):
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="work", description="Work to earn coins")
-@commands.cooldown(1, 2700, commands.BucketType.user) # 45 mins
+@commands.cooldown(1, 2700, commands.BucketType.user) 
 async def work(ctx: commands.Context):
 
     earnings = random.randint(250, 800)
@@ -1149,6 +971,7 @@ async def work(ctx: commands.Context):
     embed.set_footer(text="Come back in 45 minutes for another shift.")
 
     await ctx.send(embed=embed)
+
 @work.error
 async def work_error(ctx: commands.Context, error):
     if isinstance(error, commands.CommandOnCooldown):
@@ -1226,6 +1049,7 @@ async def gamble(ctx: commands.Context, amount: str):
     except Exception as e:
         logger.exception("GAMBLE COMMAND ERROR")
         await ctx.send(f"Error: {e}")
+
 @bot.hybrid_command(name="daily", description="Claim your daily free coins")
 @commands.cooldown(1, 86400, commands.BucketType.user)
 async def daily(ctx: commands.Context):
@@ -1272,7 +1096,6 @@ async def pay(ctx: commands.Context, member: discord.Member, amount: int):
             ephemeral=True
         )
 
-    # TRANSFER
     update_wallet(sender_id, -amount)
     update_wallet(receiver_id, amount)
 
@@ -1378,6 +1201,7 @@ async def rob_error(ctx: commands.Context, error):
     if isinstance(error, commands.CommandOnCooldown):
         minutes = int(error.retry_after // 60)
         await ctx.send(f"⏳ The cops are still looking for you! Lay low for {minutes}m.", ephemeral=True)
+
 @bot.hybrid_command(name="leaderboard", aliases=["lb", "top"], description="Shows the richest members")
 async def leaderboard(ctx: commands.Context):
 
@@ -1445,22 +1269,18 @@ async def top_clans(ctx: commands.Context):
 
 @bot.hybrid_command(name="flip", description="Flip a coin: Heads or Tails")
 async def flip(ctx: commands.Context):
-    # 1. Enviamos el mensaje inicial SIN el emoji
     msg = await ctx.send("Flipping the coin...")
     
-    # 2. Recreamos la semilla de forma justa
     unique_id = str(ctx.interaction.id if ctx.interaction else ctx.message.id)
     seed_int = int(hashlib.sha256(unique_id.encode()).hexdigest(), 16)
     
-    # 3. Calculamos el resultado
     local_random = random.Random(seed_int)
     result = local_random.choice(["Heads", "Tails"])
     
-    # 4. Hacemos una micropausa de 1.5 segundos para la intriga
     await asyncio.sleep(1)
     
-    # 5. Editamos el mensaje para que aparezca el emoji JUNTO al resultado
     await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
+
 @bot.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")
 @app_commands.describe(question="The question you want to ask")
 async def eight_ball(ctx: commands.Context, question: str):
@@ -1475,10 +1295,8 @@ async def eight_ball(ctx: commands.Context, question: str):
     ]
     answer = random.choice(responses)
     
-    # Creamos un Embed elegante (puedes cambiar el color si quieres)
     embed = discord.Embed(color=0x2b2d31)
     
-    # Colocamos el nombre del usuario delante de la pregunta y la respuesta abajo
     embed.description = (
         f"🎱 **{ctx.author.display_name} asks:** {question}\n"
         f"💬 **Answer:** {answer}"
@@ -1494,14 +1312,10 @@ async def item_lookup(ctx: commands.Context, name: str):
         url = f"{KIRKA_API_BASE}/api/inventory/items"
         all_items = await bot.clan_client._request_json_with_retry("GET", url)
 
-        # 1. BUSQUEDA ESTRICTA (Comparación exacta ignorando mayúsculas)
         found_item = next((i for i in all_items if i.get('name', '').lower() == name.lower()), None)
 
-        # 2. SI NO HAY COINCIDENCIA EXACTA, BUSCAMOS PARECIDOS
         if not found_item:
-            # Filtramos todos los que contengan la palabra para sugerirlos
             suggestions = [i.get('name') for i in all_items if name.lower() in i.get('name', '').lower()]
-            # Limitamos a las primeras 10 sugerencias para no llenar el chat
             suggestions = suggestions[:10]
 
             error_msg = f"🔍 **Item not found:** `{name}`"
@@ -1511,7 +1325,6 @@ async def item_lookup(ctx: commands.Context, name: str):
             
             return await ctx.send(error_msg)
 
-        # 3. SI LO ENCONTRÓ (Continúa el código normal)
         item_name = found_item.get('name', 'Unknown')
         rarity = found_item.get('rarity', 'COMMON').upper()
         item_type = found_item.get('type', 'ITEM').replace('_', ' ')
@@ -1699,6 +1512,7 @@ async def set_xp(ctx: commands.Context, xp: int) -> None:
 
     WEEKLY_XP_REQUIREMENT = xp
     await ctx.send(f"Weekly XP requirement updated to {WEEKLY_XP_REQUIREMENT:,} XP.")
+
 @bot.hybrid_command(name="sayembed", description="Send a custom embed message (Admin only)")
 @app_commands.describe(
     title="Title of the embed",
@@ -1769,20 +1583,16 @@ async def say(ctx: commands.Context, message: str):
     if not is_admin(ctx):
         return await ctx.send("Admin only command.", ephemeral=True)
 
-    # Si usaste el prefijo (!say)
     if ctx.interaction is None: 
         try:
-            await ctx.message.delete() # Borra el mensaje donde escribiste el comando
+            await ctx.message.delete() 
         except discord.Forbidden:
             pass
-        # No mandamos confirmación, solo enviamos tu mensaje directamente
         await ctx.send(message)
-    
-    # Si usaste el Slash Command (/say)
     else:
-        # Aquí SÍ funciona el mensaje oculto
         await ctx.send("Message sent!", ephemeral=True)
         await ctx.channel.send(message)
+
 class RPSView(discord.ui.View):
     def __init__(self, player: discord.Member):
         super().__init__(timeout=60)
@@ -1839,15 +1649,15 @@ async def rps(ctx: commands.Context):
     )
     view = RPSView(ctx.author)
     await ctx.send(embed=embed, view=view)
+
 @bot.hybrid_command(name="help", description="Show all available commands")
 async def help_command(ctx: commands.Context):
     embed = discord.Embed(
         title="🏆 Kirka.io Bot | Command List",
         description="Here is a list of all available commands to manage the clan and have fun! 🎮",
-        color=0x2b2d31 # Color oscuro elegante de Discord
+        color=0x2b2d31 
     )
 
-    # Comandos Públicos
     public_cmds = (
         "**`/top_clans`** - View the global Kirka.io top clans leaderboard.\n"
         "**`/clan_info`** - View detailed statistics and info for our clan.\n"
@@ -1858,7 +1668,6 @@ async def help_command(ctx: commands.Context):
     )
     embed.add_field(name="🌍 Public Commands", value=public_cmds, inline=False)
 
-    # Comandos de Administrador
     admin_cmds = (
         "**`/register_monday / register_sunday`** - Manage snapshots.\n"
         "**`/weekly_lb / set_xp / delete_snaps`** - Leaderboard config.\n"
@@ -1872,13 +1681,13 @@ async def help_command(ctx: commands.Context):
     )
     embed.add_field(name="🛡️ Admin Commands", value=admin_cmds, inline=False)
 
-    # Footer con el contacto de bugs
     embed.set_footer(
         text="🐛 Found a bug or have an issue? Contact: @clxzon_", 
         icon_url=ctx.author.display_avatar.url
     )
 
     await ctx.send(embed=embed)
+
 @bot.hybrid_command(name="shop", description="View and buy animals for battle")
 @app_commands.describe(
     action="Choose 'view' to see the shop or 'buy' to purchase",
@@ -1956,9 +1765,116 @@ async def shop(ctx: commands.Context, action: str = "view", pet_name: str = None
 
         await ctx.send(embed=embed)
 
-        await ctx.send(embed=embed)
+
+async def run_battle_logic(interaction: discord.Interaction, p1: discord.Member, p2: discord.Member, p1_pet_id: str, p2_pet_id: str):
+    p1_data = pets_col.find_one({"_id": str(p1.id)})
+    p2_data = pets_col.find_one({"_id": str(p2.id)})
+
+    pet1 = next((p for p in p1_data['pets'] if p.get('pet_id') == p1_pet_id or p.get('id') == p1_pet_id), None)
+    pet2 = next((p for p in p2_data['pets'] if p.get('pet_id') == p2_pet_id or p.get('id') == p2_pet_id), None)
+
+    if not pet1 or not pet2:
+        return await interaction.message.edit(content="Error loading pets.", view=None)
+
+    hp1, dmg1 = pet1['hp'], pet1['damage']
+    hp2, dmg2 = pet2['hp'], pet2['damage']
+
+    log = []
+    turn = 1
+    
+    while hp1 > 0 and hp2 > 0 and turn <= 10:
+        hit1 = random.randint(int(dmg1*0.8), int(dmg1*1.2))
+        hp2 -= hit1
+        log.append(f"💥 {p1.display_name}'s {pet1['type']} hits for {hit1} damage!")
+        if hp2 <= 0: break
+
+        hit2 = random.randint(int(dmg2*0.8), int(dmg2*1.2))
+        hp1 -= hit2
+        log.append(f"💥 {p2.display_name}'s {pet2['type']} hits for {hit2} damage!")
+        turn += 1
+
+    winner = None
+    reward = random.randint(100, 300)
+
+    if hp1 > hp2:
+        winner = p1
+    elif hp2 > hp1:
+        winner = p2
+
+    embed = discord.Embed(title="⚔️ Battle Result", description="\n".join(log), color=discord.Color.gold())
+    
+    if winner:
+        eco_col.update_one({"_id": str(winner.id)}, {"$inc": {"wallet": reward}})
+        embed.add_field(name="🏆 Winner", value=f"{winner.mention} won and received 🪙 {reward} coins!")
+    else:
+        embed.add_field(name="🤝 Draw", value="The battle ended in a tie!")
+
+    await interaction.message.edit(content="🏁 The battle has ended!", embed=embed, view=None)
+
+class PetSelectView(discord.ui.View):
+    def __init__(self, p1: discord.Member, p2: discord.Member, p1_pets: list, p2_pets: list):
+        super().__init__(timeout=120)
+        self.p1 = p1
+        self.p2 = p2
+        self.p1_choice = None
+        self.p2_choice = None
+
+        opts1 = [discord.SelectOption(label=f"{p['type'].capitalize()} (HP:{p['hp']} DMG:{p['damage']})", value=p.get('pet_id') or p.get('id')) for p in p1_pets[:25]]
+        self.select1 = discord.ui.Select(placeholder=f"Player 1: {p1.display_name}, choose your pet", options=opts1, custom_id="select_p1")
+        self.select1.callback = self.p1_callback
+        self.add_item(self.select1)
+
+        opts2 = [discord.SelectOption(label=f"{p['type'].capitalize()} (HP:{p['hp']} DMG:{p['damage']})", value=p.get('pet_id') or p.get('id')) for p in p2_pets[:25]]
+        self.select2 = discord.ui.Select(placeholder=f"Player 2: {p2.display_name}, choose your pet", options=opts2, custom_id="select_p2")
+        self.select2.callback = self.p2_callback
+        self.add_item(self.select2)
+
+    async def p1_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.p1.id:
+            return await interaction.response.send_message("This select menu is not for you.", ephemeral=True)
+        
+        self.p1_choice = self.select1.values[0]
+        self.select1.disabled = True
+        
+        if self.p1_choice and self.p2_choice:
+            await interaction.response.edit_message(content="Both pets selected. Battling...", view=self)
+            await run_battle_logic(interaction, self.p1, self.p2, self.p1_choice, self.p2_choice)
+        else:
+            await interaction.response.edit_message(content="Waiting for the opponent to select...", view=self)
+
+    async def p2_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.p2.id:
+            return await interaction.response.send_message("This select menu is not for you.", ephemeral=True)
+        
+        self.p2_choice = self.select2.values[0]
+        self.select2.disabled = True
+        
+        if self.p1_choice and self.p2_choice:
+            await interaction.response.edit_message(content="Both pets selected. Battling...", view=self)
+            await run_battle_logic(interaction, self.p1, self.p2, self.p1_choice, self.p2_choice)
+        else:
+            await interaction.response.edit_message(content="Waiting for the opponent to select...", view=self)
+
+class BattleAcceptView(discord.ui.View):
+    def __init__(self, p1: discord.Member, p2: discord.Member):
+        super().__init__(timeout=60)
+        self.p1 = p1
+        self.p2 = p2
+
+    @discord.ui.button(label="Accept Battle", style=discord.ButtonStyle.green)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.p2.id:
+            return await interaction.response.send_message("Only the challenged player can accept.", ephemeral=True)
+        
+        p1_data = pets_col.find_one({"_id": str(self.p1.id)})
+        p2_data = pets_col.find_one({"_id": str(self.p2.id)})
+
+        view = PetSelectView(self.p1, self.p2, p1_data['pets'], p2_data['pets'])
+        await interaction.response.edit_message(content="Battle accepted! Both players, select your pets below.", embed=None, view=view)
+
 @bot.hybrid_command(name="battle", description="Battle another member")
 @app_commands.describe(member="The member you want to fight")
+@commands.cooldown(1, 60, commands.BucketType.user)
 async def battle(ctx: commands.Context, member: discord.Member):
 
     if member.bot:
@@ -1976,7 +1892,7 @@ async def battle(ctx: commands.Context, member: discord.Member):
     if not defender_data or not defender_data.get("pets"):
         return await ctx.send("❌ That user doesn't own any pets.")
 
-    view = BattleView(ctx.author, member)
+    view = BattleAcceptView(ctx.author, member)
 
     embed = discord.Embed(
         title="⚔️ Pet Battle Request",
@@ -1987,11 +1903,7 @@ async def battle(ctx: commands.Context, member: discord.Member):
         color=0xff5500
     )
 
-    await ctx.send(
-    content=f"{member.mention}",
-    embed=embed,
-    view=view
-)
+    await ctx.send(content=f"{member.mention}", embed=embed, view=view)
 
 @battle.error
 async def battle_error(ctx: commands.Context, error):
@@ -1999,6 +1911,8 @@ async def battle_error(ctx: commands.Context, error):
         minutes = int(error.retry_after // 60)
         seconds = int(error.retry_after % 60)
         await ctx.send(f"⏳ Your pet is resting. Try again in {minutes}m {seconds}s.", ephemeral=True)
+
+
 @bot.hybrid_command(name="pets", description="View your pets")
 async def pets(ctx: commands.Context):
 

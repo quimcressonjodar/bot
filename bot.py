@@ -20,6 +20,21 @@ client = pymongo.MongoClient(os.getenv("MONGO_URI"))
 db = client["kirka_bot"]
 warns_col = db["warns"]
 snaps_col = db["snapshots"]
+eco_col = db["economy"]
+def get_balance(user_id: str) -> int:
+    """Gets the balance of a user. If it doesn't exist, returns 0."""
+    user = eco_col.find_one({"_id": user_id})
+    return user["balance"] if user else 0
+
+def update_balance(user_id: str, amount: int) -> int:
+    """Adds or subtracts money and returns the new balance."""
+    result = eco_col.find_one_and_update(
+        {"_id": user_id},
+        {"$inc": {"balance": amount}},
+        upsert=True,
+        return_document=pymongo.ReturnDocument.AFTER
+    )
+    return result["balance"]
 
 try:
     from tabulate import tabulate
@@ -788,6 +803,84 @@ async def avatar(ctx: commands.Context, member: discord.Member = None):
     target = member or ctx.author
     embed = discord.Embed(title=f"🖼️ Avatar of {target.name}", color=0x2b2d31)
     embed.set_image(url=target.display_avatar.url)
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="balance", aliases=["bal"], description="Check how many coins you have")
+async def balance(ctx: commands.Context, member: discord.Member = None):
+    target = member or ctx.author
+    money = get_balance(str(target.id))
+    
+    embed = discord.Embed(
+        title=f"💳 {target.display_name}'s Account",
+        description=f"Current balance: 🪙 {money:,} coins",
+        color=0x2b2d31
+    )
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="work", description="Work to earn some coins")
+@commands.cooldown(1, 3600, commands.BucketType.user)
+async def work(ctx: commands.Context):
+    earnings = random.randint(100, 400)
+    
+    jobs = [
+        "made a custom CSS theme for a game UI and got paid",
+        "went for a run with music blasting and found on the ground",
+        "programmed a super complex Python event and the client gave you",
+        "sold lemonade at your front door and made",
+        "mined crypto with your toaster and earned"
+    ]
+    
+    reason = random.choice(jobs)
+    new_balance = update_balance(str(ctx.author.id), earnings)
+    
+    embed = discord.Embed(
+        title="💼 Payday!",
+        description=f"Well done! Today you {reason} 🪙 {earnings} coins.\n\nYou now have {new_balance:,} coins in total.",
+        color=0x00ff00
+    )
+    await ctx.send(embed=embed)
+
+@work.error
+async def work_error(ctx: commands.Context, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        minutes = int(error.retry_after // 60)
+        seconds = int(error.retry_after % 60)
+        await ctx.send(f"⏳ You are too tired! Come back to work in {minutes}m {seconds}s.", ephemeral=True)
+
+@bot.hybrid_command(name="gamble", description="Gamble your coins on a 50/50 chance")
+@app_commands.describe(amount="The amount of coins you want to bet (or 'all')")
+async def gamble(ctx: commands.Context, amount: str):
+    user_id = str(ctx.author.id)
+    current_balance = get_balance(user_id)
+    
+    if amount.lower() == "all":
+        bet = current_balance
+    else:
+        try:
+            bet = int(amount)
+        except ValueError:
+            return await ctx.send("❌ Please enter a valid number or 'all'.", ephemeral=True)
+            
+    if bet <= 0:
+        return await ctx.send("❌ You must bet at least 1 coin.", ephemeral=True)
+        
+    if bet > current_balance:
+        return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {current_balance:,}.", ephemeral=True)
+        
+    wins = random.choice([True, False])
+    
+    if wins:
+        new_balance = update_balance(user_id, bet)
+        color = 0x00ff00
+        title = "🎰 YOU WON!"
+        message = f"You won 🪙 {bet:,} coins.\nYour new balance is 🪙 {new_balance:,}."
+    else:
+        new_balance = update_balance(user_id, -bet)
+        color = 0xff0000
+        title = "📉 You lost!"
+        message = f"You lost 🪙 {bet:,} coins.\nYour new balance is 🪙 {new_balance:,}."
+        
+    embed = discord.Embed(title=title, description=message, color=color)
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="top_clans", description="View the top clans leaderboard")

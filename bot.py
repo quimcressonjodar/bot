@@ -4,6 +4,7 @@ import logging
 import asyncio
 import random
 import hashlib
+import pymongo
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -15,6 +16,10 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
+client = pymongo.MongoClient(os.getenv("MONGO_URI"))
+db = client["kirka_bot"]
+warns_col = db["warns"]
+snaps_col = db["snapshots"]
 
 try:
     from tabulate import tabulate
@@ -158,12 +163,14 @@ def load_snapshot(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     with path.open("r", encoding="utf-8") as file:
-        return json.load(file)
+doc = snaps_col.find_one({"_id": "monday"})
+data = doc["data"] if doc else None
 
 
 def save_snapshot(path: Path, data: dict[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as file:
-        json.dump(data, file, ensure_ascii=False, indent=2)
+    
+snaps_col.update_one({"_id": "monday"}, {"$set": {"data": snapshot}}, upsert=True)
 
 
 # ACTUALIZADO: is_admin ahora verifica el context (ctx) de comandos híbridos
@@ -427,11 +434,13 @@ def load_warns() -> dict:
     if not WARNS_PATH.exists():
         return {}
     with WARNS_PATH.open("r", encoding="utf-8") as f:
-        return json.load(f)
+
+doc = snaps_col.find_one({"_id": "monday"})
+data = doc["data"] if doc else None
 
 def save_warns(data: dict):
     with WARNS_PATH.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+snaps_col.update_one({"_id": "monday"}, {"$set": {"data": snapshot}}, upsert=True)
 
 def parse_duration(duration_str: str):
     """Parsea formatos como 10m, 2h, 1d a un objeto timedelta válido"""

@@ -657,6 +657,34 @@ async def set_xp(ctx: commands.Context, xp: int) -> None:
 
     WEEKLY_XP_REQUIREMENT = xp
     await ctx.send(f"Weekly XP requirement updated to {WEEKLY_XP_REQUIREMENT:,} XP.")
+@bot.hybrid_command(name="sayembed", description="Send a custom embed message (Admin only)")
+@app_commands.describe(
+    title="Title of the embed",
+    description="The main text of the embed",
+    color="Hex color code (e.g. 2b2d31 or ff0000)"
+)
+@app_commands.default_permissions(administrator=True) 
+async def sayembed(ctx: commands.Context, title: str, description: str, color: str = "2b2d31"):
+    if not is_admin(ctx):
+        return await ctx.send("Admin only command.", ephemeral=True)
+
+    # Convertir el color hex a entero para discord.py
+    try:
+        color_int = int(color.lstrip('#'), 16)
+    except ValueError:
+        color_int = 0x2b2d31 # Color oscuro por defecto si hay error
+
+    embed = discord.Embed(title=title, description=description, color=color_int)
+
+    if ctx.interaction is None: 
+        try:
+            await ctx.message.delete() 
+        except discord.Forbidden:
+            pass
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("Embed sent!", ephemeral=True)
+        await ctx.channel.send(embed=embed)
 
 
 @bot.hybrid_command(name="clan_info", description="Detailed statistics for the current clan")

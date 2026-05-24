@@ -439,7 +439,7 @@ class BattleView(discord.ui.View):
         self.opponent = opponent
 
     @discord.ui.button(label="⚔ Accept Battle", style=discord.ButtonStyle.green)
-async def accept(
+    async def accept(
     self,
     interaction: discord.Interaction,
     button: discord.ui.Button

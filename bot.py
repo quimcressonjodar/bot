@@ -7,6 +7,7 @@ import hashlib
 import pymongo
 import uuid
 import secrets
+import time
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -1044,63 +1045,7 @@ async def withdraw(ctx: commands.Context, amount: str):
     )
     await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="work", description="Work to earn coins")
-@commands.cooldown(1, 2700, commands.BucketType.user) 
-async def work(ctx: commands.Context):
 
-    earnings = random.randint(250, 800)
-
-    jobs = [
-        "developed a futuristic Discord bot for a billionaire",
-        "won a late-night poker tournament",
-        "repaired a military drone for a secret agency",
-        "hacked into an abandoned crypto vault",
-        "worked overtime at a cyberpunk nightclub",
-        "delivered illegal space tacos across the galaxy",
-        "streamed games for 14 hours straight",
-        "sold rare dragon eggs on the black market",
-        "worked as a bodyguard for a mafia boss",
-        "found ancient treasure hidden underground",
-        "completed dangerous bounty hunter missions",
-        "managed a shady underground casino",
-        "worked at a futuristic AI laboratory",
-        "helped a millionaire recover lost crypto",
-        "participated in illegal street races",
-        "sold enchanted weapons to traveling merchants",
-        "worked as a mercenary during clan wars",
-        "created viral memes that exploded online",
-        "found money hidden behind a vending machine",
-        "worked at a haunted hotel overnight",
-        "hacked the mainframe of a rival megacorp",
-        "smuggled rare alien artifacts past customs",
-        "won a high-stakes underground racing tournament",
-        "tamed a wild cyber-dragon for a wealthy eccentric",
-        "fixed the hyperdrive on a stranded space cruiser",
-        "defused a ticking time bomb in the city square",
-        "won a legendary rap battle against an AI"
-    ]
-
-    reason = random.choice(jobs)
-
-    update_wallet(str(ctx.author.id), earnings)
-
-    embed = discord.Embed(
-        title="💼 Work Complete",
-        description=f"You {reason} and earned 🪙 **{earnings:,}** coins.",
-        color=0x00ff99
-    )
-
-    embed.set_footer(text="Come back in 45 minutes for another shift.")
-
-    await ctx.send(embed=embed)
-    await ctx.send(embed=embed)
-
-@work.error
-async def work_error(ctx: commands.Context, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        minutes = int(error.retry_after // 60)
-        seconds = int(error.retry_after % 60)
-        await ctx.send(f"⏳ You are too tired! Come back to work in {minutes}m {seconds}s.", ephemeral=True)
 
 @bot.hybrid_command(name="gamble", description="Gamble your coins on a 50/50 chance")
 @app_commands.describe(amount="Amount ('all', 'half', or number)")
@@ -1137,19 +1082,58 @@ async def gamble(ctx: commands.Context, amount: str):
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="daily", description="Claim your daily free coins")
-@commands.cooldown(1, 86400, commands.BucketType.user)
 async def daily(ctx: commands.Context):
-    reward = 1000
-    update_wallet(str(ctx.author.id), reward)
-
-    new_balance = get_wallet(str(ctx.author.id))
+    user_id = str(ctx.author.id)
+    user_data = get_user_data(user_id)
     
-    embed = discord.Embed(
-        title="🎁 Daily Reward",
-        description=f"You claimed your daily 🪙 {reward} coins.\nCome back tomorrow for more! Your balance is now 🪙 {new_balance:,}.",
-        color=0x00ff00
+    # Fecha UTC actual (ej: "2026-05-25")
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    
+    if user_data.get("last_daily") == today_str:
+        next_midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
+        time_left = next_midnight - now
+        hours, remainder = divmod(int(time_left.total_seconds()), 3600)
+        minutes, _ = divmod(remainder, 60)
+        return await ctx.send(f"⏳ Cooldown! Try again in **{hours}h {minutes}m**.", ephemeral=True)
+        
+    amount = 500  # Cambia esto si tu cantidad original era distinta
+    eco_col.update_one(
+        {"_id": user_id}, 
+        {"$inc": {"wallet": amount}, "$set": {"last_daily": today_str}}, 
+        upsert=True
     )
-    await ctx.send(embed=embed)
+    await ctx.send(f"📆 You claimed your daily reward of 🪙 {amount:,} coins!")
+
+
+@bot.hybrid_command(name="weekly", description="Claim your massive weekly reward")
+async def weekly(ctx: commands.Context):
+    user_id = str(ctx.author.id)
+    user_data = get_user_data(user_id)
+    
+    # Semana UTC actual (ej: "2026-W21")
+    now = datetime.now(timezone.utc)
+    week_str = f"{now.year}-W{now.isocalendar()[1]}"
+    
+    if user_data.get("last_weekly") == week_str:
+        days_ahead = 7 - now.isoweekday()
+        next_monday = (now + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
+        if days_ahead == 0 and now.time() > time.min: 
+            next_monday += timedelta(days=7)
+            
+        time_left = next_monday - now
+        days = time_left.days
+        hours, remainder = divmod(int(time_left.seconds), 3600)
+        minutes, _ = divmod(remainder, 60)
+        return await ctx.send(f"⏳ Cooldown! Try again in **{days}d {hours}h {minutes}m**.", ephemeral=True)
+        
+    amount = 3500  # Cambia esto si tu cantidad original era distinta
+    eco_col.update_one(
+        {"_id": user_id}, 
+        {"$inc": {"wallet": amount}, "$set": {"last_weekly": week_str}}, 
+        upsert=True
+    )
+    await ctx.send(f"✨ You claimed your weekly reward of 🪙 {amount:,} coins!")
 
 @daily.error
 async def daily_error(ctx: commands.Context, error):
@@ -1187,89 +1171,7 @@ async def pay(ctx: commands.Context, member: discord.Member, amount: str):
     )
     await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="rob", description="Attempt to rob another member")
-@commands.cooldown(1, 3600, commands.BucketType.user) # Cooldown changed to 1 hour
-async def rob(ctx: commands.Context, member: discord.Member):
 
-    thief_id = str(ctx.author.id)
-    target_id = str(member.id)
-
-    if thief_id == target_id:
-        return await ctx.send("❌ You cannot rob yourself.", ephemeral=True)
-
-    target_wallet = get_wallet(target_id)
-
-    if target_wallet < 300:
-        return await ctx.send("❌ This user doesn't have enough wallet coins to rob.", ephemeral=True)
-
-    success_messages = [
-        "jumped through a window like a movie thief",
-        "pickpocketed them during a crowded concert",
-        "used fake security credentials to access their vault",
-        "escaped through the rooftops after the robbery",
-        "executed the perfect stealth mission",
-        "used smoke grenades and escaped unseen",
-        "hacked their crypto wallet remotely",
-        "bribed the guards and walked out the front door",
-        "used a teleporter to snatch their wallet",
-        "distracted them with a hologram and grabbed the cash",
-        "disguised yourself as a pizza delivery driver and looted the place"
-    ]
-
-    fail_messages = [
-        "tripped the alarm system",
-        "got caught by security cameras",
-        "accidentally robbed a police officer",
-        "left fingerprints everywhere",
-        "triggered laser security defenses",
-        "was betrayed by your getaway driver",
-        "got tackled by bodyguards",
-        "got outsmarted by a decoy safe",
-        "was chased down by a cybernetic guard dog",
-        "dropped the loot while trying to escape over a fence",
-        "sneezed loudly while hiding in the closet"
-    ]
-
-    success = random.choice([True, False])
-
-    if success:
-        stolen = random.randint(150, int(target_wallet * 0.35))
-        update_wallet(target_id, -stolen)
-        update_wallet(thief_id, stolen)
-
-        msg = random.choice(success_messages)
-
-        embed = discord.Embed(
-            title="🥷 Successful Robbery",
-            description=(
-                f"You {msg}.\n\n"
-                f"You stole 🪙 **{stolen:,}** from {member.mention}."
-            ),
-            color=0x00ff00
-        )
-
-    else:
-        fine = random.randint(150, 500)
-        update_wallet(thief_id, -fine)
-
-        msg = random.choice(fail_messages)
-
-        embed = discord.Embed(
-            title="🚨 Robbery Failed",
-            description=(
-                f"You {msg}.\n\n"
-                f"You paid a fine of 🪙 **{fine:,}**."
-            ),
-            color=0xff0000
-        )
-
-    await ctx.send(embed=embed)
-
-@rob.error
-async def rob_error(ctx: commands.Context, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        minutes = int(error.retry_after // 60)
-        await ctx.send(f"⏳ The cops are still looking for you! Lay low for {minutes}m.", ephemeral=True)
 
 @bot.hybrid_command(name="leaderboard", aliases=["lb", "top"], description="Shows the richest members")
 async def leaderboard(ctx: commands.Context):
@@ -1481,86 +1383,117 @@ async def blackjack(ctx: commands.Context, bet_amount: str):
     # IMPORTANTE: Pasamos "bet" a la vista (View)
     view = BlackjackView(ctx, bet, user_id)
     await ctx.send(embed=view.create_embed(), view=view)
+# --- WORK ---
+@bot.hybrid_command(name="work", description="Work to earn coins")
+async def work(ctx: commands.Context):
+    user_id = str(ctx.author.id)
+    user_data = get_user_data(user_id)
+    
+    cooldown = 2700 # 45 minutos
+    last_work = user_data.get("last_work", 0)
+    now = time.time()
+    
+    if now - last_work < cooldown:
+        time_left = int(cooldown - (now - last_work))
+        minutes, seconds = divmod(time_left, 60)
+        return await ctx.send(f"⏳ You are too tired! Come back to work in {minutes}m {seconds}s.", ephemeral=True)
+
+    earnings = random.randint(250, 800)
+    jobs = [
+        "developed a futuristic Discord bot for a billionaire", "won a late-night poker tournament",
+        "repaired a military drone for a secret agency", "hacked into an abandoned crypto vault",
+        "worked overtime at a cyberpunk nightclub", "delivered illegal space tacos across the galaxy",
+        "streamed games for 14 hours straight", "sold rare dragon eggs on the black market",
+        "worked as a bodyguard for a mafia boss", "found ancient treasure hidden underground",
+        "completed dangerous bounty hunter missions", "managed a shady underground casino",
+        "worked at a futuristic AI laboratory", "helped a millionaire recover lost crypto",
+        "participated in illegal street races", "sold enchanted weapons to traveling merchants",
+        "worked as a mercenary during clan wars", "created viral memes that exploded online",
+        "found money hidden behind a vending machine", "worked at a haunted hotel overnight",
+        "hacked the mainframe of a rival megacorp", "smuggled rare alien artifacts past customs",
+        "won a high-stakes underground racing tournament", "tamed a wild cyber-dragon for a wealthy eccentric",
+        "fixed the hyperdrive on a stranded space cruiser", "defused a ticking time bomb in the city square",
+        "won a legendary rap battle against an AI"
+    ]
+    reason = random.choice(jobs)
+
+    # Actualizamos DB
+    eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": earnings}, "$set": {"last_work": now}}, upsert=True)
+
+    embed = discord.Embed(title="💼 Work Complete", description=f"You {reason} and earned 🪙 **{earnings:,}** coins.", color=0x00ff99)
+    embed.set_footer(text="Come back in 45 minutes for another shift.")
+    await ctx.send(embed=embed)
+
+
+# --- CRIME ---
 @bot.hybrid_command(name="crime", description="Commit a crime for big money, but risk getting caught!")
-@commands.cooldown(1, 7200, commands.BucketType.user) # 2 horas de cooldown
 async def crime(ctx: commands.Context):
     user_id = str(ctx.author.id)
-    wallet = get_wallet(user_id)
+    user_data = get_user_data(user_id)
+    wallet = user_data.get("wallet", 0)
+    
+    cooldown = 7200 # 2 horas
+    last_crime = user_data.get("last_crime", 0)
+    now = time.time()
+    
+    if now - last_crime < cooldown:
+        time_left = int(cooldown - (now - last_crime))
+        hours, minutes = divmod(time_left, 3600)
+        return await ctx.send(f"⏳ The heat is too high! Lay low for {hours}h {minutes//60}m before committing another crime.", ephemeral=True)
 
     if wallet < 1000:
         return await ctx.send("❌ You need at least 🪙 1,000 in your wallet to commit a crime (to bribe the cops just in case).", ephemeral=True)
 
     success = random.choice([True, False])
-
     if success:
         earnings = random.randint(2000, 6500)
-        update_wallet(user_id, earnings)
-        
-        scenarios = [
-            "robbed an underground casino",
-            "hacked a billionaire's bank account",
-            "stole a cybernetic sports car",
-            "smuggled rare alien artifacts",
-            "sold counterfeit Kirka skins on the black market"
-        ]
-        msg = random.choice(scenarios)
-        
-        embed = discord.Embed(
-            title="🦹 Crime Successful",
-            description=f"You {msg} and got away with 🪙 **{earnings:,}** coins!",
-            color=0x2ecc71
-        )
+        eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": earnings}, "$set": {"last_crime": now}}, upsert=True)
+        msg = random.choice(["robbed an underground casino", "hacked a billionaire's bank account", "stole a cybernetic sports car", "smuggled rare alien artifacts", "sold counterfeit Kirka skins on the black market"])
+        embed = discord.Embed(title="🦹 Crime Successful", description=f"You {msg} and got away with 🪙 **{earnings:,}** coins!", color=0x2ecc71)
     else:
         fine = random.randint(1000, min(3500, wallet))
-        update_wallet(user_id, -fine)
-        
-        scenarios = [
-            "tripped over a trash can while running from the cops",
-            "left your ID at the crime scene",
-            "tried to hack a government server but forgot to turn on your VPN",
-            "got caught by a cybernetic guard dog",
-            "were betrayed by your getaway driver"
-        ]
-        msg = random.choice(scenarios)
-        
-        embed = discord.Embed(
-            title="🚔 BUSTED!",
-            description=f"You {msg}.\n\nYou were fined 🪙 **{fine:,}** coins.",
-            color=0xe74c3c
-        )
+        eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": -fine}, "$set": {"last_crime": now}}, upsert=True)
+        msg = random.choice(["tripped over a trash can while running from the cops", "left your ID at the crime scene", "tried to hack a government server but forgot to turn on your VPN", "got caught by a cybernetic guard dog", "were betrayed by your getaway driver"])
+        embed = discord.Embed(title="🚔 BUSTED!", description=f"You {msg}.\n\nYou were fined 🪙 **{fine:,}** coins.", color=0xe74c3c)
 
     await ctx.send(embed=embed)
 
-@crime.error
-async def crime_error(ctx: commands.Context, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        hours = int(error.retry_after // 3600)
-        minutes = int((error.retry_after % 3600) // 60)
-        await ctx.send(f"⏳ The heat is too high! Lay low for {hours}h {minutes}m before committing another crime.", ephemeral=True)
 
+# --- ROB ---
+@bot.hybrid_command(name="rob", description="Attempt to rob another member")
+async def rob(ctx: commands.Context, member: discord.Member):
+    thief_id = str(ctx.author.id)
+    target_id = str(member.id)
+    user_data = get_user_data(thief_id)
+    target_data = get_user_data(target_id)
+    
+    cooldown = 3600 # 1 hora
+    last_rob = user_data.get("last_rob", 0)
+    now = time.time()
+    
+    if now - last_rob < cooldown:
+        time_left = int(cooldown - (now - last_rob))
+        return await ctx.send(f"⏳ The cops are still looking for you! Lay low for {time_left//60}m.", ephemeral=True)
 
-@bot.hybrid_command(name="weekly", description="Claim your massive weekly reward")
-@commands.cooldown(1, 604800, commands.BucketType.user) # 7 días de cooldown
-async def weekly(ctx: commands.Context):
-    user_id = str(ctx.author.id)
-    reward = 25000 
-    
-    update_wallet(user_id, reward)
-    new_balance = get_wallet(user_id)
-    
-    embed = discord.Embed(
-        title="📅 Weekly Reward",
-        description=f"You claimed your weekly 🪙 **{reward:,}** coins.\nCome back next week for more! Your balance is now 🪙 {new_balance:,}.",
-        color=0x00ff00
-    )
+    if thief_id == target_id: return await ctx.send("❌ You cannot rob yourself.", ephemeral=True)
+    if target_data.get("wallet", 0) < 300: return await ctx.send("❌ This user doesn't have enough wallet coins to rob.", ephemeral=True)
+
+    success = random.choice([True, False])
+    if success:
+        stolen = random.randint(150, int(target_data.get("wallet", 0) * 0.35))
+        eco_col.update_one({"_id": thief_id}, {"$inc": {"wallet": stolen}, "$set": {"last_rob": now}}, upsert=True)
+        eco_col.update_one({"_id": target_id}, {"$inc": {"wallet": -stolen}}, upsert=True)
+        msg = random.choice(["jumped through a window like a movie thief", "pickpocketed them during a crowded concert", "used fake security credentials to access their vault", "escaped through the rooftops after the robbery", "executed the perfect stealth mission", "used smoke grenades and escaped unseen", "hacked their crypto wallet remotely", "bribed the guards and walked out the front door", "used a teleporter to snatch their wallet", "distracted them with a hologram and grabbed the cash", "disguised yourself as a pizza delivery driver and looted the place"])
+        embed = discord.Embed(title="🥷 Successful Robbery", description=f"You {msg}.\n\nYou stole 🪙 **{stolen:,}** from {member.mention}.", color=0x00ff00)
+    else:
+        fine = random.randint(150, 500)
+        eco_col.update_one({"_id": thief_id}, {"$inc": {"wallet": -fine}, "$set": {"last_rob": now}}, upsert=True)
+        msg = random.choice(["tripped the alarm system", "got caught by security cameras", "accidentally robbed a police officer", "left fingerprints everywhere", "triggered laser security defenses", "was betrayed by your getaway driver", "got tackled by bodyguards", "got outsmarted by a decoy safe", "was chased down by a cybernetic guard dog", "dropped the loot while trying to escape over a fence", "sneezed loudly while hiding in the closet"])
+        embed = discord.Embed(title="🚨 Robbery Failed", description=f"You {msg}.\n\nYou paid a fine of 🪙 **{fine:,}**.", color=0xff0000)
+
     await ctx.send(embed=embed)
 
-@weekly.error
-async def weekly_error(ctx: commands.Context, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        days = int(error.retry_after // 86400)
-        hours = int((error.retry_after % 86400) // 3600)
-        await ctx.send(f"⏳ You already claimed your weekly reward. Try again in {days}d {hours}h.", ephemeral=True)
+
 
 @bot.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")
 @app_commands.describe(question="The question you want to ask")

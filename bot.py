@@ -1045,102 +1045,70 @@ async def withdraw(ctx: commands.Context, amount: str):
     )
     await ctx.send(embed=embed)
 
-
-
-@bot.hybrid_command(name="gamble", description="Gamble your coins on a 50/50 chance")
-@app_commands.describe(amount="Amount ('all', 'half', or number)")
-async def gamble(ctx: commands.Context, amount: str):
-    user_id = str(ctx.author.id)
-    current_wallet = get_wallet(user_id)
-    
-    bet = parse_economy_amount(amount, current_wallet)
-
-    if bet <= 0:
-        return await ctx.send("❌ Please enter a valid number, 'all', or 'half'. Must be greater than 0.", ephemeral=True)
-    if bet > current_wallet:
-        return await ctx.send(f"❌ You only have 🪙 {current_wallet:,} in your wallet.", ephemeral=True)
-
-    wins = random.choice([True, False])
-
-    if wins:
-        update_wallet(user_id, bet)
-        new_balance = get_wallet(user_id)
-        embed = discord.Embed(
-            title="🎰 JACKPOT!",
-            description=f"You won 🪙 **{bet:,}** coins!\n\n💵 Wallet Balance: 🪙 **{new_balance:,}**",
-            color=0x00ff00
-        )
-    else:
-        update_wallet(user_id, -bet)
-        new_balance = get_wallet(user_id)
-        embed = discord.Embed(
-            title="📉 You Lost",
-            description=f"You lost 🪙 **{bet:,}** coins.\n\n💵 Wallet Balance: 🪙 **{new_balance:,}**",
-            color=0xff0000
-        )
-
-    await ctx.send(embed=embed)
-
-@bot.hybrid_command(name="daily", description="Claim your daily free coins")
+@bot.hybrid_command(name="daily", description="Claim your daily reward!")
 async def daily(ctx: commands.Context):
     user_id = str(ctx.author.id)
-    user_data = get_user_data(user_id)
-    
-    # Fecha UTC actual (ej: "2026-05-25")
-    now = datetime.now(timezone.utc)
-    today_str = now.strftime("%Y-%m-%d")
-    
-    if user_data.get("last_daily") == today_str:
-        next_midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
-        time_left = next_midnight - now
-        hours, remainder = divmod(int(time_left.total_seconds()), 3600)
-        minutes, _ = divmod(remainder, 60)
-        return await ctx.send(f"⏳ Cooldown! Try again in **{hours}h {minutes}m**.", ephemeral=True)
-        
-    amount = 500  # Cambia esto si tu cantidad original era distinta
+    user_data = get_user_data(user_id) # Uses your existing MongoDB fetcher
+
+    current_time = time.time()
+    last_daily = user_data.get("last_daily", 0)
+    cooldown = 86400 # 24 hours in seconds
+
+    # Check if the user is on cooldown
+    if current_time - last_daily < cooldown:
+        next_claim = int(last_daily + cooldown)
+        # This sends the "You already claimed" message and shows exactly when they can claim again
+        return await ctx.send(
+            f"❌ You already claimed your daily! Wait until <t:{next_claim}:R>.", 
+            ephemeral=True
+        )
+
+    # --- Give the reward ---
+    reward_amount = 500 # Adjust to your economy balance
+    new_wallet = user_data.get("wallet", 0) + reward_amount
+
+    # Update MongoDB with the new balance and the NEW timestamp
     eco_col.update_one(
-        {"_id": user_id}, 
-        {"$inc": {"wallet": amount}, "$set": {"last_daily": today_str}}, 
-        upsert=True
+        {"_id": user_id},
+        {"$set": {
+            "wallet": new_wallet, 
+            "last_daily": current_time
+        }}
     )
-    await ctx.send(f"📆 You claimed your daily reward of 🪙 {amount:,} coins!")
+
+    await ctx.send(f"✅ You successfully claimed your daily reward of **{reward_amount}** coins!")
 
 
-@bot.hybrid_command(name="weekly", description="Claim your massive weekly reward")
+@bot.hybrid_command(name="weekly", description="Claim your weekly reward!")
 async def weekly(ctx: commands.Context):
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
-    
-    # Semana UTC actual (ej: "2026-W21")
-    now = datetime.now(timezone.utc)
-    week_str = f"{now.year}-W{now.isocalendar()[1]}"
-    
-    if user_data.get("last_weekly") == week_str:
-        days_ahead = 7 - now.isoweekday()
-        next_monday = (now + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
-        if days_ahead == 0 and now.time() > time.min: 
-            next_monday += timedelta(days=7)
-            
-        time_left = next_monday - now
-        days = time_left.days
-        hours, remainder = divmod(int(time_left.seconds), 3600)
-        minutes, _ = divmod(remainder, 60)
-        return await ctx.send(f"⏳ Cooldown! Try again in **{days}d {hours}h {minutes}m**.", ephemeral=True)
-        
-    amount = 3500  # Cambia esto si tu cantidad original era distinta
-    eco_col.update_one(
-        {"_id": user_id}, 
-        {"$inc": {"wallet": amount}, "$set": {"last_weekly": week_str}}, 
-        upsert=True
-    )
-    await ctx.send(f"✨ You claimed your weekly reward of 🪙 {amount:,} coins!")
 
-@daily.error
-async def daily_error(ctx: commands.Context, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        hours = int(error.retry_after // 3600)
-        minutes = int((error.retry_after % 3600) // 60)
-        await ctx.send(f"⏳ You already claimed your daily reward. Try again in {hours}h {minutes}m.", ephemeral=True)
+    current_time = time.time()
+    last_weekly = user_data.get("last_weekly", 0)
+    cooldown = 604800 # 7 days in seconds
+
+    # Check if the user is on cooldown
+    if current_time - last_weekly < cooldown:
+        next_claim = int(last_weekly + cooldown)
+        return await ctx.send(
+            f"❌ You already claimed your weekly! Wait until <t:{next_claim}:R>.", 
+            ephemeral=True
+        )
+
+    # --- Give the reward ---
+    reward_amount = 5000 # Adjust to your economy balance
+    new_wallet = user_data.get("wallet", 0) + reward_amount
+
+    eco_col.update_one(
+        {"_id": user_id},
+        {"$set": {
+            "wallet": new_wallet, 
+            "last_weekly": current_time
+        }}
+    )
+
+    await ctx.send(f"✅ You successfully claimed your weekly reward of **{reward_amount}** coins!")
 
 @bot.hybrid_command(name="pay", description="Send coins to another member")
 @app_commands.describe(member="The member to send coins to", amount="Amount ('all', 'half', or number)")
@@ -1889,7 +1857,6 @@ async def help_command(ctx: commands.Context):
         "**`/work` / `/crime`** - Earn (or risk) coins.\n"
         "**`/daily` / `/weekly`** - Claim free rewards.\n"
         "**`/pay` / `/rob`** - Give to or steal from others.\n"
-        "**`/gamble` / `/roulette` / `/blackjack`** - Casino games.\n"
         "**`/shop` / `/pets` / `/battle`** - Buy and fight battle pets.\n"
         "**`/leaderboard`** - See the richest server members."
     )

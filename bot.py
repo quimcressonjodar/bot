@@ -8,7 +8,7 @@ import pymongo
 import uuid
 import secrets
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 from typing import Any
@@ -1060,7 +1060,9 @@ async def daily(ctx: commands.Context):
     
     if isinstance(last_daily, str):
         already_claimed = (last_daily == today_str)
-    elif hasattr(last_daily, "strftime"): # Si se guardó como Date en Mongo
+    elif isinstance(last_daily, (int, float)):
+    last_date = datetime.fromtimestamp(last_daily, tz=timezone.utc)
+    already_claimed = (last_date.strftime("%Y-%m-%d") == today_str)
         already_claimed = (last_daily.strftime("%Y-%m-%d") == today_str)
 
     if already_claimed:
@@ -1097,7 +1099,10 @@ async def weekly(ctx: commands.Context):
     
     if isinstance(last_weekly, str):
         already_claimed_weekly = (last_weekly == week_str)
-    elif hasattr(last_weekly, "isocalendar"): # Si se guardó como Date en Mongo
+    elif isinstance(last_weekly, (int, float)):
+    last_date = datetime.fromtimestamp(last_weekly, tz=timezone.utc)
+    saved_week = f"{last_date.year}-W{last_date.isocalendar()[1]}"
+    already_claimed_weekly = (saved_week == week_str)
         saved_week = f"{last_weekly.year}-W{last_weekly.isocalendar()[1]}"
         already_claimed_weekly = (saved_week == week_str)
 

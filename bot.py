@@ -501,25 +501,9 @@ class BlackjackView(discord.ui.View):
         return score
 
     def format_hand(self, hand, hide_first=False):
-        formatted_cards = []
-
-        for index, card in enumerate(hand):
-
-            if hide_first and index == 0:
-                formatted_cards.append(CARD_BACK)
-                continue
-
-            value = card['val']
-            suit = card['suit']
-
-            emoji_card = CARD_EMOJIS.get(suit, {}).get(value)
-
-            if emoji_card:
-                formatted_cards.append(emoji_card)
-            else:
-                formatted_cards.append(f"{value}{suit}")
-
-        return " ".join(formatted_cards)
+        if hide_first:
+            return f"❓, {hand[1]['val']}{hand[1]['suit']}"
+        return ", ".join([f"{c['val']}{c['suit']}" for c in hand])
 
     async def check_winner(self, interaction, stand=False):
         p_score = self.calculate_score(self.player_hand)

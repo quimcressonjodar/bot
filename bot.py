@@ -1348,21 +1348,98 @@ async def flip(ctx: commands.Context):
     await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
 
 @bot.hybrid_command(name="roulette", description="Bet on the casino roulette wheel")
-@app_commands.describe(bet_amount="Amount ('all', 'half', or number)", bet_on="What are you betting on?")
-# (Mantén las opciones de @app_commands.choices aquí)
+@app_commands.describe(
+    bet_amount="Amount ('all', 'half', or number)", 
+    bet_on="What are you betting on?", 
+    number="Number to bet on (if you chose specific_number)"
+)
+@app_commands.choices(bet_on=[
+    app_commands.Choice(name="🔴 Red (x2)", value="red"),
+    app_commands.Choice(name="⚫ Black (x2)", value="black"),
+    app_commands.Choice(name="🔢 Even (x2)", value="even"),
+    app_commands.Choice(name="🔢 Odd (x2)", value="odd"),
+    app_commands.Choice(name="🎯 Specific Number (x36)", value="specific_number")
+])
 async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: int = None):
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
     
     bet = parse_economy_amount(bet_amount, user_data["wallet"])
 
+    # Validation checks
     if bet <= 0:
-        return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.")
+        return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
     if user_data["wallet"] < bet:
-        return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.")
+        return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.", ephemeral=True)
     
-    if bet_on == "specific_number" and (number is None or not (0 <= number <= 36)):
-        return await ctx.send("❌ Please provide a valid number between 0 and 36.")
+    if bet_on == "specific_number":
+        if number is None or not (0 <= number <= 36):
+            return await ctx.send("❌ Please provide a valid number between 0 and 36.", ephemeral=True)
+
+    # --- 1. Start Visual Animation ---
+    spin_msg = await ctx.send("🎰 **Throwing the ball...** 🔄\n`[          ] 0%`")
+
+    # Safe frames to avoid Discord rate limits
+    animation_frames = [
+        "🎰 **Spinning...** 🔴 14\n`[▬▬        ] 25%`",
+        "🎰 **Spinning...** ⬛ 22\n`[▬▬▬▬▬     ] 50%`",
+        "🎰 **Slowing down...** 🟢 0\n`[▬▬▬▬▬▬▬   ] 75%`",
+        "🎰 **Almost there...** 🔴 7\n`[▬▬▬▬▬▬▬▬▬ ] 99%`"
+    ]
+
+    for frame in animation_frames:
+        await asyncio.sleep(0.8)  # Pause to simulate the spin
+        await spin_msg.edit(content=frame)
+
+    # --- 2. Game Logic ---
+    winning_number = random.randint(0, 36)
+    is_red = winning_number in ROULETTE_RED
+    is_black = winning_number != 0 and not is_red
+
+    # Determine visual emoji for final result
+    color_emoji = "🟩" if winning_number == 0 else ("🟥" if is_red else "⬛")
+
+    win = False
+    multiplier = 0
+
+    # Win conditions
+    if bet_on == "red" and is_red:
+        win, multiplier = True, 2
+    elif bet_on == "black" and is_black:
+        win, multiplier = True, 2
+    elif bet_on == "even" and winning_number != 0 and winning_number % 2 == 0:
+        win, multiplier = True, 2
+    elif bet_on == "odd" and winning_number % 2 != 0:
+        win, multiplier = True, 2
+    elif bet_on == "specific_number" and number == winning_number:
+        win, multiplier = True, 36
+
+    # --- 3. Apply Results & Build Embed ---
+    if win:
+        winnings = bet * multiplier
+        profit = winnings - bet
+        update_wallet(user_id, profit)
+        
+        embed = discord.Embed(
+            title="🎰 ROULETTE | YOU WON!",
+            description=f"The ball landed on {color_emoji} **{winning_number}**.\n\nYou bet on **{bet_on}** and won 🪙 **{winnings:,}**!",
+            color=0x00ff00
+        )
+    else:
+        update_wallet(user_id, -bet)
+        
+        embed = discord.Embed(
+            title="🎰 ROULETTE | YOU LOST!",
+            description=f"The ball landed on {color_emoji} **{winning_number}**.\n\nYou bet on **{bet_on}** and lost 🪙 **{bet:,}**.",
+            color=0xff0000
+        )
+
+    new_balance = get_wallet(user_id)
+    embed.set_footer(text=f"Wallet Balance: 🪙 {new_balance:,}")
+    
+    # --- 4. Final Output ---
+    await asyncio.sleep(0.8)
+    await spin_msg.edit(content="🛑 **The wheel stopped!**", embed=embed)
 
 @bot.hybrid_command(name="blackjack", description="Play a realistic hand of blackjack")
 @app_commands.describe(bet_amount="Amount ('all', 'half', or number)")
@@ -1834,30 +1911,40 @@ async def rps(ctx: commands.Context):
 async def help_command(ctx: commands.Context):
     embed = discord.Embed(
         title="🏆 Kirka.io Bot | Command List",
-        description="Here is a list of all available commands to manage the clan and have fun! 🎮",
+        description="Here is a list of all available commands to manage the server, the clan, and your wallet! 🎮",
         color=0x2b2d31 
     )
 
     public_cmds = (
-        "**`/top_clans`** - View the global Kirka.io top clans leaderboard.\n"
-        "**`/clan_info`** - View detailed statistics and info for our clan.\n"
-        "**`/item [name]`** - Check a skin's rarity, global supply, and market value.\n"
-        "**`/flip`** - Flip a coin (Heads or Tails).\n"
-        "**`/8ball [question]`** - Ask the magic 8-ball a question.\n"
-        "**`/rps`** - Play Rock, Paper, Scissors against the bot."
+        "**`/userinfo`** - View a member's profile.\n"
+        "**`/serverinfo`** - View server details.\n"
+        "**`/avatar`** - Get high-res avatar.\n"
+        "**`/top_clans`** - View the global Kirka.io clan leaderboard.\n"
+        "**`/clan_info`** - View detailed stats for our clan.\n"
+        "**`/item [name]`** - Check a skin's rarity and market value.\n"
+        "**`/8ball` / `/flip` / `/rps`** - Fun minigames."
     )
     embed.add_field(name="🌍 Public Commands", value=public_cmds, inline=False)
 
+    eco_cmds = (
+        "**`/balance`** - Check your wallet and bank.\n"
+        "**`/deposit` / `/withdraw`** - Manage your money.\n"
+        "**`/work` / `/crime`** - Earn (or risk) coins.\n"
+        "**`/daily` / `/weekly`** - Claim free rewards.\n"
+        "**`/pay` / `/rob`** - Give to or steal from others.\n"
+        "**`/gamble` / `/roulette` / `/blackjack`** - Casino games.\n"
+        "**`/shop` / `/pets` / `/battle`** - Buy and fight battle pets.\n"
+        "**`/leaderboard`** - See the richest server members."
+    )
+    embed.add_field(name="💰 Economy & Casino", value=eco_cmds, inline=False)
+
     admin_cmds = (
-        "**`/register_monday / register_sunday`** - Manage snapshots.\n"
-        "**`/weekly_lb / set_xp / delete_snaps`** - Leaderboard config.\n"
-        "**`/purge [amount]`** - Delete messages from the channel.\n"
-        "**`/ban / unban / kick`** - Severe user punishments.\n"
-        "**`/timeout / untimeout`** - Mute or unmute members.\n"
-        "**`/lock / unlock / slowmode`** - Control chat flows.\n"
-        "**`/warn / warns / delwarn`** - Manage warning system.\n"
-        "**`/role_add / role_remove / setnick`** - Quick member management.\n"
-        "**`/say / sayembed`** - Make the bot talk."
+        "**`/register_monday` / `/register_sunday`** - Manage snapshots.\n"
+        "**`/weekly_lb` / `/set_xp` / `/delete_snaps`** - Leaderboard config.\n"
+        "**`/ban` / `/kick` / `/timeout`** - Moderation tools.\n"
+        "**`/warn` / `/warns` / `/delwarn`** - Warning system.\n"
+        "**`/purge` / `/lock` / `/slowmode`** - Channel management.\n"
+        "**`/role_add` / `/setnick` / `/sayembed`** - Utility tools."
     )
     embed.add_field(name="🛡️ Admin Commands", value=admin_cmds, inline=False)
 

@@ -1396,8 +1396,9 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
     is_red = winning_number in ROULETTE_RED
     is_black = winning_number != 0 and not is_red
 
-    # Determine visual emoji for final result
+    # Determine visual text and emoji for final result
     color_emoji = "🟩" if winning_number == 0 else ("🟥" if is_red else "⬛")
+    color_text = "Green" if winning_number == 0 else ("Red" if is_red else "Black")
 
     win = False
     multiplier = 0
@@ -1414,28 +1415,51 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
     elif bet_on == "specific_number" and number == winning_number:
         win, multiplier = True, 36
 
-    # --- 3. Apply Results & Build Embed ---
+    # Clean up what the user bet on for the display
+    bet_target_display = bet_on.capitalize()
+    if bet_on == "specific_number":
+        bet_target_display = f"Number {number}"
+
+    # --- 3. Apply Results & Build The Detailed Embed ---
+    embed = discord.Embed(
+        title="🎰 Casino Roulette",
+        color=0x00ff00 if win else 0xff0000
+    )
+    embed.set_author(name=f"{ctx.author.display_name}'s Spin", icon_url=ctx.author.display_avatar.url)
+
+    # Add the detailed fields
+    embed.add_field(
+        name="📝 Bet Details", 
+        value=f"**Amount:** 🪙 {bet:,}\n**Bet On:** {bet_target_display}", 
+        inline=True
+    )
+    embed.add_field(
+        name="🎯 The Spin", 
+        value=f"**Landed On:**\n{color_emoji} **{color_text} {winning_number}**", 
+        inline=True
+    )
+
     if win:
         winnings = bet * multiplier
         profit = winnings - bet
         update_wallet(user_id, profit)
         
-        embed = discord.Embed(
-            title="🎰 ROULETTE | YOU WON!",
-            description=f"The ball landed on {color_emoji} **{winning_number}**.\n\nYou bet on **{bet_on}** and won 🪙 **{winnings:,}**!",
-            color=0x00ff00
+        embed.add_field(
+            name="🎉 Outcome", 
+            value=f"**WIN!** (x{multiplier} multiplier)\nYou won 🪙 **{winnings:,}**!", 
+            inline=False
         )
     else:
         update_wallet(user_id, -bet)
         
-        embed = discord.Embed(
-            title="🎰 ROULETTE | YOU LOST!",
-            description=f"The ball landed on {color_emoji} **{winning_number}**.\n\nYou bet on **{bet_on}** and lost 🪙 **{bet:,}**.",
-            color=0xff0000
+        embed.add_field(
+            name="💀 Outcome", 
+            value=f"**LOSS!**\nYou lost 🪙 **{bet:,}**.", 
+            inline=False
         )
 
     new_balance = get_wallet(user_id)
-    embed.set_footer(text=f"Wallet Balance: 🪙 {new_balance:,}")
+    embed.set_footer(text=f"New Wallet Balance: 🪙 {new_balance:,}")
     
     # --- 4. Final Output ---
     await asyncio.sleep(0.8)
@@ -2155,38 +2179,92 @@ class BattleAcceptView(discord.ui.View):
         view = PetSelectView(self.p1, self.p2, p1_data['pets'], p2_data['pets'])
         await interaction.response.edit_message(content="Battle accepted! Both players, select your pets below.", embed=None, view=view)
 
-@bot.hybrid_command(name="battle", description="Battle another member")
-@app_commands.describe(member="The member you want to fight")
-@commands.cooldown(1, 60, commands.BucketType.user)
-async def battle(ctx: commands.Context, member: discord.Member):
+@bot.hybrid_command(name="battle", description="Battle your pet against another member's pet!")
+async def battle(ctx: commands.Context, opponent: discord.Member):
+    if opponent.bot:
+        return await ctx.send("❌ You can't battle a bot!", ephemeral=True)
+    if opponent.id == ctx.author.id:
+        return await ctx.send("❌ You can't battle yourself!", ephemeral=True)
 
-    if member.bot:
-        return await ctx.send("❌ You cannot battle bots.")
+    user_id = str(ctx.author.id)
+    opp_id = str(opponent.id)
+    
+    # Fetch pets from the database
+    user_pets_data = pets_col.find_one({"_id": user_id})
+    opp_pets_data = pets_col.find_one({"_id": opp_id})
 
-    if member.id == ctx.author.id:
-        return await ctx.send("❌ You cannot battle yourself.")
+    if not user_pets_data or not user_pets_data.get("pets"):
+        return await ctx.send("❌ You don't have any pets to battle with! Buy one from the `/shop`.")
+    if not opp_pets_data or not opp_pets_data.get("pets"):
+        return await ctx.send(f"❌ {opponent.display_name} doesn't have any pets to fight!")
 
-    attacker_data = pets_col.find_one({"_id": str(ctx.author.id)})
-    defender_data = pets_col.find_one({"_id": str(member.id)})
+    # Get the first pet in their inventory for the battle
+    user_pet = user_pets_data["pets"][0]
+    opp_pet = opp_pets_data["pets"][0]
 
-    if not attacker_data or not attacker_data.get("pets"):
-        return await ctx.send("❌ You don't own any pets.")
+    # --- 1. Battle Animation ---
+    battle_msg = await ctx.send(f"⚔️ **BATTLE INITIATED!**\n{ctx.author.mention} ({user_pet['type']}) **VS** {opponent.mention} ({opp_pet['type']})")
+    
+    animation_frames = [
+        f"⚔️ **FIGHTING!**\n{user_pet['type'].capitalize()} lunges forward...\n`[▬▬▬       ] 30%`",
+        f"⚔️ **FIGHTING!**\n{opp_pet['type'].capitalize()} strikes back hard!\n`[▬▬▬▬▬▬    ] 60%`",
+        f"⚔️ **CLASHING!**\nDust is everywhere...\n`[▬▬▬▬▬▬▬▬▬ ] 99%`"
+    ]
 
-    if not defender_data or not defender_data.get("pets"):
-        return await ctx.send("❌ That user doesn't own any pets.")
+    for frame in animation_frames:
+        await asyncio.sleep(1.2)
+        await battle_msg.edit(content=frame)
 
-    view = BattleAcceptView(ctx.author, member)
+    # --- 2. Battle Logic ---
+    # Combine Pet HP, Damage, and a bit of RNG luck
+    user_power = user_pet['hp'] + user_pet['damage'] + random.randint(1, 50)
+    opp_power = opp_pet['hp'] + opp_pet['damage'] + random.randint(1, 50)
 
+    # The new MASSIVE stakes
+    bet_amount = random.randint(15000, 30000) 
+
+    if user_power >= opp_power:
+        winner, loser = ctx.author, opponent
+        winner_id, loser_id = user_id, opp_id
+        winner_pet, loser_pet = user_pet, opp_pet
+    else:
+        winner, loser = opponent, ctx.author
+        winner_id, loser_id = opp_id, user_id
+        winner_pet, loser_pet = opp_pet, user_pet
+
+    # --- 3. Economy Updates (Allowing Negative Wallets) ---
+    # We use MongoDB's $inc to directly add/subtract, allowing it to drop below 0
+    eco_col.update_one({"_id": winner_id}, {"$inc": {"wallet": bet_amount}}, upsert=True)
+    eco_col.update_one({"_id": loser_id}, {"$inc": {"wallet": -bet_amount}}, upsert=True)
+
+    winner_data = get_user_data(winner_id)
+    loser_data = get_user_data(loser_id)
+
+    # --- 4. Final Detailed Embed ---
     embed = discord.Embed(
-        title="⚔️ Pet Battle Request",
-        description=(
-            f"{member.mention}, "
-            f"{ctx.author.mention} challenged you to a pet battle!"
-        ),
-        color=0xff5500
+        title="🏆 BATTLE RESULTS",
+        description="The dust settles, and a victor emerges...",
+        color=0xffd700
+    )
+    
+    embed.add_field(
+        name=f"👑 WINNER: {winner.display_name}", 
+        value=f"**Pet:** {winner_pet['type'].capitalize()}\n**Earned:** 🪙 {bet_amount:,}\n**New Balance:** 🪙 {winner_data['wallet']:,}", 
+        inline=False
+    )
+    
+    embed.add_field(
+        name=f"💀 LOSER: {loser.display_name}", 
+        value=f"**Pet:** {loser_pet['type'].capitalize()}\n**Lost:** 🪙 {bet_amount:,}\n**New Balance:** 🪙 {loser_data['wallet']:,}", 
+        inline=False
     )
 
-    await ctx.send(content=f"{member.mention}", embed=embed, view=view)
+    # Add a funny footer if the loser goes into debt
+    if loser_data['wallet'] < 0:
+        embed.set_footer(text="📉 Bankrupt! The loser is now in crippling debt.")
+
+    await asyncio.sleep(1)
+    await battle_msg.edit(content="🛑 **The battle is over!**", embed=embed)
 
 @battle.error
 async def battle_error(ctx: commands.Context, error):

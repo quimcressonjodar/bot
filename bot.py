@@ -114,8 +114,6 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
 KIRKA_API_KEY = os.getenv("KIRKA_API_KEY", "")
 CLAN_NAME = os.getenv("KIRKA_CLAN_TAG", "UsAsOne!")
 KIRKA_API_BASE = os.getenv("KIRKA_API_BASE", "https://api.kirka.io")
-MONDAY_SNAPSHOT_PATH = Path(os.getenv("MONDAY_SNAPSHOT_FILE", "xp_monday.json"))
-SUNDAY_SNAPSHOT_PATH = Path(os.getenv("SUNDAY_SNAPSHOT_FILE", "xp_sunday.json"))
 HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "20"))
 HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
@@ -955,7 +953,14 @@ async def work(ctx: commands.Context):
         "worked as a mercenary during clan wars",
         "created viral memes that exploded online",
         "found money hidden behind a vending machine",
-        "worked at a haunted hotel overnight"
+        "worked at a haunted hotel overnight",
+        "hacked the mainframe of a rival megacorp",
+        "smuggled rare alien artifacts past customs",
+        "won a high-stakes underground racing tournament",
+        "tamed a wild cyber-dragon for a wealthy eccentric",
+        "fixed the hyperdrive on a stranded space cruiser",
+        "defused a ticking time bomb in the city square",
+        "won a legendary rap battle against an AI"
     ]
 
     reason = random.choice(jobs)
@@ -970,6 +975,7 @@ async def work(ctx: commands.Context):
 
     embed.set_footer(text="Come back in 45 minutes for another shift.")
 
+    await ctx.send(embed=embed)
     await ctx.send(embed=embed)
 
 @work.error
@@ -1123,7 +1129,7 @@ async def pay(ctx: commands.Context, member: discord.Member, amount: int):
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="rob", description="Attempt to rob another member")
-@commands.cooldown(1, 7200, commands.BucketType.user)
+@commands.cooldown(1, 3600, commands.BucketType.user) # Cooldown changed to 1 hour
 async def rob(ctx: commands.Context, member: discord.Member):
 
     thief_id = str(ctx.author.id)
@@ -1144,7 +1150,11 @@ async def rob(ctx: commands.Context, member: discord.Member):
         "escaped through the rooftops after the robbery",
         "executed the perfect stealth mission",
         "used smoke grenades and escaped unseen",
-        "hacked their crypto wallet remotely"
+        "hacked their crypto wallet remotely",
+        "bribed the guards and walked out the front door",
+        "used a teleporter to snatch their wallet",
+        "distracted them with a hologram and grabbed the cash",
+        "disguised yourself as a pizza delivery driver and looted the place"
     ]
 
     fail_messages = [
@@ -1154,15 +1164,17 @@ async def rob(ctx: commands.Context, member: discord.Member):
         "left fingerprints everywhere",
         "triggered laser security defenses",
         "was betrayed by your getaway driver",
-        "got tackled by bodyguards"
+        "got tackled by bodyguards",
+        "got outsmarted by a decoy safe",
+        "was chased down by a cybernetic guard dog",
+        "dropped the loot while trying to escape over a fence",
+        "sneezed loudly while hiding in the closet"
     ]
 
     success = random.choice([True, False])
 
     if success:
-
         stolen = random.randint(150, int(target_wallet * 0.35))
-
         update_wallet(target_id, -stolen)
         update_wallet(thief_id, stolen)
 
@@ -1178,9 +1190,7 @@ async def rob(ctx: commands.Context, member: discord.Member):
         )
 
     else:
-
         fine = random.randint(150, 500)
-
         update_wallet(thief_id, -fine)
 
         msg = random.choice(fail_messages)
@@ -1779,33 +1789,49 @@ async def run_battle_logic(interaction: discord.Interaction, p1: discord.Member,
     hp1, dmg1 = pet1['hp'], pet1['damage']
     hp2, dmg2 = pet2['hp'], pet2['damage']
 
+    hit_phrases = ["slashes", "bites", "strikes", "blasts", "smashes", "claws", "tackles"]
+
     log = []
     turn = 1
     
     while hp1 > 0 and hp2 > 0 and turn <= 10:
         hit1 = random.randint(int(dmg1*0.8), int(dmg1*1.2))
         hp2 -= hit1
-        log.append(f"💥 {p1.display_name}'s {pet1['type']} hits for {hit1} damage!")
+        phrase1 = random.choice(hit_phrases)
+        log.append(f"💥 {p1.display_name}'s {pet1['type']} {phrase1} for {hit1} damage!")
         if hp2 <= 0: break
 
         hit2 = random.randint(int(dmg2*0.8), int(dmg2*1.2))
         hp1 -= hit2
-        log.append(f"💥 {p2.display_name}'s {pet2['type']} hits for {hit2} damage!")
+        phrase2 = random.choice(hit_phrases)
+        log.append(f"💥 {p2.display_name}'s {pet2['type']} {phrase2} for {hit2} damage!")
         turn += 1
 
     winner = None
-    reward = random.randint(100, 300)
+    loser = None
 
     if hp1 > hp2:
         winner = p1
+        loser = p2
     elif hp2 > hp1:
         winner = p2
+        loser = p1
 
     embed = discord.Embed(title="⚔️ Battle Result", description="\n".join(log), color=discord.Color.gold())
     
-    if winner:
-        eco_col.update_one({"_id": str(winner.id)}, {"$inc": {"wallet": reward}})
-        embed.add_field(name="🏆 Winner", value=f"{winner.mention} won and received 🪙 {reward} coins!")
+    if winner and loser:
+        loser_wallet = get_wallet(str(loser.id))
+        base_reward = random.randint(100, 300)
+        
+        # Ensure we don't take more coins than the loser actually has
+        actual_reward = min(base_reward, loser_wallet)
+        
+        if actual_reward > 0:
+            update_wallet(str(winner.id), actual_reward)
+            update_wallet(str(loser.id), -actual_reward)
+            embed.add_field(name="🏆 Winner", value=f"{winner.mention} won and looted 🪙 {actual_reward} coins from {loser.mention}!")
+        else:
+            embed.add_field(name="🏆 Winner", value=f"{winner.mention} won, but {loser.mention} had 0 coins to steal!")
     else:
         embed.add_field(name="🤝 Draw", value="The battle ended in a tie!")
 

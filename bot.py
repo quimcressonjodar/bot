@@ -1045,84 +1045,80 @@ async def withdraw(ctx: commands.Context, amount: str):
     )
     await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="daily", description="Claim your daily reward!")
+@bot.hybrid_command(name="daily", description="Claim your daily free coins")
 async def daily(ctx: commands.Context):
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
-
-    current_time = time.time()
-    last_daily_raw = user_data.get("last_daily", 0)
     
-    # 🛡️ Conversor seguro: Detecta y limpia cualquier formato antiguo (Texto o Date)
-    if isinstance(last_daily_raw, (int, float)):
-        last_daily = float(last_daily_raw)
-    elif hasattr(last_daily_raw, "timestamp"):  # Si era un Date de MongoDB
-        last_daily = last_daily_raw.timestamp()
-    else:  # Si era un String de texto ("2026-05-25")
-        last_daily = 0.0
+    # Fecha UTC actual (ej: "2026-05-25")
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    
+    # Comprobamos si ya reclamó hoy (compara de forma segura si es String o tipo Date)
+    last_daily = user_data.get("last_daily")
+    already_claimed = False
+    
+    if isinstance(last_daily, str):
+        already_claimed = (last_daily == today_str)
+    elif hasattr(last_daily, "strftime"): # Si se guardó como Date en Mongo
+        already_claimed = (last_daily.strftime("%Y-%m-%d") == today_str)
 
-    cooldown = 86400  # 24 horas en segundos
-
-    # Comprobación de Cooldown
-    if current_time - last_daily < cooldown:
-        next_claim = int(last_daily + cooldown)
+    if already_claimed:
+        # Calculamos la próxima medianoche exacta
+        next_midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
+        next_claim_timestamp = int(next_midnight.timestamp())
+        
         return await ctx.send(
-            f"❌ You already claimed your daily! Wait until <t:{next_claim}:R>."
+            f"❌ You already claimed your daily! Wait until <t:{next_claim_timestamp}:R>.", 
+            ephemeral=True
         )
-
-    # --- Entregar Recompensa ---
-    reward_amount = 1000
-    new_wallet = user_data.get("wallet", 0) + reward_amount
-
+        
+    amount = 1000  
     eco_col.update_one(
-        {"_id": user_id},
-        {"$set": {
-            "wallet": new_wallet, 
-            "last_daily": current_time  # Guarda como número exacto para el futuro
-        }}
+        {"_id": user_id}, 
+        {"$inc": {"wallet": amount}, "$set": {"last_daily": today_str}}, 
+        upsert=True
     )
+    await ctx.send(f"📆 You claimed your daily reward of 🪙 {amount:,} coins!")
 
-    await ctx.send(f"✅ You successfully claimed your daily reward of **{reward_amount}** coins!")
 
-
-@bot.hybrid_command(name="weekly", description="Claim your weekly reward!")
+@bot.hybrid_command(name="weekly", description="Claim your massive weekly reward")
 async def weekly(ctx: commands.Context):
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
-
-    current_time = time.time()
-    last_weekly_raw = user_data.get("last_weekly", 0)
     
-    # 🛡️ Conversor seguro: Detecta y limpia cualquier formato antiguo (Texto o Date)
-    if isinstance(last_weekly_raw, (int, float)):
-        last_weekly = float(last_weekly_raw)
-    elif hasattr(last_weekly_raw, "timestamp"):  # Si era un Date de MongoDB
-        last_weekly = last_weekly_raw.timestamp()
-    else:  # Si era un String de texto ("2026-W21")
-        last_weekly = 0.0
+    # Semana UTC actual (ej: "2026-W21")
+    now = datetime.now(timezone.utc)
+    week_str = f"{now.year}-W{now.isocalendar()[1]}"
+    
+    # Comprobamos si ya reclamó esta semana de forma segura
+    last_weekly = user_data.get("last_weekly")
+    already_claimed_weekly = False
+    
+    if isinstance(last_weekly, str):
+        already_claimed_weekly = (last_weekly == week_str)
+    elif hasattr(last_weekly, "isocalendar"): # Si se guardó como Date en Mongo
+        saved_week = f"{last_weekly.year}-W{last_weekly.isocalendar()[1]}"
+        already_claimed_weekly = (saved_week == week_str)
 
-    cooldown = 604800  # 7 días en segundos
-
-    # Comprobación de Cooldown
-    if current_time - last_weekly < cooldown:
-        next_claim = int(last_weekly + cooldown)
+    if already_claimed_weekly:
+        # Calculamos el próximo Lunes a las 00:00 UTC de forma limpia y sin errores
+        days_until_next_monday = 7 - now.weekday() # weekday(): Lunes=0, Domingo=6
+        next_monday = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=days_until_next_monday)
+        next_claim_timestamp = int(next_monday.timestamp())
+        
         return await ctx.send(
-            f"❌ You already claimed your weekly! Wait until <t:{next_claim}:R>."
+            f"❌ You already claimed your weekly! Wait until <t:{next_claim_timestamp}:R>.", 
+            ephemeral=True
         )
-
-    # --- Entregar Recompensa ---
-    reward_amount = 25000 
-    new_wallet = user_data.get("wallet", 0) + reward_amount
-
+        
+    amount = 25000  
     eco_col.update_one(
-        {"_id": user_id},
-        {"$set": {
-            "wallet": new_wallet, 
-            "last_weekly": current_time  # Guarda como número exacto para el futuro
-        }}
+        {"_id": user_id}, 
+        {"$inc": {"wallet": amount}, "$set": {"last_weekly": week_str}}, 
+        upsert=True
     )
-
-    await ctx.send(f"✅ You successfully claimed your weekly reward of **{reward_amount}** coins!")
+    await ctx.send(f"✨ You claimed your weekly reward of 🪙 {amount:,} coins!")
 
 @bot.hybrid_command(name="pay", description="Send coins to another member")
 @app_commands.describe(member="The member to send coins to", amount="Amount ('all', 'half', or number)")

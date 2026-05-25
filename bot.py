@@ -1049,81 +1049,106 @@ async def withdraw(ctx: commands.Context, amount: str):
 async def daily(ctx: commands.Context):
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
-    
-    # Fecha UTC actual (ej: "2026-05-25")
+
     now = datetime.now(timezone.utc)
     today_str = now.strftime("%Y-%m-%d")
-    
-    # Comprobamos si ya reclamó hoy (compara de forma segura si es String o tipo Date)
+
     last_daily = user_data.get("last_daily")
     already_claimed = False
-    
+
     if isinstance(last_daily, str):
         already_claimed = (last_daily == today_str)
+
     elif isinstance(last_daily, (int, float)):
-    last_date = datetime.fromtimestamp(last_daily, tz=timezone.utc)
-    already_claimed = (last_date.strftime("%Y-%m-%d") == today_str)
+        last_date = datetime.fromtimestamp(last_daily, tz=timezone.utc)
+        already_claimed = (last_date.strftime("%Y-%m-%d") == today_str)
+
+    elif hasattr(last_daily, "strftime"):
         already_claimed = (last_daily.strftime("%Y-%m-%d") == today_str)
 
     if already_claimed:
-        # Calculamos la próxima medianoche exacta
-        next_midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
+        next_midnight = datetime(
+            now.year,
+            now.month,
+            now.day,
+            tzinfo=timezone.utc
+        ) + timedelta(days=1)
+
         next_claim_timestamp = int(next_midnight.timestamp())
-        
+
         return await ctx.send(
-            f"❌ You already claimed your daily! Wait until <t:{next_claim_timestamp}:R>.", 
+            f"❌ You already claimed your daily! Wait until <t:{next_claim_timestamp}:R>.",
             ephemeral=True
         )
-        
-    amount = 1000  
+
+    amount = 1000
+
     eco_col.update_one(
-        {"_id": user_id}, 
-        {"$inc": {"wallet": amount}, "$set": {"last_daily": today_str}}, 
+        {"_id": user_id},
+        {
+            "$inc": {"wallet": amount},
+            "$set": {"last_daily": today_str}
+        },
         upsert=True
     )
-    await ctx.send(f"📆 You claimed your daily reward of 🪙 {amount:,} coins!")
 
-
+    await ctx.send(
+        f"📆 You claimed your daily reward of 🪙 {amount:,} coins!"
+    )
 @bot.hybrid_command(name="weekly", description="Claim your massive weekly reward")
 async def weekly(ctx: commands.Context):
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
-    
-    # Semana UTC actual (ej: "2026-W21")
+
     now = datetime.now(timezone.utc)
     week_str = f"{now.year}-W{now.isocalendar()[1]}"
-    
-    # Comprobamos si ya reclamó esta semana de forma segura
+
     last_weekly = user_data.get("last_weekly")
     already_claimed_weekly = False
-    
+
     if isinstance(last_weekly, str):
         already_claimed_weekly = (last_weekly == week_str)
+
     elif isinstance(last_weekly, (int, float)):
-    last_date = datetime.fromtimestamp(last_weekly, tz=timezone.utc)
-    saved_week = f"{last_date.year}-W{last_date.isocalendar()[1]}"
-    already_claimed_weekly = (saved_week == week_str)
+        last_date = datetime.fromtimestamp(last_weekly, tz=timezone.utc)
+        saved_week = f"{last_date.year}-W{last_date.isocalendar()[1]}"
+        already_claimed_weekly = (saved_week == week_str)
+
+    elif hasattr(last_weekly, "isocalendar"):
         saved_week = f"{last_weekly.year}-W{last_weekly.isocalendar()[1]}"
         already_claimed_weekly = (saved_week == week_str)
 
     if already_claimed_weekly:
-        # Calculamos el próximo Lunes a las 00:00 UTC de forma limpia y sin errores
-        days_until_next_monday = 7 - now.weekday() # weekday(): Lunes=0, Domingo=6
-        next_monday = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=days_until_next_monday)
+        days_until_next_monday = 7 - now.weekday()
+
+        next_monday = datetime(
+            now.year,
+            now.month,
+            now.day,
+            tzinfo=timezone.utc
+        ) + timedelta(days=days_until_next_monday)
+
         next_claim_timestamp = int(next_monday.timestamp())
-        
+
         return await ctx.send(
-            f"❌ You already claimed your weekly! Wait until <t:{next_claim_timestamp}:R>.", 
+            f"❌ You already claimed your weekly! Wait until <t:{next_claim_timestamp}:R>.",
             ephemeral=True
         )
-        
-    amount = 25000  
+
+    amount = 25000
+
     eco_col.update_one(
-        {"_id": user_id}, 
-        {"$inc": {"wallet": amount}, "$set": {"last_weekly": week_str}}, 
+        {"_id": user_id},
+        {
+            "$inc": {"wallet": amount},
+            "$set": {"last_weekly": week_str}
+        },
         upsert=True
     )
-    await ctx.send(f"✨ You claimed your weekly reward of 🪙 {amount:,} coins!")
+
+    await ctx.send(
+        f"✨ You claimed your weekly reward of 🪙 {amount:,} coins!"
+    )
 
 @bot.hybrid_command(name="pay", description="Send coins to another member")
 @app_commands.describe(member="The member to send coins to", amount="Amount ('all', 'half', or number)")

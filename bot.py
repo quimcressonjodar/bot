@@ -2233,7 +2233,7 @@ async def spawn_global_drop():
     if channel:
 
         await channel.send(embed=embed)
-@bot.hybrid_command(name="inventory", description="View your inventory")
+@bot.hybrid_command(name="inventory",aliases=["inv"], description="View your inventory")
 async def inventory(ctx: commands.Context):
 
     user_id = str(ctx.author.id)
@@ -2385,7 +2385,7 @@ async def crime(ctx: commands.Context):
 
 # --- ROB ---
 
-@bot.hybrid_command(name="adventures", description="Send your pet on an adventure")
+@bot.hybrid_command(name="adventures",aliases=["adv"], description="Send your pet on an adventure")
 async def adventures(ctx: commands.Context):
 
     user_id = str(ctx.author.id)
@@ -3009,7 +3009,7 @@ async def help_command(ctx: commands.Context):
 
     await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="shop", description="View and buy animals for battle")
+@bot.hybrid_command(name="shop",aliases=["buy"], description="View and buy animals for battle")
 @app_commands.describe(
     action="Choose 'view' to see the shop or 'buy' to purchase",
     pet_name="Name of the pet to buy"

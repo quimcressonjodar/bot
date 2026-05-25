@@ -1846,7 +1846,7 @@ async def spawn_global_drop():
             value=rarity.capitalize()
         )
 
-    channel_id = TU_CHANNEL_ID
+    channel_id = 1206197908399980575
 
     channel = bot.get_channel(channel_id)
 

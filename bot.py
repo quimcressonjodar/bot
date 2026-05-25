@@ -171,6 +171,115 @@ PET_SHOP = {
     "titan":    {"price": 250000000,"hp": 1000, "damage": 200, "emoji": "👑"},
     "bahamut":  {"price": 500000000,"hp": 1500, "damage": 300, "emoji": "🌌"}
 }
+PET_RARITIES = {
+    "slime": "basic",
+    "dog": "basic",
+    "cat": "basic",
+    "owl": "basic",
+    "fox": "basic",
+
+    "wolf": "rare",
+    "tiger": "rare",
+    "bear": "rare",
+    "griffin": "rare",
+
+    "dragon": "epic",
+    "golem": "epic",
+    "hydra": "epic",
+    "pegasus": "epic",
+
+    "phoenix": "legendary",
+    "chimera": "legendary",
+    "kraken": "legendary",
+    "leviathan": "legendary",
+    "titan": "legendary",
+    "bahamut": "legendary"
+}
+
+ADVENTURE_LOOT = {
+    "common": [
+        ("🪵 Stick", 15),
+        ("🪨 Rock", 20),
+        ("🔩 Screw", 25),
+        ("🧻 Old Cloth", 18),
+        ("🥫 Rusty Can", 22),
+        ("🪢 Rope", 30),
+        ("🧴 Plastic Bottle", 12),
+        ("📎 Metal Scrap", 35),
+        ("🪛 Broken Tool", 40),
+        ("🪙 Small Coin", 50),
+        ("🔋 Dead Battery", 28),
+        ("📦 Wooden Crate", 45),
+        ("🕯️ Candle", 20),
+        ("🧱 Brick", 26),
+        ("⚙️ Gear", 55)
+    ],
+
+    "rare": [
+        ("💍 Silver Ring", 500),
+        ("🪙 Gold Coin", 750),
+        ("💎 Sapphire", 1200),
+        ("🔮 Magic Orb", 1500),
+        ("📿 Ancient Necklace", 1800),
+        ("⚔️ Knight Dagger", 2200),
+        ("🏺 Ancient Vase", 2500),
+        ("💠 Emerald", 3000),
+        ("🧪 Rare Potion", 3500),
+        ("📦 Treasure Chest", 4000)
+    ],
+
+    "epic": [
+        ("👑 Royal Crown", 8000),
+        ("💜 Amethyst Crystal", 10000),
+        ("🐉 Dragon Scale", 12000),
+        ("🔥 Phoenix Feather", 15000),
+        ("⚡ Energy Core", 18000),
+        ("🌌 Cosmic Fragment", 22000),
+        ("💠 Mythic Gem", 25000),
+        ("🗿 Titan Relic", 30000)
+    ],
+
+    "legendary": [
+        ("🌟 Celestial Artifact", 50000),
+        ("👁️ Eye of Eternity", 75000),
+        ("💫 Divine Crystal", 100000),
+        ("🐲 Ancient Dragon Egg", 150000),
+        ("🌌 Universe Shard", 250000)
+    ]
+}
+ADVENTURE_EVENTS = {
+    "common": [
+        "searched through trash piles",
+        "explored an abandoned alley",
+        "wandered through old ruins",
+        "dug near a broken wagon",
+        "searched a forgotten campsite"
+    ],
+
+    "rare": [
+        "explored an ancient cave",
+        "snuck into a merchant caravan",
+        "searched a hidden temple",
+        "raided a bandit stash",
+        "explored underground tunnels"
+    ],
+
+    "epic": [
+        "explored volcanic ruins",
+        "crossed forbidden lands",
+        "searched a cursed fortress",
+        "flew above ancient kingdoms",
+        "ventured into magical forests"
+    ],
+
+    "legendary": [
+        "vanished into the void itself",
+        "crossed dimensions",
+        "explored celestial ruins",
+        "entered a forgotten realm",
+        "traveled beyond mortal lands"
+    ]
+}
 
 class BlackjackView(discord.ui.View):
     def __init__(self, ctx, bet, user_wallet):
@@ -1468,6 +1577,150 @@ async def crime(ctx: commands.Context):
 
 
 # --- ROB ---
+
+@bot.hybrid_command(name="adventures", description="Send your pet on an adventure")
+async def adventures(ctx: commands.Context):
+
+    user_id = str(ctx.author.id)
+
+    user_pets = pets_col.find_one({"_id": user_id})
+
+    if not user_pets or not user_pets.get("pets"):
+        return await ctx.send(
+            "❌ You don't own any pets.",
+            ephemeral=True
+        )
+
+    user_data = get_user_data(user_id)
+
+    cooldown = 1800  # 30 mins
+    now = time.time()
+
+    last_adventure = user_data.get("last_adventure", 0)
+
+    if now - last_adventure < cooldown:
+        remaining = int(cooldown - (now - last_adventure))
+        minutes, seconds = divmod(remaining, 60)
+
+        return await ctx.send(
+            f"⏳ Your pets are resting. Try again in {minutes}m {seconds}s.",
+            ephemeral=True
+        )
+
+    owned_pets = user_pets["pets"]
+
+    selected_pet = random.choice(owned_pets)
+
+    pet_type = selected_pet["type"]
+
+    rarity = PET_RARITIES.get(pet_type, "basic")
+
+    chances = {
+        "basic": {
+            "common": 80,
+            "rare": 18,
+            "epic": 2,
+            "legendary": 0
+        },
+
+        "rare": {
+            "common": 60,
+            "rare": 30,
+            "epic": 9,
+            "legendary": 1
+        },
+
+        "epic": {
+            "common": 40,
+            "rare": 40,
+            "epic": 17,
+            "legendary": 3
+        },
+
+        "legendary": {
+            "common": 20,
+            "rare": 45,
+            "epic": 25,
+            "legendary": 10
+        }
+    }
+
+    roll = random.randint(1, 100)
+
+    cumulative = 0
+    loot_rarity = "common"
+
+    for r, chance in chances[rarity].items():
+        cumulative += chance
+
+        if roll <= cumulative:
+            loot_rarity = r
+            break
+
+    loot = random.choice(ADVENTURE_LOOT[loot_rarity])
+
+    item_name = loot[0]
+    item_value = loot[1]
+
+    bonus_multiplier = {
+        "basic": 1,
+        "rare": 1.5,
+        "epic": 2,
+        "legendary": 4
+    }
+
+    final_value = int(item_value * bonus_multiplier[rarity])
+
+    eco_col.update_one(
+        {"_id": user_id},
+        {
+            "$inc": {"wallet": final_value},
+            "$set": {"last_adventure": now}
+        },
+        upsert=True
+    )
+
+    rarity_colors = {
+        "common": 0x95a5a6,
+        "rare": 0x3498db,
+        "epic": 0x9b59b6,
+        "legendary": 0xf1c40f
+    }
+
+    pet_emoji = PET_SHOP[pet_type]["emoji"]
+
+    embed = discord.Embed(
+        title="🌍 Pet Adventure",
+        color=rarity_colors[loot_rarity]
+    )
+
+    event_text = random.choice(ADVENTURE_EVENTS[loot_rarity])
+
+    embed.description = (
+        f"{pet_emoji} Your **{pet_type}** {event_text}...\n\n"
+        f"🎁 It discovered:\n"
+        f"## {item_name}\n\n"
+        f"💰 Sold for: 🪙 **{final_value:,}**"
+)
+
+    embed.add_field(
+        name="✨ Loot Rarity",
+        value=loot_rarity.capitalize(),
+        inline=True
+    )
+
+    embed.add_field(
+        name="🐾 Pet Rarity",
+        value=rarity.capitalize(),
+        inline=True
+    )
+
+    embed.set_footer(
+        text="Your pet can adventure again in 30 minutes."
+    )
+
+    await ctx.send(embed=embed)
+
 @bot.hybrid_command(name="rob", description="Attempt to rob another member")
 async def rob(ctx: commands.Context, member: discord.Member):
     thief_id = str(ctx.author.id)

@@ -26,6 +26,7 @@ pets_col = db["pets"]
 warns_col = db["warns"]
 snaps_col = db["snapshots"]
 eco_col = db["economy"]
+active_global_drop = None
 
 def get_user_data(user_id: str):
     user = eco_col.find_one({"_id": user_id})
@@ -197,7 +198,9 @@ PET_RARITIES = {
 }
 
 ADVENTURE_LOOT = {
+
     "common": [
+
         ("🪵 Stick", 15),
         ("🪨 Rock", 20),
         ("🔩 Screw", 25),
@@ -212,10 +215,25 @@ ADVENTURE_LOOT = {
         ("📦 Wooden Crate", 45),
         ("🕯️ Candle", 20),
         ("🧱 Brick", 26),
-        ("⚙️ Gear", 55)
+        ("⚙️ Gear", 55),
+        ("🪓 Rusty Axe", 60),
+        ("🪤 Bear Trap", 75),
+        ("📜 Torn Map", 80),
+        ("🥄 Silver Spoon", 95),
+        ("🧲 Magnet", 40),
+        ("🧃 Juice Box", 15),
+        ("🪙 Copper Coin", 35),
+        ("🎣 Fishing Hook", 45),
+        ("📻 Broken Radio", 90),
+        ("⌚ Old Watch", 110),
+        ("🧤 Leather Glove", 50),
+        ("🪖 Cracked Helmet", 120),
+        ("🗝️ Tiny Key", 140),
+        ("🪞 Shattered Mirror", 75)
     ],
 
     "rare": [
+
         ("💍 Silver Ring", 500),
         ("🪙 Gold Coin", 750),
         ("💎 Sapphire", 1200),
@@ -225,26 +243,50 @@ ADVENTURE_LOOT = {
         ("🏺 Ancient Vase", 2500),
         ("💠 Emerald", 3000),
         ("🧪 Rare Potion", 3500),
-        ("📦 Treasure Chest", 4000)
+        ("📦 Treasure Chest", 4000),
+        ("🗡️ Assassin Blade", 4200),
+        ("🛡️ Golden Shield", 5000),
+        ("💰 Hidden Stash", 5500),
+        ("📜 Enchanted Scroll", 6000),
+        ("🪬 Lucky Charm", 6500),
+        ("🧿 Mystic Eye", 7000),
+        ("🐚 Pearl Shell", 7500),
+        ("💎 Ruby Crystal", 8000),
+        ("⚡ Charged Core", 8500),
+        ("🔑 Ancient Key", 9000)
     ],
 
     "epic": [
-        ("👑 Royal Crown", 8000),
-        ("💜 Amethyst Crystal", 10000),
-        ("🐉 Dragon Scale", 12000),
-        ("🔥 Phoenix Feather", 15000),
-        ("⚡ Energy Core", 18000),
-        ("🌌 Cosmic Fragment", 22000),
-        ("💠 Mythic Gem", 25000),
-        ("🗿 Titan Relic", 30000)
+
+        ("👑 Royal Crown", 12000),
+        ("💜 Amethyst Crystal", 15000),
+        ("🐉 Dragon Scale", 18000),
+        ("🔥 Phoenix Feather", 22000),
+        ("⚡ Energy Core", 26000),
+        ("🌌 Cosmic Fragment", 30000),
+        ("💠 Mythic Gem", 35000),
+        ("🗿 Titan Relic", 40000),
+        ("🧬 Ancient DNA", 45000),
+        ("🪐 Void Stone", 50000),
+        ("📖 Forbidden Tome", 55000),
+        ("🩸 Blood Ruby", 60000),
+        ("🧊 Frozen Heart", 70000),
+        ("☄️ Meteor Fragment", 80000),
+        ("👁️ Cursed Eye", 90000)
     ],
 
     "legendary": [
-        ("🌟 Celestial Artifact", 50000),
-        ("👁️ Eye of Eternity", 75000),
-        ("💫 Divine Crystal", 100000),
-        ("🐲 Ancient Dragon Egg", 150000),
-        ("🌌 Universe Shard", 250000)
+
+        ("🌟 Celestial Artifact", 120000),
+        ("👁️ Eye of Eternity", 150000),
+        ("💫 Divine Crystal", 200000),
+        ("🐲 Ancient Dragon Egg", 300000),
+        ("🌌 Universe Shard", 500000),
+        ("👑 Crown of Gods", 750000),
+        ("⚔️ Blade of Chaos", 1000000),
+        ("🪐 Core of the Void", 1500000),
+        ("🌠 Fallen Star", 2000000),
+        ("🧿 Orb of Infinity", 5000000)
     ]
 }
 ADVENTURE_EVENTS = {
@@ -280,6 +322,93 @@ ADVENTURE_EVENTS = {
         "traveled beyond mortal lands"
     ]
 }
+class SellSelect(discord.ui.Select):
+
+    def __init__(self, ctx, inventory):
+
+        self.ctx = ctx
+        self.inventory = inventory
+
+        options = []
+
+        rarity_emojis = {
+            "common": "⚪",
+            "rare": "🔵",
+            "epic": "🟣",
+            "legendary": "🟡"
+        }
+
+        for index, item in enumerate(inventory[:25]):
+
+            rarity = item.get("rarity", "common")
+
+            options.append(
+                discord.SelectOption(
+                    label=item["name"][:100],
+                    description=f"{rarity.capitalize()} • 🪙 {item['value']:,}",
+                    emoji=rarity_emojis.get(rarity, "⚪"),
+                    value=str(index)
+                )
+            )
+
+        super().__init__(
+            placeholder="Choose an item to sell...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+
+        user_id = str(self.ctx.author.id)
+
+        selected_index = int(self.values[0])
+
+        user_data = get_user_data(user_id)
+
+        inventory = user_data.get("inventory", [])
+
+        if selected_index >= len(inventory):
+
+            return await interaction.response.send_message(
+                "❌ Item no longer exists.",
+                ephemeral=True
+            )
+
+        item = inventory[selected_index]
+
+        eco_col.update_one(
+            {"_id": user_id},
+            {
+                "$inc": {"wallet": item["value"]},
+                "$pull": {"inventory": item}
+            }
+        )
+
+        embed = discord.Embed(
+            title="💰 Item Sold",
+            color=0x2ecc71
+        )
+
+        embed.description = (
+            f"Sold {item['name']}\n\n"
+            f"Received: 🪙 **{item['value']:,}**"
+        )
+
+        await interaction.response.edit_message(
+            content=None,
+            embed=embed,
+            view=None
+        )
+class SellView(discord.ui.View):
+
+    def __init__(self, ctx, inventory):
+
+        super().__init__(timeout=60)
+
+        self.add_item(
+            SellSelect(ctx, inventory)
+        )
 class AdventureView(discord.ui.View):
 
     def __init__(self, ctx, pets):
@@ -635,6 +764,7 @@ class WeeklyXPBot(commands.Bot):
         logger.info("Slash commands synced")
 
     async def on_ready(self):
+        spawn_global_drop.start()
         logger.info(f"✅ ¡Bot conectado y listo como {self.user}!")
         await self.change_presence(
             status=discord.Status.online, 
@@ -1538,6 +1668,248 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
     # --- 4. Final Output ---
     await asyncio.sleep(0.8)
     await spin_msg.edit(content="🛑 **The wheel stopped!**", embed=embed)
+@bot.hybrid_command(name="sell", description="Sell an item from your inventory")
+async def sell(ctx: commands.Context):
+
+    user_id = str(ctx.author.id)
+
+    user_data = get_user_data(user_id)
+
+    inventory = user_data.get("inventory", [])
+
+    if not inventory:
+
+        return await ctx.send(
+            "🎒 Your inventory is empty."
+        )
+
+    embed = discord.Embed(
+        title="💰 Sell Item",
+        description="Choose an item to sell.",
+        color=0xe67e22
+    )
+
+    view = SellView(
+        ctx,
+        inventory
+    )
+
+    await ctx.send(
+        embed=embed,
+        view=view
+    )
+@bot.hybrid_command(name="claimdrop", description="Claim the active global drop")
+async def claimdrop(ctx: commands.Context):
+
+    global active_global_drop
+
+    if not active_global_drop:
+
+        return await ctx.send(
+            "❌ No active global drop."
+        )
+
+    user_id = str(ctx.author.id)
+
+    if active_global_drop["type"] == "coins":
+
+        reward = active_global_drop["reward"]
+
+        eco_col.update_one(
+            {"_id": user_id},
+            {
+                "$inc": {"wallet": reward}
+            },
+            upsert=True
+        )
+
+        await ctx.send(
+            f"🌠 {ctx.author.mention} claimed the drop and received 🪙 {reward:,}!"
+        )
+
+    else:
+
+        item = active_global_drop["item"]
+
+        eco_col.update_one(
+            {"_id": user_id},
+            {
+                "$push": {
+                    "inventory": item
+                }
+            },
+            upsert=True
+        )
+
+        await ctx.send(
+            f"🌠 {ctx.author.mention} claimed:\n\n"
+            f"{item['name']} • {item['rarity'].capitalize()}!"
+        )
+
+    active_global_drop = None
+@tasks.loop(minutes=300)
+async def spawn_global_drop():
+
+    global active_global_drop
+
+    drop_type = random.choice([
+        "coins",
+        "coins",
+        "coins",
+        "item",
+        "item"
+    ])
+
+    if drop_type == "coins":
+
+        rewards = [
+            5000,
+            10000,
+            15000,
+            25000,
+            50000
+        ]
+
+        reward = random.choice(rewards)
+
+        active_global_drop = {
+            "type": "coins",
+            "reward": reward
+        }
+
+        embed = discord.Embed(
+            title="🌠 GLOBAL DROP",
+            description=(
+                "A mysterious treasure appeared!\n\n"
+                "Use `!claimdrop` first!"
+            ),
+            color=0xf1c40f
+        )
+
+        embed.add_field(
+            name="💰 Coin Reward",
+            value=f"🪙 {reward:,}"
+        )
+
+    else:
+
+        rarity_roll = random.randint(1, 100)
+
+        if rarity_roll <= 60:
+            rarity = "common"
+
+        elif rarity_roll <= 88:
+            rarity = "rare"
+
+        elif rarity_roll <= 98:
+            rarity = "epic"
+
+        else:
+            rarity = "legendary"
+
+        item_name, item_value = random.choice(
+            ADVENTURE_LOOT[rarity]
+        )
+
+        active_global_drop = {
+            "type": "item",
+            "item": {
+                "name": item_name,
+                "value": item_value,
+                "rarity": rarity
+            }
+        }
+
+        rarity_colors = {
+            "common": 0x95a5a6,
+            "rare": 0x3498db,
+            "epic": 0x9b59b6,
+            "legendary": 0xf1c40f
+        }
+
+        embed = discord.Embed(
+            title="🌠 GLOBAL ITEM DROP",
+            description=(
+                "A mysterious item appeared from the skies!\n\n"
+                "Use `!claimdrop` first!"
+            ),
+            color=rarity_colors[rarity]
+        )
+
+        embed.add_field(
+            name="🎁 Item",
+            value=item_name
+        )
+
+        embed.add_field(
+            name="✨ Rarity",
+            value=rarity.capitalize()
+        )
+
+    channel_id = TU_CHANNEL_ID
+
+    channel = bot.get_channel(channel_id)
+
+    if channel:
+
+        await channel.send(embed=embed)
+@bot.hybrid_command(name="inventory", description="View your inventory")
+async def inventory(ctx: commands.Context):
+
+    user_id = str(ctx.author.id)
+
+    user_data = get_user_data(user_id)
+
+    inventory = user_data.get("inventory", [])
+
+    if not inventory:
+
+        return await ctx.send(
+            "🎒 Your inventory is empty."
+        )
+
+    rarity_emojis = {
+        "common": "⚪",
+        "rare": "🔵",
+        "epic": "🟣",
+        "legendary": "🟡"
+    }
+
+    embed = discord.Embed(
+        title=f"🎒 {ctx.author.name}'s Inventory",
+        color=0x2ecc71
+    )
+
+    total_value = 0
+
+    text = ""
+
+    for item in inventory[:25]:
+
+        rarity = item["rarity"]
+
+        emoji = rarity_emojis.get(rarity, "⚪")
+
+        text += (
+            f"{emoji} {item['name']} "
+            f"• 🪙 {item['value']:,}\n"
+        )
+
+        total_value += item["value"]
+
+    embed.description = text
+
+    embed.add_field(
+        name="💰 Total Inventory Value",
+        value=f"🪙 {total_value:,}",
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"{len(inventory)} items stored"
+    )
+
+    await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="blackjack", description="Play a realistic hand of blackjack")
 @app_commands.describe(bet_amount="Amount ('all', 'half', or number)")
@@ -1749,7 +2121,13 @@ async def run_adventure(interaction, ctx, selected_pet):
     eco_col.update_one(
         {"_id": user_id},
         {
-            "$inc": {"wallet": final_value},
+            "$push": {
+                "inventory": {
+                    "name": item_name,
+                    "value": final_value,
+                    "rarity": loot_rarity
+                }
+},
             "$set": {"last_adventure": now}
         },
         upsert=True

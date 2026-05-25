@@ -477,10 +477,12 @@ class BlackjackView(discord.ui.View):
     def create_deck(self):
         suits = ['♠️', '♥️', '♦️', '♣️']
         values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
-        return [{'val': v, 'suit': s} for v in values for s in suits]
+        deck = [{'val': v, 'suit': s} for v in values for s in suits]
+        random.shuffle(deck)
+        return deck
 
     def draw_card(self):
-        return self.deck.pop(random.randint(0, len(self.deck) - 1))
+        return self.deck.pop()
 
     def calculate_score(self, hand):
         score = 0

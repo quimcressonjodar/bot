@@ -1071,7 +1071,7 @@ async def daily(ctx: commands.Context):
         )
 
     # --- Entregar Recompensa ---
-    reward_amount = 500 
+    reward_amount = 1000
     new_wallet = user_data.get("wallet", 0) + reward_amount
 
     eco_col.update_one(
@@ -1111,7 +1111,7 @@ async def weekly(ctx: commands.Context):
         )
 
     # --- Entregar Recompensa ---
-    reward_amount = 5000 
+    reward_amount = 25000 
     new_wallet = user_data.get("wallet", 0) + reward_amount
 
     eco_col.update_one(

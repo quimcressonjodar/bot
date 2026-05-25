@@ -57,6 +57,20 @@ def get_user_data(user_id: str):
         user["bank"] = 0
 
     return user
+def parse_economy_amount(amount_input: str, max_balance: int) -> int:
+    """Parses user input for economy commands supporting 'all', 'half', or integer."""
+    amount_input = str(amount_input).lower().strip()
+    
+    if amount_input == "all":
+        return max_balance
+    elif amount_input == "half":
+        return max(1, max_balance // 2) # Ensure it returns at least 1 if they have 1 coin
+    else:
+        try:
+            amount = int(amount_input)
+            return amount
+        except ValueError:
+            return -1 # Returns -1 to trigger the invalid amount error
 
 
 def get_wallet(user_id: str) -> int:
@@ -985,65 +999,49 @@ async def balance(ctx: commands.Context, member: discord.Member = None):
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="deposit", aliases=["dep"], description="Deposit coins into your bank")
+@app_commands.describe(amount="The amount to deposit ('all', 'half', or a number)")
 async def deposit(ctx: commands.Context, amount: str):
     user_id = str(ctx.author.id)
-
     wallet = get_wallet(user_id)
+    
+    parsed_amount = parse_economy_amount(amount, wallet)
 
-    if amount.lower() == "all":
-        amount = wallet
-    else:
-        try:
-            amount = int(amount)
-        except:
-            return await ctx.send("❌ Invalid amount.", ephemeral=True)
+    if parsed_amount <= 0:
+        return await ctx.send("❌ Invalid amount. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
+    if parsed_amount > wallet:
+        return await ctx.send(f"❌ You don't have enough coins. You only have 🪙 {wallet:,}.", ephemeral=True)
 
-    if amount <= 0:
-        return await ctx.send("❌ Amount must be positive.", ephemeral=True)
-
-    if amount > wallet:
-        return await ctx.send("❌ You don't have enough coins.", ephemeral=True)
-
-    update_wallet(user_id, -amount)
-    update_bank(user_id, amount)
+    update_wallet(user_id, -parsed_amount)
+    update_bank(user_id, parsed_amount)
 
     embed = discord.Embed(
         title="🏦 Deposit Successful",
-        description=f"You deposited 🪙 {amount:,} coins into your bank.",
+        description=f"You deposited 🪙 {parsed_amount:,} coins into your bank.",
         color=0x00ff00
     )
-
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="withdraw", aliases=["with"], description="Withdraw coins from your bank")
+@app_commands.describe(amount="The amount to withdraw ('all', 'half', or a number)")
 async def withdraw(ctx: commands.Context, amount: str):
     user_id = str(ctx.author.id)
-
     bank = get_bank(user_id)
+    
+    parsed_amount = parse_economy_amount(amount, bank)
 
-    if amount.lower() == "all":
-        amount = bank
-    else:
-        try:
-            amount = int(amount)
-        except:
-            return await ctx.send("❌ Invalid amount.", ephemeral=True)
+    if parsed_amount <= 0:
+        return await ctx.send("❌ Invalid amount. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
+    if parsed_amount > bank:
+        return await ctx.send(f"❌ You don't have enough bank coins. You only have 🪙 {bank:,} in the bank.", ephemeral=True)
 
-    if amount <= 0:
-        return await ctx.send("❌ Amount must be positive.", ephemeral=True)
-
-    if amount > bank:
-        return await ctx.send("❌ You don't have enough bank coins.", ephemeral=True)
-
-    update_bank(user_id, -amount)
-    update_wallet(user_id, amount)
+    update_bank(user_id, -parsed_amount)
+    update_wallet(user_id, parsed_amount)
 
     embed = discord.Embed(
         title="💸 Withdrawal Successful",
-        description=f"You withdrew 🪙 {amount:,} coins from your bank.",
+        description=f"You withdrew 🪙 {parsed_amount:,} coins from your bank.",
         color=0x3498db
     )
-
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="work", description="Work to earn coins")
@@ -1105,75 +1103,38 @@ async def work_error(ctx: commands.Context, error):
         await ctx.send(f"⏳ You are too tired! Come back to work in {minutes}m {seconds}s.", ephemeral=True)
 
 @bot.hybrid_command(name="gamble", description="Gamble your coins on a 50/50 chance")
-@app_commands.describe(amount="The amount of coins you want to bet (or 'all')")
+@app_commands.describe(amount="Amount ('all', 'half', or number)")
 async def gamble(ctx: commands.Context, amount: str):
+    user_id = str(ctx.author.id)
+    current_wallet = get_wallet(user_id)
+    
+    bet = parse_economy_amount(amount, current_wallet)
 
-    try:
+    if bet <= 0:
+        return await ctx.send("❌ Please enter a valid number, 'all', or 'half'. Must be greater than 0.", ephemeral=True)
+    if bet > current_wallet:
+        return await ctx.send(f"❌ You only have 🪙 {current_wallet:,} in your wallet.", ephemeral=True)
 
-        user_id = str(ctx.author.id)
+    wins = random.choice([True, False])
 
-        current_wallet = get_wallet(user_id)
+    if wins:
+        update_wallet(user_id, bet)
+        new_balance = get_wallet(user_id)
+        embed = discord.Embed(
+            title="🎰 JACKPOT!",
+            description=f"You won 🪙 **{bet:,}** coins!\n\n💵 Wallet Balance: 🪙 **{new_balance:,}**",
+            color=0x00ff00
+        )
+    else:
+        update_wallet(user_id, -bet)
+        new_balance = get_wallet(user_id)
+        embed = discord.Embed(
+            title="📉 You Lost",
+            description=f"You lost 🪙 **{bet:,}** coins.\n\n💵 Wallet Balance: 🪙 **{new_balance:,}**",
+            color=0xff0000
+        )
 
-        if amount.lower() == "all":
-            bet = current_wallet
-        else:
-            try:
-                bet = int(amount)
-            except ValueError:
-                return await ctx.send(
-                    "❌ Please enter a valid number or 'all'.",
-                    ephemeral=True
-                )
-
-        if bet <= 0:
-            return await ctx.send(
-                "❌ You must bet at least 1 coin.",
-                ephemeral=True
-            )
-
-        if bet > current_wallet:
-            return await ctx.send(
-                f"❌ You only have 🪙 {current_wallet:,} in your wallet.",
-                ephemeral=True
-            )
-
-        wins = random.choice([True, False])
-
-        if wins:
-
-            update_wallet(user_id, bet)
-
-            new_balance = get_wallet(user_id)
-
-            embed = discord.Embed(
-                title="🎰 JACKPOT!",
-                description=(
-                    f"You won 🪙 **{bet:,}** coins!\n\n"
-                    f"💵 Wallet Balance: 🪙 **{new_balance:,}**"
-                ),
-                color=0x00ff00
-            )
-
-        else:
-
-            update_wallet(user_id, -bet)
-
-            new_balance = get_wallet(user_id)
-
-            embed = discord.Embed(
-                title="📉 You Lost",
-                description=(
-                    f"You lost 🪙 **{bet:,}** coins.\n\n"
-                    f"💵 Wallet Balance: 🪙 **{new_balance:,}**"
-                ),
-                color=0xff0000
-            )
-
-        await ctx.send(embed=embed)
-
-    except Exception as e:
-        logger.exception("GAMBLE COMMAND ERROR")
-        await ctx.send(f"Error: {e}")
+    await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="daily", description="Claim your daily free coins")
 @commands.cooldown(1, 86400, commands.BucketType.user)
@@ -1198,53 +1159,32 @@ async def daily_error(ctx: commands.Context, error):
         await ctx.send(f"⏳ You already claimed your daily reward. Try again in {hours}h {minutes}m.", ephemeral=True)
 
 @bot.hybrid_command(name="pay", description="Send coins to another member")
-@app_commands.describe(member="The member to send coins to", amount="Amount of coins")
-async def pay(ctx: commands.Context, member: discord.Member, amount: int):
-
+@app_commands.describe(member="The member to send coins to", amount="Amount ('all', 'half', or number)")
+async def pay(ctx: commands.Context, member: discord.Member, amount: str):
     sender_id = str(ctx.author.id)
     receiver_id = str(member.id)
 
     if member.bot:
         return await ctx.send("❌ You cannot send coins to bots.", ephemeral=True)
-
     if sender_id == receiver_id:
         return await ctx.send("❌ You cannot pay yourself.", ephemeral=True)
 
-    if amount <= 0:
-        return await ctx.send("❌ Amount must be greater than 0.", ephemeral=True)
-
     sender_wallet = get_wallet(sender_id)
+    parsed_amount = parse_economy_amount(amount, sender_wallet)
 
-    if sender_wallet < amount:
-        return await ctx.send(
-            f"❌ You only have 🪙 {sender_wallet:,} in your wallet.",
-            ephemeral=True
-        )
+    if parsed_amount <= 0:
+        return await ctx.send("❌ Invalid amount. Please use a positive number, 'all', or 'half'.", ephemeral=True)
+    if sender_wallet < parsed_amount:
+        return await ctx.send(f"❌ You only have 🪙 {sender_wallet:,} in your wallet.", ephemeral=True)
 
-    update_wallet(sender_id, -amount)
-    update_wallet(receiver_id, amount)
+    update_wallet(sender_id, -parsed_amount)
+    update_wallet(receiver_id, parsed_amount)
 
     embed = discord.Embed(
         title="💸 Payment Sent",
-        description=(
-            f"{ctx.author.mention} sent 🪙 **{amount:,}** coins "
-            f"to {member.mention}."
-        ),
+        description=f"{ctx.author.mention} sent 🪙 **{parsed_amount:,}** coins to {member.mention}.",
         color=0x00ff99
     )
-
-    embed.add_field(
-        name="📤 Sender Wallet",
-        value=f"🪙 {get_wallet(sender_id):,}",
-        inline=True
-    )
-
-    embed.add_field(
-        name="📥 Receiver Wallet",
-        value=f"🪙 {get_wallet(receiver_id):,}",
-        inline=True
-    )
-
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="rob", description="Attempt to rob another member")
@@ -1408,98 +1348,37 @@ async def flip(ctx: commands.Context):
     await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
 
 @bot.hybrid_command(name="roulette", description="Bet on the casino roulette wheel")
-@app_commands.choices(bet_on=[
-    app_commands.Choice(name="Red (2x)", value="red"),
-    app_commands.Choice(name="Black (2x)", value="black"),
-    app_commands.Choice(name="Even (2x)", value="even"),
-    app_commands.Choice(name="Odd (2x)", value="odd"),
-    app_commands.Choice(name="Specific Number (36x)", value="specific_number")
-])
-async def roulette(ctx: commands.Context, bet_amount: int, bet_on: str, number: int = None):
+@app_commands.describe(bet_amount="Amount ('all', 'half', or number)", bet_on="What are you betting on?")
+# (Mantén las opciones de @app_commands.choices aquí)
+async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: int = None):
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
+    
+    bet = parse_economy_amount(bet_amount, user_data["wallet"])
 
-    if bet_amount <= 0:
-        return await ctx.send("❌ Your bet must be greater than 0.")
-    if user_data["wallet"] < bet_amount:
-        return await ctx.send(f"❌ You don't have enough coins.")
+    if bet <= 0:
+        return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.")
+    if user_data["wallet"] < bet:
+        return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.")
     
     if bet_on == "specific_number" and (number is None or not (0 <= number <= 36)):
         return await ctx.send("❌ Please provide a valid number between 0 and 36.")
 
-    # 1. Visual Loading/Spinning Animation Effect
-    loading_msg = await ctx.send("🪙 **Placing your chips on the table...**")
-    await asyncio.sleep(0.8)
-    
-    await loading_msg.edit(content="✨ **Roulette wheel is spinning!**\n[ 🔴 32 ] [ ⚫ 15 ] [ 🟢 0 ] [ 🔴 19 ] [ ⚫ 4 ] 🔄\n`░░░░░░░░░░ 0%`")
-    await asyncio.sleep(0.8)
-    
-    await loading_msg.edit(content="✨ **The ball is bouncing on the slots...**\n[ ⚫ 26 ] [ 🔴 3 ] [ ⚫ 35 ] [ 🔴 12 ] [ ⚫ 28 ] 🔄\n`█████░░░░░ 50%`")
-    await asyncio.sleep(0.8)
-    
-    await loading_msg.edit(content="✨ **Slowing down...**\n[ 🟢 0 ] [ 🔴 32 ] [ ⚫ 15 ] [ 🔴 19 ] [ ⚫ 4 ] 🔄\n`█████████░ 90%`")
-    await asyncio.sleep(0.6)
-
-    # 2. Compute winning details
-    winning_number = random.randint(0, 36)
-    winning_color = "🟢" if winning_number == 0 else "🔴" if winning_number in ROULETTE_RED else "⚫"
-
-    win = False
-    payout = 0
-
-    if bet_on == "red" and winning_number in ROULETTE_RED:
-        win, payout = True, bet_amount * 2
-    elif bet_on == "black" and winning_number != 0 and winning_number not in ROULETTE_RED:
-        win, payout = True, bet_amount * 2
-    elif bet_on == "even" and winning_number != 0 and winning_number % 2 == 0:
-        win, payout = True, bet_amount * 2
-    elif bet_on == "odd" and winning_number % 2 != 0:
-        win, payout = True, bet_amount * 2
-    elif bet_on == "specific_number" and winning_number == number:
-        win, payout = True, bet_amount * 36
-
-    # 3. DB Modification
-    if win:
-        eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": payout - bet_amount}})
-        embed_color = 0x2ecc71
-        result_text = (
-            f"🔮 **The ball settled on:** {winning_color} **{winning_number}**\n\n"
-            f"🎉 **Congratulations! You Won!**\n"
-            f"💰 Payout: 🪙 **{payout:,}** coins"
-        )
-    else:
-        eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": -bet_amount}})
-        embed_color = 0xe74c3c
-        result_text = (
-            f"🔮 **The ball settled on:** {winning_color} **{winning_number}**\n\n"
-            f"💀 **House Wins! Better luck next time.**\n"
-            f"📉 Loss: 🪙 **-{bet_amount:,}** coins"
-        )
-
-    # 4. Display Final Graphic Layout
-    embed = discord.Embed(title="🎡 European Casino Roulette", description=result_text, color=embed_color)
-    
-    # Visual grid map of the result section
-    embed.add_field(
-        name="Board Visualization", 
-        value=f"```\n  [ 🔴 ]  [ {winning_color} ]  [ ⚫ ]\n  Prev <--  {winning_number}  --> Next\n```", 
-        inline=False
-    )
-    embed.set_footer(text=f"Bet target: {bet_on.upper()} | Better: {ctx.author.name}")
-    
-    # Delete the animation message and send the final clear embed
-    await loading_msg.delete()
-    await ctx.send(embed=embed)
-    
-@bot.hybrid_command(name="blackjack", description="Play blackjack against the bot")
-async def blackjack(ctx: commands.Context, bet: int):
+@bot.hybrid_command(name="blackjack", description="Play a realistic hand of blackjack")
+@app_commands.describe(bet_amount="Amount ('all', 'half', or number)")
+async def blackjack(ctx: commands.Context, bet_amount: str):
     user_id = str(ctx.author.id)
-    wallet = get_wallet(user_id)
+    user_data = get_user_data(user_id)
     
-    if bet <= 0: return await ctx.send("❌ Bet must be positive.")
-    if bet > wallet: return await ctx.send("❌ You don't have enough coins.")
+    bet = parse_economy_amount(bet_amount, user_data["wallet"])
+
+    if bet <= 0:
+        return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.")
+    if user_data["wallet"] < bet:
+        return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.")
     
-    view = BlackjackView(ctx, bet, wallet)
+    # IMPORTANTE: Pasamos "bet" a la vista (View)
+    view = BlackjackView(ctx, bet, user_id)
     await ctx.send(embed=view.create_embed(), view=view)
 
 @bot.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")

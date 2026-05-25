@@ -1048,31 +1048,43 @@ async def withdraw(ctx: commands.Context, amount: str):
 @bot.hybrid_command(name="daily", description="Claim your daily reward!")
 async def daily(ctx: commands.Context):
     user_id = str(ctx.author.id)
-    user_data = get_user_data(user_id) # Uses your existing MongoDB fetcher
+    user_data = get_user_data(user_id)
 
-    current_time = time.time()
-    last_daily = user_data.get("last_daily", 0)
-    cooldown = 86400 # 24 hours in seconds
+    # Obtenemos el tiempo actual en UTC nativo
+    current_time = datetime.now(timezone.utc)
+    
+    # Conseguimos lo que hay en Mongo. Si no existe, usamos una fecha muy antigua
+    last_daily = user_data.get("last_daily")
+    if last_daily is None:
+        last_daily = datetime.fromtimestamp(0, timezone.utc)
+    elif last_daily.tzinfo is None:
+        # Por si acaso la fecha guardada no tiene zona horaria asignada en Python
+        last_daily = last_daily.replace(tzinfo=timezone.utc)
 
-    # Check if the user is on cooldown
+    # Definimos el cooldown (24 horas)
+    cooldown = timedelta(hours=24)
+
+    # Comprobamos si sigue en cooldown
     if current_time - last_daily < cooldown:
-        next_claim = int(last_daily + cooldown)
-        # This sends the "You already claimed" message and shows exactly when they can claim again
+        # Calculamos cuándo podrá volver a reclamar y lo pasamos a timestamp de Discord
+        next_claim_dt = last_daily + cooldown
+        next_claim_timestamp = int(next_claim_dt.timestamp())
+        
         return await ctx.send(
-            f"❌ You already claimed your daily! Wait until <t:{next_claim}:R>.", 
+            f"❌ You already claimed your daily! Wait until <t:{next_claim_timestamp}:R>.", 
             ephemeral=True
         )
 
-    # --- Give the reward ---
-    reward_amount = 500 # Adjust to your economy balance
+    # --- Entregar Recompensa ---
+    reward_amount = 500 
     new_wallet = user_data.get("wallet", 0) + reward_amount
 
-    # Update MongoDB with the new balance and the NEW timestamp
+    # Guardamos en Mongo como tipo Date nativo usando datetime.utcnow() o datetime.now(timezone.utc)
     eco_col.update_one(
         {"_id": user_id},
         {"$set": {
             "wallet": new_wallet, 
-            "last_daily": current_time
+            "last_daily": current_time  # Pymongo lo guardará automáticamente como Date()
         }}
     )
 
@@ -1084,20 +1096,28 @@ async def weekly(ctx: commands.Context):
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
 
-    current_time = time.time()
-    last_weekly = user_data.get("last_weekly", 0)
-    cooldown = 604800 # 7 days in seconds
+    current_time = datetime.now(timezone.utc)
+    
+    last_weekly = user_data.get("last_weekly")
+    if last_weekly is None:
+        last_weekly = datetime.fromtimestamp(0, timezone.utc)
+    elif last_weekly.tzinfo is None:
+        last_weekly = last_weekly.replace(tzinfo=timezone.utc)
 
-    # Check if the user is on cooldown
+    # Definimos el cooldown (7 días)
+    cooldown = timedelta(days=7)
+
     if current_time - last_weekly < cooldown:
-        next_claim = int(last_weekly + cooldown)
+        next_claim_dt = last_weekly + cooldown
+        next_claim_timestamp = int(next_claim_dt.timestamp())
+        
         return await ctx.send(
-            f"❌ You already claimed your weekly! Wait until <t:{next_claim}:R>.", 
+            f"❌ You already claimed your weekly! Wait until <t:{next_claim_timestamp}:R>.", 
             ephemeral=True
         )
 
-    # --- Give the reward ---
-    reward_amount = 5000 # Adjust to your economy balance
+    # --- Entregar Recompensa ---
+    reward_amount = 5000 
     new_wallet = user_data.get("wallet", 0) + reward_amount
 
     eco_col.update_one(

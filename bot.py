@@ -26,6 +26,7 @@ pets_col = db["pets"]
 warns_col = db["warns"]
 snaps_col = db["snapshots"]
 eco_col = db["economy"]
+active_battles = {}
 active_global_drop = None
 
 def get_user_data(user_id: str):
@@ -557,6 +558,188 @@ class BlackjackView(discord.ui.View):
     @discord.ui.button(label="Stand", style=discord.ButtonStyle.red)
     async def stand_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.check_winner(interaction, stand=True)
+class BattleRequestView(discord.ui.View):
+
+    def __init__(self, ctx, opponent):
+
+        super().__init__(timeout=60)
+
+        self.ctx = ctx
+        self.opponent = opponent
+
+    @discord.ui.button(
+        label="Accept",
+        style=discord.ButtonStyle.green
+    )
+    async def accept(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        if interaction.user.id != self.opponent.id:
+
+            return await interaction.response.send_message(
+                "❌ This battle request isn't for you.",
+                ephemeral=True
+            )
+
+        challenger_pets = pets_col.find_one({
+            "_id": str(self.ctx.author.id)
+        })["pets"]
+
+        opponent_pets = pets_col.find_one({
+            "_id": str(self.opponent.id)
+        })["pets"]
+
+        battle_id = f"{self.ctx.author.id}-{self.opponent.id}"
+
+        active_battles[battle_id] = {
+            "challenger": self.ctx.author,
+            "opponent": self.opponent,
+            "challenger_pet": None,
+            "opponent_pet": None
+        }
+
+        view = PetBattleSelectView(
+            self.ctx,
+            self.opponent,
+            challenger_pets,
+            opponent_pets,
+            battle_id
+        )
+
+        embed = discord.Embed(
+            title="🐾 Choose Your Battle Pets",
+            description=(
+                f"{self.ctx.author.mention} and "
+                f"{self.opponent.mention}\n\n"
+                f"Both players must choose a pet."
+            ),
+            color=0x3498db
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=view
+        )
+
+    @discord.ui.button(
+        label="Decline",
+        style=discord.ButtonStyle.red
+    )
+    async def decline(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        if interaction.user.id != self.opponent.id:
+
+            return await interaction.response.send_message(
+                "❌ This battle request isn't for you.",
+                ephemeral=True
+            )
+
+        await interaction.response.edit_message(
+            content="❌ Battle declined.",
+            embed=None,
+            view=None
+        )
+class PetBattleSelect(discord.ui.Select):
+
+    def __init__(self, user, pets, battle_id, role):
+
+        self.user = user
+        self.pets = pets
+        self.battle_id = battle_id
+        self.role = role
+
+        options = []
+
+        for pet in pets:
+
+            pet_type = pet["type"]
+
+            emoji = PET_SHOP[pet_type]["emoji"]
+
+            options.append(
+                discord.SelectOption(
+                    label=pet_type.capitalize(),
+                    emoji=emoji,
+                    value=pet_type
+                )
+            )
+
+        super().__init__(
+            placeholder="Choose your pet...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction):
+
+        if interaction.user.id != self.user.id:
+
+            return await interaction.response.send_message(
+                "❌ This selection isn't for you.",
+                ephemeral=True
+            )
+
+        selected_pet = next(
+            p for p in self.pets
+            if p["type"] == self.values[0]
+        )
+
+        battle = active_battles[self.battle_id]
+
+        battle[self.role] = selected_pet
+
+        await interaction.response.send_message(
+            f"✅ Selected {selected_pet['type'].capitalize()}!",
+            ephemeral=True
+        )
+
+        if (
+            battle["challenger_pet"]
+            and battle["opponent_pet"]
+        ):
+
+            await start_pet_battle(
+                interaction.channel,
+                self.battle_id
+            )
+class PetBattleSelectView(discord.ui.View):
+
+    def __init__(
+        self,
+        ctx,
+        opponent,
+        challenger_pets,
+        opponent_pets,
+        battle_id
+    ):
+
+        super().__init__(timeout=60)
+
+        self.add_item(
+            PetBattleSelect(
+                ctx.author,
+                challenger_pets,
+                battle_id,
+                "challenger_pet"
+            )
+        )
+
+        self.add_item(
+            PetBattleSelect(
+                opponent,
+                opponent_pets,
+                battle_id,
+                "opponent_pet"
+            )
+        )
 
 class ClanClient:
     async def get_top_clans(self):
@@ -1214,6 +1397,205 @@ async def role_remove(ctx: commands.Context, member: discord.Member, role: disco
         await ctx.send(f"✅ Removed the role **{role.name}** from **{member.name}**.")
     except Exception as e:
         await ctx.send(f"❌ Failed to remove role: {e}", ephemeral=True)
+@bot.hybrid_command(
+    name="battle",
+    description="Battle your pet against another member's pet!"
+)
+async def battle(ctx: commands.Context, opponent: discord.Member):
+
+    if opponent.bot:
+
+        return await ctx.send(
+            "❌ You can't battle a bot!",
+            ephemeral=True
+        )
+
+    if opponent.id == ctx.author.id:
+
+        return await ctx.send(
+            "❌ You can't battle yourself!",
+            ephemeral=True
+        )
+
+    user_id = str(ctx.author.id)
+
+    opp_id = str(opponent.id)
+
+    user_pets_data = pets_col.find_one(
+        {"_id": user_id}
+    )
+
+    opp_pets_data = pets_col.find_one(
+        {"_id": opp_id}
+    )
+
+    if not user_pets_data or not user_pets_data.get("pets"):
+
+        return await ctx.send(
+            "❌ You don't have any pets!"
+        )
+
+    if not opp_pets_data or not opp_pets_data.get("pets"):
+
+        return await ctx.send(
+            f"❌ {opponent.display_name} has no pets!"
+        )
+
+    embed = discord.Embed(
+        title="⚔️ Pet Battle Challenge",
+        description=(
+            f"{ctx.author.mention} has challenged "
+            f"{opponent.mention} to a pet battle!\n\n"
+            f"Waiting for response..."
+        ),
+        color=0xe74c3c
+    )
+
+    view = BattleRequestView(
+        ctx,
+        opponent
+    )
+
+    await ctx.send(
+        content=opponent.mention,
+        embed=embed,
+        view=view
+    )
+async def start_pet_battle(channel, battle_id):
+
+    battle = active_battles[battle_id]
+
+    challenger = battle["challenger"]
+    opponent = battle["opponent"]
+
+    user_id = str(challenger.id)
+    opp_id = str(opponent.id)
+
+    user_pet = battle["challenger_pet"]
+    opp_pet = battle["opponent_pet"]
+
+    battle_msg = await channel.send(
+        f"⚔️ **BATTLE INITIATED!**\n"
+        f"{challenger.mention} "
+        f"({user_pet['type']}) "
+        f"VS "
+        f"{opponent.mention} "
+        f"({opp_pet['type']})"
+    )
+
+    animation_frames = [
+
+        f"⚔️ **FIGHTING!**\n"
+        f"{user_pet['type'].capitalize()} lunges forward...\n"
+        f"`[▬▬▬       ] 30%`",
+
+        f"⚔️ **FIGHTING!**\n"
+        f"{opp_pet['type'].capitalize()} strikes back hard!\n"
+        f"`[▬▬▬▬▬▬    ] 60%`",
+
+        f"⚔️ **CLASHING!**\n"
+        f"Dust is everywhere...\n"
+        f"`[▬▬▬▬▬▬▬▬▬ ] 99%`"
+    ]
+
+    for frame in animation_frames:
+
+        await asyncio.sleep(1.2)
+
+        await battle_msg.edit(content=frame)
+
+    user_power = (
+        user_pet['hp']
+        + user_pet['damage']
+        + random.randint(1, 50)
+    )
+
+    opp_power = (
+        opp_pet['hp']
+        + opp_pet['damage']
+        + random.randint(1, 50)
+    )
+
+    bet_amount = random.randint(15000, 30000)
+
+    if user_power >= opp_power:
+
+        winner = challenger
+        loser = opponent
+
+        winner_id = user_id
+        loser_id = opp_id
+
+        winner_pet = user_pet
+        loser_pet = opp_pet
+
+    else:
+
+        winner = opponent
+        loser = challenger
+
+        winner_id = opp_id
+        loser_id = user_id
+
+        winner_pet = opp_pet
+        loser_pet = user_pet
+
+    eco_col.update_one(
+        {"_id": winner_id},
+        {"$inc": {"wallet": bet_amount}},
+        upsert=True
+    )
+
+    eco_col.update_one(
+        {"_id": loser_id},
+        {"$inc": {"wallet": -bet_amount}},
+        upsert=True
+    )
+
+    winner_data = get_user_data(winner_id)
+
+    loser_data = get_user_data(loser_id)
+
+    embed = discord.Embed(
+        title="🏆 BATTLE RESULTS",
+        description="The dust settles, and a victor emerges...",
+        color=0xffd700
+    )
+
+    embed.add_field(
+        name=f"👑 WINNER: {winner.display_name}",
+        value=(
+            f"**Pet:** {winner_pet['type'].capitalize()}\n"
+            f"**Earned:** 🪙 {bet_amount:,}\n"
+            f"**New Balance:** 🪙 {winner_data['wallet']:,}"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name=f"💀 LOSER: {loser.display_name}",
+        value=(
+            f"**Pet:** {loser_pet['type'].capitalize()}\n"
+            f"**Lost:** 🪙 {bet_amount:,}\n"
+            f"**New Balance:** 🪙 {loser_data['wallet']:,}"
+        ),
+        inline=False
+    )
+
+    if loser_data['wallet'] < 0:
+
+        embed.set_footer(
+            text="📉 Bankrupt! The loser is now in crippling debt."
+        )
+
+    await asyncio.sleep(1)
+
+    await battle_msg.edit(
+        content="🛑 **The battle is over!**",
+        embed=embed
+    )
+
+    del active_battles[battle_id]
 
 
 @bot.hybrid_command(name="userinfo", description="Display detailed information about a member")
@@ -2829,99 +3211,6 @@ class BattleAcceptView(discord.ui.View):
         view = PetSelectView(self.p1, self.p2, p1_data['pets'], p2_data['pets'])
         await interaction.response.edit_message(content="Battle accepted! Both players, select your pets below.", embed=None, view=view)
 
-@bot.hybrid_command(name="battle", description="Battle your pet against another member's pet!")
-async def battle(ctx: commands.Context, opponent: discord.Member):
-    if opponent.bot:
-        return await ctx.send("❌ You can't battle a bot!", ephemeral=True)
-    if opponent.id == ctx.author.id:
-        return await ctx.send("❌ You can't battle yourself!", ephemeral=True)
-
-    user_id = str(ctx.author.id)
-    opp_id = str(opponent.id)
-    
-    # Fetch pets from the database
-    user_pets_data = pets_col.find_one({"_id": user_id})
-    opp_pets_data = pets_col.find_one({"_id": opp_id})
-
-    if not user_pets_data or not user_pets_data.get("pets"):
-        return await ctx.send("❌ You don't have any pets to battle with! Buy one from the `/shop`.")
-    if not opp_pets_data or not opp_pets_data.get("pets"):
-        return await ctx.send(f"❌ {opponent.display_name} doesn't have any pets to fight!")
-
-    # Get the first pet in their inventory for the battle
-    user_pet = user_pets_data["pets"][0]
-    opp_pet = opp_pets_data["pets"][0]
-
-    # --- 1. Battle Animation ---
-    battle_msg = await ctx.send(f"⚔️ **BATTLE INITIATED!**\n{ctx.author.mention} ({user_pet['type']}) **VS** {opponent.mention} ({opp_pet['type']})")
-    
-    animation_frames = [
-        f"⚔️ **FIGHTING!**\n{user_pet['type'].capitalize()} lunges forward...\n`[▬▬▬       ] 30%`",
-        f"⚔️ **FIGHTING!**\n{opp_pet['type'].capitalize()} strikes back hard!\n`[▬▬▬▬▬▬    ] 60%`",
-        f"⚔️ **CLASHING!**\nDust is everywhere...\n`[▬▬▬▬▬▬▬▬▬ ] 99%`"
-    ]
-
-    for frame in animation_frames:
-        await asyncio.sleep(1.2)
-        await battle_msg.edit(content=frame)
-
-    # --- 2. Battle Logic ---
-    # Combine Pet HP, Damage, and a bit of RNG luck
-    user_power = user_pet['hp'] + user_pet['damage'] + random.randint(1, 50)
-    opp_power = opp_pet['hp'] + opp_pet['damage'] + random.randint(1, 50)
-
-    # The new MASSIVE stakes
-    bet_amount = random.randint(15000, 30000) 
-
-    if user_power >= opp_power:
-        winner, loser = ctx.author, opponent
-        winner_id, loser_id = user_id, opp_id
-        winner_pet, loser_pet = user_pet, opp_pet
-    else:
-        winner, loser = opponent, ctx.author
-        winner_id, loser_id = opp_id, user_id
-        winner_pet, loser_pet = opp_pet, user_pet
-
-    # --- 3. Economy Updates (Allowing Negative Wallets) ---
-    # We use MongoDB's $inc to directly add/subtract, allowing it to drop below 0
-    eco_col.update_one({"_id": winner_id}, {"$inc": {"wallet": bet_amount}}, upsert=True)
-    eco_col.update_one({"_id": loser_id}, {"$inc": {"wallet": -bet_amount}}, upsert=True)
-
-    winner_data = get_user_data(winner_id)
-    loser_data = get_user_data(loser_id)
-
-    # --- 4. Final Detailed Embed ---
-    embed = discord.Embed(
-        title="🏆 BATTLE RESULTS",
-        description="The dust settles, and a victor emerges...",
-        color=0xffd700
-    )
-    
-    embed.add_field(
-        name=f"👑 WINNER: {winner.display_name}", 
-        value=f"**Pet:** {winner_pet['type'].capitalize()}\n**Earned:** 🪙 {bet_amount:,}\n**New Balance:** 🪙 {winner_data['wallet']:,}", 
-        inline=False
-    )
-    
-    embed.add_field(
-        name=f"💀 LOSER: {loser.display_name}", 
-        value=f"**Pet:** {loser_pet['type'].capitalize()}\n**Lost:** 🪙 {bet_amount:,}\n**New Balance:** 🪙 {loser_data['wallet']:,}", 
-        inline=False
-    )
-
-    # Add a funny footer if the loser goes into debt
-    if loser_data['wallet'] < 0:
-        embed.set_footer(text="📉 Bankrupt! The loser is now in crippling debt.")
-
-    await asyncio.sleep(1)
-    await battle_msg.edit(content="🛑 **The battle is over!**", embed=embed)
-
-@battle.error
-async def battle_error(ctx: commands.Context, error):
-    if isinstance(error, commands.CommandOnCooldown):
-        minutes = int(error.retry_after // 60)
-        seconds = int(error.retry_after % 60)
-        await ctx.send(f"⏳ Your pet is resting. Try again in {minutes}m {seconds}s.", ephemeral=True)
 
 
 @bot.hybrid_command(name="pets", description="View your pets")

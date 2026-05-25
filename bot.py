@@ -280,7 +280,62 @@ ADVENTURE_EVENTS = {
         "traveled beyond mortal lands"
     ]
 }
+class AdventureView(discord.ui.View):
 
+    def __init__(self, ctx, pets):
+
+        super().__init__(timeout=60)
+
+        self.add_item(
+            AdventurePetSelect(ctx, pets)
+        )
+class AdventurePetSelect(discord.ui.Select):
+
+    def __init__(self, ctx, pets):
+
+        self.ctx = ctx
+        self.pets = pets
+
+        options = []
+
+        for pet in pets:
+
+            pet_type = pet["type"]
+
+            emoji = PET_SHOP[pet_type]["emoji"]
+
+            rarity = PET_RARITIES.get(pet_type, "basic").capitalize()
+
+            options.append(
+                discord.SelectOption(
+                    label=pet_type.capitalize(),
+                    description=f"{rarity} Pet",
+                    emoji=emoji,
+                    value=pet_type
+                )
+            )
+
+        super().__init__(
+            placeholder="Choose a pet for the adventure...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+
+        selected_pet_type = self.values[0]
+
+        selected_pet = next(
+            p for p in self.pets
+            if p["type"] == selected_pet_type.lower()
+        )
+
+        await run_adventure(
+            interaction,
+            self.ctx,
+            selected_pet
+        )
 class BlackjackView(discord.ui.View):
     def __init__(self, ctx, bet, user_wallet):
         super().__init__(timeout=60)
@@ -1586,30 +1641,43 @@ async def adventures(ctx: commands.Context):
     user_pets = pets_col.find_one({"_id": user_id})
 
     if not user_pets or not user_pets.get("pets"):
+
         return await ctx.send(
             "❌ You don't own any pets.",
             ephemeral=True
         )
 
+    view = AdventureView(
+        ctx,
+        user_pets["pets"]
+    )
+
+    await ctx.send(
+        "🌍 Choose a pet for the adventure:",
+        view=view
+    )
+async def run_adventure(interaction, ctx, selected_pet):
+
+    user_id = str(ctx.author.id)
+
     user_data = get_user_data(user_id)
 
-    cooldown = 1800  # 30 mins
+    cooldown = 1800
+
     now = time.time()
 
     last_adventure = user_data.get("last_adventure", 0)
 
     if now - last_adventure < cooldown:
+
         remaining = int(cooldown - (now - last_adventure))
+
         minutes, seconds = divmod(remaining, 60)
 
-        return await ctx.send(
+        return await interaction.response.send_message(
             f"⏳ Your pets are resting. Try again in {minutes}m {seconds}s.",
             ephemeral=True
         )
-
-    owned_pets = user_pets["pets"]
-
-    selected_pet = random.choice(owned_pets)
 
     pet_type = selected_pet["type"]
 
@@ -1648,19 +1716,24 @@ async def adventures(ctx: commands.Context):
     roll = random.randint(1, 100)
 
     cumulative = 0
+
     loot_rarity = "common"
 
     for r, chance in chances[rarity].items():
+
         cumulative += chance
 
         if roll <= cumulative:
+
             loot_rarity = r
+
             break
 
-    loot = random.choice(ADVENTURE_LOOT[loot_rarity])
+    loot = random.choice(
+        ADVENTURE_LOOT[loot_rarity]
+    )
 
-    item_name = loot[0]
-    item_value = loot[1]
+    item_name, item_value = loot
 
     bonus_multiplier = {
         "basic": 1,
@@ -1669,7 +1742,9 @@ async def adventures(ctx: commands.Context):
         "legendary": 4
     }
 
-    final_value = int(item_value * bonus_multiplier[rarity])
+    final_value = int(
+        item_value * bonus_multiplier[rarity]
+    )
 
     eco_col.update_one(
         {"_id": user_id},
@@ -1678,6 +1753,10 @@ async def adventures(ctx: commands.Context):
             "$set": {"last_adventure": now}
         },
         upsert=True
+    )
+
+    event_text = random.choice(
+        ADVENTURE_EVENTS[loot_rarity]
     )
 
     rarity_colors = {
@@ -1694,32 +1773,32 @@ async def adventures(ctx: commands.Context):
         color=rarity_colors[loot_rarity]
     )
 
-    event_text = random.choice(ADVENTURE_EVENTS[loot_rarity])
-
     embed.description = (
         f"{pet_emoji} Your **{pet_type}** {event_text}...\n\n"
         f"🎁 It discovered:\n"
         f"## {item_name}\n\n"
         f"💰 Sold for: 🪙 **{final_value:,}**"
-)
+    )
 
     embed.add_field(
         name="✨ Loot Rarity",
-        value=loot_rarity.capitalize(),
-        inline=True
+        value=loot_rarity.capitalize()
     )
 
     embed.add_field(
         name="🐾 Pet Rarity",
-        value=rarity.capitalize(),
-        inline=True
+        value=rarity.capitalize()
     )
 
     embed.set_footer(
         text="Your pet can adventure again in 30 minutes."
     )
 
-    await ctx.send(embed=embed)
+    await interaction.response.edit_message(
+        content=None,
+        embed=embed,
+        view=None
+    )
 
 @bot.hybrid_command(name="rob", description="Attempt to rob another member")
 async def rob(ctx: commands.Context, member: discord.Member):

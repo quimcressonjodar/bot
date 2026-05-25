@@ -16,7 +16,7 @@ from urllib.parse import quote
 
 import aiohttp
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 from dotenv import load_dotenv
 

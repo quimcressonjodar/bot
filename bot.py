@@ -1380,6 +1380,86 @@ async def blackjack(ctx: commands.Context, bet_amount: str):
     # IMPORTANTE: Pasamos "bet" a la vista (View)
     view = BlackjackView(ctx, bet, user_id)
     await ctx.send(embed=view.create_embed(), view=view)
+@bot.hybrid_command(name="crime", description="Commit a crime for big money, but risk getting caught!")
+@commands.cooldown(1, 7200, commands.BucketType.user) # 2 horas de cooldown
+async def crime(ctx: commands.Context):
+    user_id = str(ctx.author.id)
+    wallet = get_wallet(user_id)
+
+    if wallet < 1000:
+        return await ctx.send("❌ You need at least 🪙 1,000 in your wallet to commit a crime (to bribe the cops just in case).", ephemeral=True)
+
+    success = random.choice([True, False])
+
+    if success:
+        earnings = random.randint(2000, 6500)
+        update_wallet(user_id, earnings)
+        
+        scenarios = [
+            "robbed an underground casino",
+            "hacked a billionaire's bank account",
+            "stole a cybernetic sports car",
+            "smuggled rare alien artifacts",
+            "sold counterfeit Kirka skins on the black market"
+        ]
+        msg = random.choice(scenarios)
+        
+        embed = discord.Embed(
+            title="🦹 Crime Successful",
+            description=f"You {msg} and got away with 🪙 **{earnings:,}** coins!",
+            color=0x2ecc71
+        )
+    else:
+        fine = random.randint(1000, min(3500, wallet))
+        update_wallet(user_id, -fine)
+        
+        scenarios = [
+            "tripped over a trash can while running from the cops",
+            "left your ID at the crime scene",
+            "tried to hack a government server but forgot to turn on your VPN",
+            "got caught by a cybernetic guard dog",
+            "were betrayed by your getaway driver"
+        ]
+        msg = random.choice(scenarios)
+        
+        embed = discord.Embed(
+            title="🚔 BUSTED!",
+            description=f"You {msg}.\n\nYou were fined 🪙 **{fine:,}** coins.",
+            color=0xe74c3c
+        )
+
+    await ctx.send(embed=embed)
+
+@crime.error
+async def crime_error(ctx: commands.Context, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        hours = int(error.retry_after // 3600)
+        minutes = int((error.retry_after % 3600) // 60)
+        await ctx.send(f"⏳ The heat is too high! Lay low for {hours}h {minutes}m before committing another crime.", ephemeral=True)
+
+
+@bot.hybrid_command(name="weekly", description="Claim your massive weekly reward")
+@commands.cooldown(1, 604800, commands.BucketType.user) # 7 días de cooldown
+async def weekly(ctx: commands.Context):
+    user_id = str(ctx.author.id)
+    reward = 25000 
+    
+    update_wallet(user_id, reward)
+    new_balance = get_wallet(user_id)
+    
+    embed = discord.Embed(
+        title="📅 Weekly Reward",
+        description=f"You claimed your weekly 🪙 **{reward:,}** coins.\nCome back next week for more! Your balance is now 🪙 {new_balance:,}.",
+        color=0x00ff00
+    )
+    await ctx.send(embed=embed)
+
+@weekly.error
+async def weekly_error(ctx: commands.Context, error):
+    if isinstance(error, commands.CommandOnCooldown):
+        days = int(error.retry_after // 86400)
+        hours = int((error.retry_after % 86400) // 3600)
+        await ctx.send(f"⏳ You already claimed your weekly reward. Try again in {days}d {hours}h.", ephemeral=True)
 
 @bot.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")
 @app_commands.describe(question="The question you want to ask")

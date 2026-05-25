@@ -120,6 +120,13 @@ HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
 WELCOME_CHANNEL_ID = 1206229312743809054
 ROULETTE_RED = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
+CARD_EMOJIS = {
+    '♠️': {'2': '🂢', '3': '🂣', '4': '🂤', '5': '🂥', '6': '🂦', '7': '🂧', '8': '🂨', '9': '🂩', '10': '🂪', 'J': '🂫', 'Q': '🂭', 'K': '🂮', 'A': '🂡'},
+    '♥️': {'2': '🂲', '3': '🂳', '4': '🂴', '5': '🂵', '6': '🂶', '7': '🂷', '8': '🂸', '9': '🂹', '10': '🂺', 'J': '🂻', 'Q': '🂽', 'K': '🂾', 'A': '🂱'},
+    '♦️': {'2': '🃂', '3': '🃃', '4': '🃄', '5': '🃅', '6': '🃆', '7': '🃇', '8': '🃈', '9': '🃉', '10': '🃊', 'J': '🃋', 'Q': '🃍', 'K': '🃎', 'A': '🃁'},
+    '♣️': {'2': '🃒', '3': '🃓', '4': '🃔', '5': '🃕', '6': '🃖', '7': '🃗', '8': '🃘', '9': '🃙', '10': '🃚', 'J': '🃛', 'Q': '🃝', 'K': '🃞', 'A': '🃑'}
+}
+CARD_BACK = "🂠"
 
 PET_SHOP = {
     # Basic Pets - Starting higher to value early grinding
@@ -1401,11 +1408,6 @@ async def flip(ctx: commands.Context):
     await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
 
 @bot.hybrid_command(name="roulette", description="Bet on the casino roulette wheel")
-@app_commands.describe(
-    bet_amount="The amount of coins to bet",
-    bet_on="What are you betting on?",
-    number="Only if you choose 'specific_number' (0-36)"
-)
 @app_commands.choices(bet_on=[
     app_commands.Choice(name="Red (2x)", value="red"),
     app_commands.Choice(name="Black (2x)", value="black"),
@@ -1420,26 +1422,31 @@ async def roulette(ctx: commands.Context, bet_amount: int, bet_on: str, number: 
     if bet_amount <= 0:
         return await ctx.send("❌ Your bet must be greater than 0.")
     if user_data["wallet"] < bet_amount:
-        return await ctx.send(f"❌ You don't have enough coins. You need 🪙 {bet_amount - user_data['wallet']:,} more.")
+        return await ctx.send(f"❌ You don't have enough coins.")
     
     if bet_on == "specific_number" and (number is None or not (0 <= number <= 36)):
         return await ctx.send("❌ Please provide a valid number between 0 and 36.")
 
-    # Spin the wheel
-    winning_number = random.randint(0, 36)
+    # 1. Visual Loading/Spinning Animation Effect
+    loading_msg = await ctx.send("🪙 **Placing your chips on the table...**")
+    await asyncio.sleep(0.8)
     
-    # Determine result color
-    if winning_number == 0:
-        winning_color = "🟢"
-    elif winning_number in ROULETTE_RED:
-        winning_color = "🔴"
-    else:
-        winning_color = "⚫"
+    await loading_msg.edit(content="✨ **Roulette wheel is spinning!**\n[ 🔴 32 ] [ ⚫ 15 ] [ 🟢 0 ] [ 🔴 19 ] [ ⚫ 4 ] 🔄\n`░░░░░░░░░░ 0%`")
+    await asyncio.sleep(0.8)
+    
+    await loading_msg.edit(content="✨ **The ball is bouncing on the slots...**\n[ ⚫ 26 ] [ 🔴 3 ] [ ⚫ 35 ] [ 🔴 12 ] [ ⚫ 28 ] 🔄\n`█████░░░░░ 50%`")
+    await asyncio.sleep(0.8)
+    
+    await loading_msg.edit(content="✨ **Slowing down...**\n[ 🟢 0 ] [ 🔴 32 ] [ ⚫ 15 ] [ 🔴 19 ] [ ⚫ 4 ] 🔄\n`█████████░ 90%`")
+    await asyncio.sleep(0.6)
+
+    # 2. Compute winning details
+    winning_number = random.randint(0, 36)
+    winning_color = "🟢" if winning_number == 0 else "🔴" if winning_number in ROULETTE_RED else "⚫"
 
     win = False
     payout = 0
 
-    # Win logic
     if bet_on == "red" and winning_number in ROULETTE_RED:
         win, payout = True, bet_amount * 2
     elif bet_on == "black" and winning_number != 0 and winning_number not in ROULETTE_RED:
@@ -1451,20 +1458,39 @@ async def roulette(ctx: commands.Context, bet_amount: int, bet_on: str, number: 
     elif bet_on == "specific_number" and winning_number == number:
         win, payout = True, bet_amount * 36
 
-    # Update database
+    # 3. DB Modification
     if win:
         eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": payout - bet_amount}})
-        embed_color = 0x2ecc71 # Green
-        result_text = f"🎉 **YOU WON!**\n\nThe ball landed on: {winning_color} **{winning_number}**\nYou received: 🪙 **{payout:,}**"
+        embed_color = 0x2ecc71
+        result_text = (
+            f"🔮 **The ball settled on:** {winning_color} **{winning_number}**\n\n"
+            f"🎉 **Congratulations! You Won!**\n"
+            f"💰 Payout: 🪙 **{payout:,}** coins"
+        )
     else:
         eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": -bet_amount}})
-        embed_color = 0xe74c3c # Red
-        result_text = f"💀 **YOU LOST**\n\nThe ball landed on: {winning_color} **{winning_number}**\nYou lost: 🪙 **{bet_amount:,}**"
+        embed_color = 0xe74c3c
+        result_text = (
+            f"🔮 **The ball settled on:** {winning_color} **{winning_number}**\n\n"
+            f"💀 **House Wins! Better luck next time.**\n"
+            f"📉 Loss: 🪙 **-{bet_amount:,}** coins"
+        )
 
-    embed = discord.Embed(title="🎡 European Roulette", description=result_text, color=embed_color)
-    embed.set_footer(text=f"Gambler: {ctx.author.display_name}")
+    # 4. Display Final Graphic Layout
+    embed = discord.Embed(title="🎡 European Casino Roulette", description=result_text, color=embed_color)
+    
+    # Visual grid map of the result section
+    embed.add_field(
+        name="Board Visualization", 
+        value=f"```\n  [ 🔴 ]  [ {winning_color} ]  [ ⚫ ]\n  Prev <--  {winning_number}  --> Next\n```", 
+        inline=False
+    )
+    embed.set_footer(text=f"Bet target: {bet_on.upper()} | Better: {ctx.author.name}")
+    
+    # Delete the animation message and send the final clear embed
+    await loading_msg.delete()
     await ctx.send(embed=embed)
-
+    
 @bot.hybrid_command(name="blackjack", description="Play blackjack against the bot")
 async def blackjack(ctx: commands.Context, bet: int):
     user_id = str(ctx.author.id)

@@ -2233,6 +2233,40 @@ async def spawn_global_drop():
     if channel:
 
         await channel.send(embed=embed)
+@bot.hybrid_command(name="add", description="Add coins to a user (Admin only)")
+@app_commands.describe(
+    member="The member to give coins to",
+    amount="Amount of coins to add"
+)
+@app_commands.default_permissions(administrator=True)
+async def add(ctx: commands.Context, member: discord.Member, amount: int):
+
+    if not is_admin(ctx):
+        return await ctx.send(
+            "❌ Admin only command.",
+            ephemeral=True
+        )
+
+    if amount <= 0:
+        return await ctx.send(
+            "❌ Amount must be greater than 0.",
+            ephemeral=True
+        )
+
+    update_wallet(str(member.id), amount)
+
+    wallet = get_wallet(str(member.id))
+
+    embed = discord.Embed(
+        title="💰 Coins Added",
+        description=(
+            f"Added 🪙 **{amount:,}** to {member.mention}\n\n"
+            f"New Wallet Balance: 🪙 **{wallet:,}**"
+        ),
+        color=0x00ff00
+    )
+
+    await ctx.send(embed=embed)
 @bot.hybrid_command(name="inventory",aliases=["inv"], description="View your inventory")
 async def inventory(ctx: commands.Context):
 
@@ -2964,47 +2998,108 @@ async def rps(ctx: commands.Context):
 
 @bot.hybrid_command(name="help", description="Show all available commands")
 async def help_command(ctx: commands.Context):
+
     embed = discord.Embed(
         title="🏆 Kirka.io Bot | Command List",
-        description="Here is a list of all available commands to manage the server, the clan, and your wallet! 🎮",
-        color=0x2b2d31 
+        description="Complete list of all bot commands.",
+        color=0x2b2d31
     )
 
+    # PUBLIC
     public_cmds = (
-        "**`/userinfo`** - View a member's profile.\n"
-        "**`/serverinfo`** - View server details.\n"
-        "**`/avatar`** - Get high-res avatar.\n"
-        "**`/top_clans`** - View the global Kirka.io clan leaderboard.\n"
-        "**`/clan_info`** - View detailed stats for our clan.\n"
-        "**`/item [name]`** - Check a skin's rarity and market value.\n"
-        "**`/8ball` / `/flip` / `/rps`** - Fun minigames."
+        "**`/userinfo`** - View a member profile.\n"
+        "**`/serverinfo`** - View server information.\n"
+        "**`/avatar`** - View avatars.\n"
+        "**`/top_clans`** - Global clan leaderboard.\n"
+        "**`/clan_info`** - Detailed clan statistics.\n"
+        "**`/item [name]`** - Search Kirka items.\n"
+        "**`/8ball`** - Ask the magic 8ball.\n"
+        "**`/flip`** - Flip a coin.\n"
+        "**`/rps`** - Rock Paper Scissors.\n"
+        "**`/help`** - Show all commands."
     )
-    embed.add_field(name="🌍 Public Commands", value=public_cmds, inline=False)
 
+    embed.add_field(
+        name="🌍 Public Commands",
+        value=public_cmds,
+        inline=False
+    )
+
+    # ECONOMY
     eco_cmds = (
-        "**`/balance`** - Check your wallet and bank.\n"
-        "**`/deposit` / `/withdraw`** - Manage your money.\n"
-        "**`/work` / `/crime`** - Earn (or risk) coins.\n"
-        "**`/daily` / `/weekly`** - Claim free rewards.\n"
-        "**`/pay` / `/rob`** - Give to or steal from others.\n"
-        "**`/shop` / `/pets` / `/battle`** - Buy and fight battle pets.\n"
-        "**`/leaderboard`** - See the richest server members."
+        "**`/balance`** - View your balance.\n"
+        "**`/deposit`** - Deposit money.\n"
+        "**`/withdraw`** - Withdraw money.\n"
+        "**`/daily`** - Claim daily reward.\n"
+        "**`/weekly`** - Claim weekly reward.\n"
+        "**`/pay`** - Send coins to users.\n"
+        "**`/leaderboard`** - Richest players leaderboard.\n"
+        "**`/work`** - Work for coins.\n"
+        "**`/crime`** - Risk stealing coins.\n"
+        "**`/rob`** - Rob another player.\n"
+        "**`/blackjack`** - Play blackjack.\n"
+        "**`/roulette`** - Play roulette."
     )
-    embed.add_field(name="💰 Economy & Casino", value=eco_cmds, inline=False)
 
-    admin_cmds = (
-        "**`/register_monday` / `/register_sunday`** - Manage snapshots.\n"
-        "**`/weekly_lb` / `/set_xp` / `/delete_snaps`** - Leaderboard config.\n"
-        "**`/ban` / `/kick` / `/timeout`** - Moderation tools.\n"
-        "**`/warn` / `/warns` / `/delwarn`** - Warning system.\n"
-        "**`/purge` / `/lock` / `/slowmode`** - Channel management.\n"
-        "**`/role_add` / `/setnick` / `/sayembed`** - Utility tools."
+    embed.add_field(
+        name="💰 Economy Commands",
+        value=eco_cmds,
+        inline=False
     )
-    embed.add_field(name="🛡️ Admin Commands", value=admin_cmds, inline=False)
+
+    # PETS
+    pet_cmds = (
+        "**`/shop`** - View pet shop.\n"
+        "**`/buy [pet]`** - Buy a pet.\n"
+        "**`/pets`** - View your pets.\n"
+        "**`/battle`** - Battle another player.\n"
+        "**`/adventure`** - Send pets on adventures.\n"
+        "**`/inventory`** - View your loot inventory.\n"
+        "**`/sell`** - Sell inventory items."
+    )
+
+    embed.add_field(
+        name="🐾 Pet Commands",
+        value=pet_cmds,
+        inline=False
+    )
+
+    # ADMIN
+    admin_cmds = (
+        "**`/ban`** - Ban users.\n"
+        "**`/unban`** - Unban users.\n"
+        "**`/kick`** - Kick users.\n"
+        "**`/timeout`** - Timeout users.\n"
+        "**`/untimeout`** - Remove timeout.\n"
+        "**`/warn`** - Warn users.\n"
+        "**`/warns`** - View warnings.\n"
+        "**`/delwarn`** - Delete warning.\n"
+        "**`/clearwarns`** - Clear all warnings.\n"
+        "**`/purge`** - Delete messages.\n"
+        "**`/lock`** - Lock channels.\n"
+        "**`/unlock`** - Unlock channels.\n"
+        "**`/slowmode`** - Set slowmode.\n"
+        "**`/setnick`** - Change nicknames.\n"
+        "**`/role_add`** - Add roles.\n"
+        "**`/role_remove`** - Remove roles.\n"
+        "**`/say`** - Make bot say text.\n"
+        "**`/sayembed`** - Send custom embeds.\n"
+        "**`/add`** - Add coins to users.\n"
+        "**`/set_xp`** - Set weekly XP requirement.\n"
+        "**`/register_monday`** - Save Monday snapshot.\n"
+        "**`/register_sunday`** - Save Sunday snapshot.\n"
+        "**`/weekly_lb`** - Weekly XP leaderboard.\n"
+        "**`/delete_snaps`** - Delete snapshot data."
+    )
+
+    embed.add_field(
+        name="🛡️ Admin Commands",
+        value=admin_cmds,
+        inline=False
+    )
 
     embed.set_footer(
-        text="🐛 Found a bug or have an issue? Contact: @clxzon_", 
-        icon_url=ctx.author.display_avatar.url
+        text="Found a bug? Contact clxzon_"
     )
 
     await ctx.send(embed=embed)

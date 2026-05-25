@@ -6,6 +6,7 @@ import random
 import hashlib
 import pymongo
 import uuid
+import secrets
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -117,19 +118,130 @@ KIRKA_API_BASE = os.getenv("KIRKA_API_BASE", "https://api.kirka.io")
 HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "20"))
 HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
-WELCOME_CHANNEL_ID = 1206229312743809054 
+WELCOME_CHANNEL_ID = 1206229312743809054
+ROULETTE_RED = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
 
 PET_SHOP = {
-    "dog":      {"price": 500,    "hp": 100, "damage": 20, "emoji": "🐕"},
-    "cat":      {"price": 600,    "hp": 80,  "damage": 25, "emoji": "🐈"},
-    "wolf":     {"price": 1500,   "hp": 150, "damage": 40, "emoji": "🐺"},
-    "bear":     {"price": 2500,   "hp": 250, "damage": 35, "emoji": "🐻"},
-    "dragon":   {"price": 6000,   "hp": 350, "damage": 70, "emoji": "🐉"},
-    "golem":    {"price": 7500,   "hp": 550, "damage": 50, "emoji": "🗿"},
-    "phoenix":  {"price": 15000,  "hp": 400, "damage": 120, "emoji": "🐦‍🔥"},
-    "kraken":   {"price": 25000,  "hp": 600, "damage": 150, "emoji": "🦑"},
-    "titan":    {"price": 40000,  "hp": 1000, "damage": 200, "emoji": "👑"}
+    # Basic Pets - Starting higher to value early grinding
+    "slime":    {"price": 5000,     "hp": 50,   "damage": 10,  "emoji": "🧪"},
+    "dog":      {"price": 12000,    "hp": 100,  "damage": 20,  "emoji": "🐕"},
+    "cat":      {"price": 15000,    "hp": 80,   "damage": 25,  "emoji": "🐈"},
+    "owl":      {"price": 25000,    "hp": 90,   "damage": 30,  "emoji": "🦉"},
+    "fox":      {"price": 40000,    "hp": 110,  "damage": 35,  "emoji": "🦊"},
+    
+    # Rare Pets - Significant jump in price
+    "wolf":     {"price": 85000,    "hp": 150,  "damage": 40,  "emoji": "🐺"},
+    "tiger":    {"price": 150000,   "hp": 180,  "damage": 50,  "emoji": "🐯"},
+    "bear":     {"price": 225000,   "hp": 250,  "damage": 35,  "emoji": "🐻"},
+    "griffin":  {"price": 500000,   "hp": 300,  "damage": 60,  "emoji": "🦅"},
+    
+    # Epic Pets - Reaching the millions
+    "dragon":   {"price": 1200000,  "hp": 350,  "damage": 70,  "emoji": "🐉"},
+    "golem":    {"price": 2500000,  "hp": 550,  "damage": 50,  "emoji": "🗿"},
+    "hydra":    {"price": 5000000,  "hp": 450,  "damage": 90,  "emoji": "🐍"},
+    "pegasus":  {"price": 8500000,  "hp": 400,  "damage": 85,  "emoji": "🦄"},
+    
+    # Legendary Pets - End-game content
+    "phoenix":  {"price": 15000000, "hp": 400,  "damage": 120, "emoji": "🐦‍🔥"},
+    "chimera":  {"price": 25000000, "hp": 500,  "damage": 130, "emoji": "🦁"},
+    "kraken":   {"price": 50000000, "hp": 600,  "damage": 150, "emoji": "🦑"},
+    "leviathan":{"price": 100000000,"hp": 800,  "damage": 180, "emoji": "🌊"},
+    "titan":    {"price": 250000000,"hp": 1000, "damage": 200, "emoji": "👑"},
+    "bahamut":  {"price": 500000000,"hp": 1500, "damage": 300, "emoji": "🌌"}
 }
+
+class BlackjackView(discord.ui.View):
+    def __init__(self, ctx, bet, user_wallet):
+        super().__init__(timeout=60)
+        self.ctx = ctx
+        self.bet = bet
+        self.deck = self.create_deck()
+        self.player_hand = [self.draw_card(), self.draw_card()]
+        self.dealer_hand = [self.draw_card(), self.draw_card()]
+        self.finished = False
+
+    def create_deck(self):
+        suits = ['♠️', '♥️', '♦️', '♣️']
+        values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+        return [{'val': v, 'suit': s} for v in values for s in suits]
+
+    def draw_card(self):
+        return self.deck.pop(random.randint(0, len(self.deck) - 1))
+
+    def calculate_score(self, hand):
+        score = 0
+        aces = 0
+        values_map = {'J': 10, 'Q': 10, 'K': 10, 'A': 11}
+        for card in hand:
+            if card['val'].isdigit():
+                score += int(card['val'])
+            else:
+                score += values_map[card['val']]
+                if card['val'] == 'A': aces += 1
+        
+        while score > 21 and aces > 0:
+            score -= 10
+            aces -= 1
+        return score
+
+    def format_hand(self, hand, hide_first=False):
+        if hide_first:
+            return f"❓, {hand[1]['val']}{hand[1]['suit']}"
+        return ", ".join([f"{c['val']}{c['suit']}" for c in hand])
+
+    async def check_winner(self, interaction, stand=False):
+        p_score = self.calculate_score(self.player_hand)
+        d_score = self.calculate_score(self.dealer_hand)
+
+        if p_score > 21:
+            return await self.end_game(interaction, "You busted! Dealer wins.", -self.bet)
+        
+        if stand:
+            while self.calculate_score(self.dealer_hand) < 17:
+                self.dealer_hand.append(self.draw_card())
+            
+            d_score = self.calculate_score(self.dealer_hand)
+            if d_score > 21:
+                return await self.end_game(interaction, "Dealer busted! You win!", self.bet)
+            elif p_score > d_score:
+                return await self.end_game(interaction, "You win!", self.bet)
+            elif p_score < d_score:
+                return await self.end_game(interaction, "Dealer wins.", -self.bet)
+            else:
+                return await self.end_game(interaction, "It's a draw!", 0)
+
+    async def end_game(self, interaction, result_text, win_amount):
+        self.finished = True
+        self.hit_button.disabled = True
+        self.stand_button.disabled = True
+        
+        if win_amount != 0:
+            update_wallet(str(self.ctx.author.id), win_amount)
+
+        embed = self.create_embed(result_text)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    def create_embed(self, status="Playing..."):
+        p_score = self.calculate_score(self.player_hand)
+        d_score = self.calculate_score(self.dealer_hand) if self.finished else "?"
+        
+        embed = discord.Embed(title="🃏 Blackjack Table", color=0x2b2d31)
+        embed.add_field(name=f"Your Hand ({p_score})", value=self.format_hand(self.player_hand), inline=True)
+        embed.add_field(name=f"Dealer Hand ({d_score})", value=self.format_hand(self.dealer_hand, not self.finished), inline=True)
+        embed.set_footer(text=f"Bet: 🪙 {self.bet} | Status: {status}")
+        return embed
+
+    @discord.ui.button(label="Hit", style=discord.ButtonStyle.green)
+    async def hit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.player_hand.append(self.draw_card())
+        if self.calculate_score(self.player_hand) >= 21:
+            await self.check_winner(interaction, stand=True)
+        else:
+            await interaction.response.edit_message(embed=self.create_embed())
+
+    @discord.ui.button(label="Stand", style=discord.ButtonStyle.red)
+    async def stand_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.check_winner(interaction, stand=True)
 
 class ClanClient:
     async def get_top_clans(self):
@@ -1281,15 +1393,88 @@ async def top_clans(ctx: commands.Context):
 async def flip(ctx: commands.Context):
     msg = await ctx.send("Flipping the coin...")
     
-    unique_id = str(ctx.interaction.id if ctx.interaction else ctx.message.id)
-    seed_int = int(hashlib.sha256(unique_id.encode()).hexdigest(), 16)
-    
-    local_random = random.Random(seed_int)
-    result = local_random.choice(["Heads", "Tails"])
+    # 50/50 real usando secrets, sin semillas manuales que rompan la probabilidad
+    result = secrets.choice(["Heads", "Tails"])
     
     await asyncio.sleep(1)
     
     await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
+
+@bot.hybrid_command(name="roulette", description="Bet on the casino roulette wheel")
+@app_commands.describe(
+    bet_amount="The amount of coins to bet",
+    bet_on="What are you betting on?",
+    number="Only if you choose 'specific_number' (0-36)"
+)
+@app_commands.choices(bet_on=[
+    app_commands.Choice(name="Red (2x)", value="red"),
+    app_commands.Choice(name="Black (2x)", value="black"),
+    app_commands.Choice(name="Even (2x)", value="even"),
+    app_commands.Choice(name="Odd (2x)", value="odd"),
+    app_commands.Choice(name="Specific Number (36x)", value="specific_number")
+])
+async def roulette(ctx: commands.Context, bet_amount: int, bet_on: str, number: int = None):
+    user_id = str(ctx.author.id)
+    user_data = get_user_data(user_id)
+
+    if bet_amount <= 0:
+        return await ctx.send("❌ Your bet must be greater than 0.")
+    if user_data["wallet"] < bet_amount:
+        return await ctx.send(f"❌ You don't have enough coins. You need 🪙 {bet_amount - user_data['wallet']:,} more.")
+    
+    if bet_on == "specific_number" and (number is None or not (0 <= number <= 36)):
+        return await ctx.send("❌ Please provide a valid number between 0 and 36.")
+
+    # Spin the wheel
+    winning_number = random.randint(0, 36)
+    
+    # Determine result color
+    if winning_number == 0:
+        winning_color = "🟢"
+    elif winning_number in ROULETTE_RED:
+        winning_color = "🔴"
+    else:
+        winning_color = "⚫"
+
+    win = False
+    payout = 0
+
+    # Win logic
+    if bet_on == "red" and winning_number in ROULETTE_RED:
+        win, payout = True, bet_amount * 2
+    elif bet_on == "black" and winning_number != 0 and winning_number not in ROULETTE_RED:
+        win, payout = True, bet_amount * 2
+    elif bet_on == "even" and winning_number != 0 and winning_number % 2 == 0:
+        win, payout = True, bet_amount * 2
+    elif bet_on == "odd" and winning_number % 2 != 0:
+        win, payout = True, bet_amount * 2
+    elif bet_on == "specific_number" and winning_number == number:
+        win, payout = True, bet_amount * 36
+
+    # Update database
+    if win:
+        eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": payout - bet_amount}})
+        embed_color = 0x2ecc71 # Green
+        result_text = f"🎉 **YOU WON!**\n\nThe ball landed on: {winning_color} **{winning_number}**\nYou received: 🪙 **{payout:,}**"
+    else:
+        eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": -bet_amount}})
+        embed_color = 0xe74c3c # Red
+        result_text = f"💀 **YOU LOST**\n\nThe ball landed on: {winning_color} **{winning_number}**\nYou lost: 🪙 **{bet_amount:,}**"
+
+    embed = discord.Embed(title="🎡 European Roulette", description=result_text, color=embed_color)
+    embed.set_footer(text=f"Gambler: {ctx.author.display_name}")
+    await ctx.send(embed=embed)
+
+@bot.hybrid_command(name="blackjack", description="Play blackjack against the bot")
+async def blackjack(ctx: commands.Context, bet: int):
+    user_id = str(ctx.author.id)
+    wallet = get_wallet(user_id)
+    
+    if bet <= 0: return await ctx.send("❌ Bet must be positive.")
+    if bet > wallet: return await ctx.send("❌ You don't have enough coins.")
+    
+    view = BlackjackView(ctx, bet, wallet)
+    await ctx.send(embed=view.create_embed(), view=view)
 
 @bot.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")
 @app_commands.describe(question="The question you want to ask")

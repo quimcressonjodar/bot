@@ -1944,7 +1944,7 @@ async def claim(ctx: commands.Context):
     for key, data in ROLE_SHOP.items():
 
         role = ctx.guild.get_role(
-            data["role_id"]
+            int(role_data["role_id"])
 )
 
         if role and role in ctx.author.roles:
@@ -3295,13 +3295,13 @@ async def shop(
 
     if action.lower() == "view":
 
-    embed = discord.Embed(
-        title="🏪 Shop",
-        description=(
+        embed = discord.Embed(
+            title="🏪 Shop",
+            description=(
             "🐾 Buy pets for battles\n"
             "💎 Buy roles for passive income"
-        ),
-        color=0x3498db
+                ),
+            color=0x3498db
     )
 
     # =========================
@@ -3333,8 +3333,8 @@ async def shop(
     for key, data in ROLE_SHOP.items():
 
         role = ctx.guild.get_role(
-            data["role_id"]
-        )
+            int(data["role_id"])
+)
 
         role_name = role.name if role else key.capitalize()
 
@@ -3435,8 +3435,8 @@ async def shop(
                 )
 
             role = ctx.guild.get_role(
-                role_data["role_id"]
-)
+                int(data["role_id"])
+                )
 
             if not role:
 

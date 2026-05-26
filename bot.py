@@ -18,85 +18,6 @@ from discord.ext import commands, tasks
 from discord import app_commands
 from dotenv import load_dotenv
 
-client = pymongo.MongoClient(os.getenv("MONGO_URI"))
-db = client["kirka_bot"]
-pets_col = db["pets"]
-warns_col = db["warns"]
-snaps_col = db["snapshots"]
-eco_col = db["economy"]
-active_battles = {}
-active_global_drop = None
-
-def get_user_data(user_id: str):
-    user = eco_col.find_one({"_id": user_id})
-
-    if not user:
-        user = {
-            "_id": user_id,
-            "wallet": 0,
-            "bank": 0
-        }
-        eco_col.insert_one(user)
-
-    if "balance" in user:
-        wallet_amount = user.get("balance", 0)
-
-        eco_col.update_one(
-            {"_id": user_id},
-            {
-                "$set": {
-                    "wallet": wallet_amount,
-                    "bank": 0
-                },
-                "$unset": {
-                    "balance": ""
-                }
-            }
-        )
-
-        user["wallet"] = wallet_amount
-        user["bank"] = 0
-
-    return user
-def parse_economy_amount(amount_input: str, max_balance: int) -> int:
-    """Parses user input for economy commands supporting 'all', 'half', or integer."""
-    amount_input = str(amount_input).lower().strip()
-    
-    if amount_input == "all":
-        return max_balance
-    elif amount_input == "half":
-        return max(1, max_balance // 2) # Ensure it returns at least 1 if they have 1 coin
-    else:
-        try:
-            amount = int(amount_input)
-            return amount
-        except ValueError:
-            return -1 # Returns -1 to trigger the invalid amount error
-
-
-def get_wallet(user_id: str) -> int:
-    return get_user_data(user_id)["wallet"]
-
-
-def get_bank(user_id: str) -> int:
-    return get_user_data(user_id)["bank"]
-
-
-def update_wallet(user_id: str, amount: int):
-    eco_col.update_one(
-        {"_id": user_id},
-        {"$inc": {"wallet": amount}},
-        upsert=True
-    )
-
-
-def update_bank(user_id: str, amount: int):
-    eco_col.update_one(
-        {"_id": user_id},
-        {"$inc": {"bank": amount}},
-        upsert=True
-    )
-
 try:
     from tabulate import tabulate
 except ImportError:
@@ -105,6 +26,15 @@ except ImportError:
 from flask import Flask
 from threading import Thread
 
+
+# ================================================== 
+# CONSTANTS / GLOBAL VARIABLES
+# ==================================================
+
+# Load environment variables
+load_dotenv()
+
+# Flask server setup for keeping the bot alive
 app = Flask('')
 
 @app.route('/')
@@ -119,11 +49,11 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-load_dotenv()
-
+# Logging configuration
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 logger = logging.getLogger("weekly-xp-bot")
 
+# API & Bot Configuration
 DEFAULT_WEEKLY_XP_REQUIREMENT = 30_000
 WEEKLY_XP_REQUIREMENT = int(os.getenv("WEEKLY_XP_REQUIREMENT", str(DEFAULT_WEEKLY_XP_REQUIREMENT)))
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
@@ -133,7 +63,11 @@ KIRKA_API_BASE = os.getenv("KIRKA_API_BASE", "https://api.kirka.io")
 HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "20"))
 HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
+
+# Channel & Server Settings
 WELCOME_CHANNEL_ID = 1206229312743809054
+
+# Game Constants - Roulette
 ROULETTE_RED = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
 VALID_BETS = {
     "red",
@@ -145,6 +79,8 @@ VALID_BETS = {
     "2nd",
     "3rd"
 }
+
+# Card emoji mappings for blackjack
 CARD_EMOJIS = {
     '♠️': {'2': '🂢', '3': '🂣', '4': '🂤', '5': '🂥', '6': '🂦', '7': '🂧', '8': '🂨', '9': '🂩', '10': '🂪', 'J': '🂫', 'Q': '🂭', 'K': '🂮', 'A': '🂡'},
     '♥️': {'2': '🂲', '3': '🂳', '4': '🂴', '5': '🂵', '6': '🂶', '7': '🂷', '8': '🂸', '9': '🂹', '10': '🂺', 'J': '🂻', 'Q': '🂽', 'K': '🂾', 'A': '🂱'},
@@ -152,6 +88,15 @@ CARD_EMOJIS = {
     '♣️': {'2': '🃒', '3': '🃓', '4': '🃔', '5': '🃕', '6': '🃖', '7': '🃗', '8': '🃘', '9': '🃙', '10': '🃚', 'J': '🃛', 'Q': '🃝', 'K': '🃞', 'A': '🃑'}
 }
 CARD_BACK = "🂠"
+
+# Snapshot paths for weekly leaderboards
+MONDAY_SNAPSHOT_PATH = "monday_snapshot"
+SUNDAY_SNAPSHOT_PATH = "sunday_snapshot"
+
+
+# ==================================================
+# PETS & SHOP
+# ==================================================
 
 PET_SHOP = {
     # Basic Pets - Starting higher to value early grinding
@@ -181,97 +126,84 @@ PET_SHOP = {
     "titan":    {"price": 250000000,"hp": 1000, "damage": 200, "emoji": "👑"},
     "bahamut":  {"price": 500000000,"hp": 1500, "damage": 300, "emoji": "🌌"}
 }
-ROLE_SHOP = {
 
+ROLE_SHOP = {
     "bronze": {
         "price": 25_000,
         "claim": 2_000,
         "role_id": 1508820992749867212
     },
-
     "silver": {
         "price": 75_000,
         "claim": 5_000,
         "role_id": 1508821178645610638
     },
-
     "gold": {
         "price": 200_000,
         "claim": 12_000,
         "role_id": 1508821213634494574
     },
-
     "diamond": {
         "price": 500_000,
         "claim": 30_000,
         "role_id": 1508822070191194354
     },
-
     "emerald": {
         "price": 1_000_000,
         "claim": 75_000,
         "role_id": 1508821247583195217
     },
-
     "mythic": {
         "price": 3_000_000,
         "claim": 200_000,
         "role_id": 1508821304399237301
     },
-
     "cosmic": {
         "price": 10_000_000,
         "claim": 650_000,
         "role_id": 1508821333796978818
     },
-
     "eternal": {
         "price": 25_000_000,
         "claim": 1_500_000,
         "role_id": 1508821363647840376
     },
-
     "titan": {
         "price": 75_000_000,
         "claim": 4_000_000,
         "role_id": 1508821400457187429
     },
-
     "godlike": {
         "price": 200_000_000,
         "claim": 10_000_000,
         "role_id": 1508821439665406072
     },
-
     "celestial": {
         "price": 500_000_000,
         "claim": 25_000_000,
         "role_id": 1508821730372878447
     },
-
     "ascended": {
         "price": 1_000_000_000,
         "claim": 60_000_000,
         "role_id": 1508821474855747614
     }
 }
+
 PET_RARITIES = {
     "slime": "basic",
     "dog": "basic",
     "cat": "basic",
     "owl": "basic",
     "fox": "basic",
-
     "wolf": "rare",
     "tiger": "rare",
     "bear": "rare",
     "griffin": "rare",
-
     "dragon": "epic",
     "golem": "epic",
     "hydra": "epic",
     "pegasus": "epic",
-
     "phoenix": "legendary",
     "chimera": "legendary",
     "kraken": "legendary",
@@ -281,9 +213,7 @@ PET_RARITIES = {
 }
 
 ADVENTURE_LOOT = {
-
     "common": [
-
         ("🪵 Stick", 15),
         ("🪨 Rock", 20),
         ("🔩 Screw", 25),
@@ -314,9 +244,7 @@ ADVENTURE_LOOT = {
         ("🗝️ Tiny Key", 140),
         ("🪞 Shattered Mirror", 75)
     ],
-
     "rare": [
-
         ("💍 Silver Ring", 500),
         ("🪙 Gold Coin", 750),
         ("💎 Sapphire", 1200),
@@ -338,9 +266,7 @@ ADVENTURE_LOOT = {
         ("⚡ Charged Core", 8500),
         ("🔑 Ancient Key", 9000)
     ],
-
     "epic": [
-
         ("👑 Royal Crown", 12000),
         ("💜 Amethyst Crystal", 15000),
         ("🐉 Dragon Scale", 18000),
@@ -357,9 +283,7 @@ ADVENTURE_LOOT = {
         ("☄️ Meteor Fragment", 80000),
         ("👁️ Cursed Eye", 90000)
     ],
-
     "legendary": [
-
         ("🌟 Celestial Artifact", 120000),
         ("👁️ Eye of Eternity", 150000),
         ("💫 Divine Crystal", 200000),
@@ -372,6 +296,7 @@ ADVENTURE_LOOT = {
         ("🧿 Orb of Infinity", 5000000)
     ]
 }
+
 ADVENTURE_EVENTS = {
     "common": [
         "searched through trash piles",
@@ -380,7 +305,6 @@ ADVENTURE_EVENTS = {
         "dug near a broken wagon",
         "searched a forgotten campsite"
     ],
-
     "rare": [
         "explored an ancient cave",
         "snuck into a merchant caravan",
@@ -388,7 +312,6 @@ ADVENTURE_EVENTS = {
         "raided a bandit stash",
         "explored underground tunnels"
     ],
-
     "epic": [
         "explored volcanic ruins",
         "crossed forbidden lands",
@@ -396,7 +319,6 @@ ADVENTURE_EVENTS = {
         "flew above ancient kingdoms",
         "ventured into magical forests"
     ],
-
     "legendary": [
         "vanished into the void itself",
         "crossed dimensions",
@@ -405,6 +327,301 @@ ADVENTURE_EVENTS = {
         "traveled beyond mortal lands"
     ]
 }
+
+
+# ================================================== 
+# DATABASE SETUP
+# ==================================================
+
+client = pymongo.MongoClient(os.getenv("MONGO_URI"))
+db = client["kirka_bot"]
+pets_col = db["pets"]
+warns_col = db["warns"]
+snaps_col = db["snapshots"]
+eco_col = db["economy"]
+
+# Active game state
+active_battles = {}
+active_global_drop = None
+# ================================================== 
+# HELPER FUNCTIONS
+# ==================================================
+
+def get_user_data(user_id: str):
+    """Get user economy data, creating default entry if needed."""
+    user = eco_col.find_one({"_id": user_id})
+
+    if not user:
+        user = {
+            "_id": user_id,
+            "wallet": 0,
+            "bank": 0
+        }
+        eco_col.insert_one(user)
+
+    if "balance" in user:
+        wallet_amount = user.get("balance", 0)
+
+        eco_col.update_one(
+            {"_id": user_id},
+            {
+                "$set": {
+                    "wallet": wallet_amount,
+                    "bank": 0
+                },
+                "$unset": {
+                    "balance": ""
+                }
+            }
+        )
+
+        user["wallet"] = wallet_amount
+        user["bank"] = 0
+
+    return user
+
+
+def parse_economy_amount(amount_input: str, max_balance: int) -> int:
+    """Parses user input for economy commands supporting 'all', 'half', or integer."""
+    amount_input = str(amount_input).lower().strip()
+    
+    if amount_input == "all":
+        return max_balance
+    elif amount_input == "half":
+        return max(1, max_balance // 2)
+    else:
+        try:
+            amount = int(amount_input)
+            return amount
+        except ValueError:
+            return -1
+
+
+def get_wallet(user_id: str) -> int:
+    """Get user's wallet balance."""
+    return get_user_data(user_id)["wallet"]
+
+
+def get_bank(user_id: str) -> int:
+    """Get user's bank balance."""
+    return get_user_data(user_id)["bank"]
+
+
+def update_wallet(user_id: str, amount: int):
+    """Update user's wallet by amount (can be negative)."""
+    eco_col.update_one(
+        {"_id": user_id},
+        {"$inc": {"wallet": amount}},
+        upsert=True
+    )
+
+
+def update_bank(user_id: str, amount: int):
+    """Update user's bank balance by amount (can be negative)."""
+    eco_col.update_one(
+        {"_id": user_id},
+        {"$inc": {"bank": amount}},
+        upsert=True
+    )
+
+
+def is_admin(ctx: commands.Context) -> bool:
+    """Check if user has administrator permissions."""
+    if isinstance(ctx.author, discord.Member):
+        return bool(ctx.author.guild_permissions.administrator)
+    return False
+
+
+def load_warns() -> dict:
+    """Load all warnings from database."""
+    doc = warns_col.find_one({"_id": "all_warns"})
+    return doc["data"] if doc else {}
+
+
+def save_warns(data: dict):
+    """Save all warnings to database."""
+    warns_col.update_one({"_id": "all_warns"}, {"$set": {"data": data}}, upsert=True)
+
+
+def load_snapshot(path) -> dict | None:
+    """Load snapshot data from database."""
+    snap_id = str(path)
+    doc = snaps_col.find_one({"_id": snap_id})
+    return doc["data"] if doc else None
+
+
+def save_snapshot(path, data: dict) -> None:
+    """Save snapshot data to database."""
+    snap_id = str(path)
+    snaps_col.update_one({"_id": snap_id}, {"$set": {"data": data}}, upsert=True)
+
+
+def parse_duration(duration_str: str):
+    """Parse duration string (e.g., '10m', '2h', '1d') to timedelta."""
+    try:
+        if duration_str.endswith("m"):
+            return timedelta(minutes=int(duration_str[:-1]))
+        elif duration_str.endswith("h"):
+            return timedelta(hours=int(duration_str[:-1]))
+        elif duration_str.endswith("d"):
+            return timedelta(days=int(duration_str[:-1]))
+        else:
+            return timedelta(minutes=int(duration_str))
+    except ValueError:
+        return None
+
+
+# ================================================== 
+# UTILITY FUNCTIONS
+# ==================================================
+
+def extract_member_map(clan_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Extract member map from clan data."""
+    result: dict[str, dict[str, Any]] = {}
+    for item in clan_data.get("members", []):
+        if not isinstance(item, dict):
+            continue
+        user = item.get("user") if isinstance(item.get("user"), dict) else item
+
+        user_id = str(user.get("id") or item.get("id") or user.get("userId") or "").strip()
+        if not user_id:
+            continue
+
+        score_raw = item.get("allScores", item.get("scores", item.get("xp", 0)))
+        try:
+            all_scores = int(score_raw or 0)
+        except (TypeError, ValueError):
+            all_scores = 0
+
+        result[user_id] = {
+            "id": user_id,
+            "name": str(user.get("name") or item.get("name") or "Unknown"),
+            "shortId": str(user.get("shortId") or item.get("shortId") or "-"),
+            "role": str(item.get("role") or "UNKNOWN"),
+            "allScores": all_scores,
+        }
+    return result
+
+
+def build_weekly_rows(monday: dict[str, dict[str, Any]], sunday: dict[str, dict[str, Any]]) -> list[list[Any]]:
+    """Build weekly leaderboard rows from Monday/Sunday snapshots."""
+    rows: list[list[Any]] = []
+    all_ids = set(monday.keys()) | set(sunday.keys())
+
+    for user_id in all_ids:
+        mon = monday.get(user_id)
+        sun = sunday.get(user_id)
+
+        if mon and sun:
+            weekly_xp = sun["allScores"] - mon["allScores"]
+            if weekly_xp < 0:
+                status = "REVIEW"
+            elif weekly_xp >= WEEKLY_XP_REQUIREMENT:
+                status = "OK"
+            else:
+                status = "MISSING"
+            rows.append([sun["name"], sun["shortId"], sun["role"], weekly_xp, status])
+        elif sun and not mon:
+            rows.append([sun["name"], sun["shortId"], sun["role"], 0, "JOINED"])
+        elif mon and not sun:
+            rows.append([mon["name"], mon["shortId"], mon["role"], 0, "LEFT"])
+
+    rows.sort(key=lambda row: (row[4] not in {"OK", "MISSING", "REVIEW"}, -row[3], row[0]))
+    return rows
+
+
+def format_table(rows: list[list[Any]], headers: list[str]) -> str:
+    """Format data rows as a table (with or without tabulate)."""
+    if tabulate:
+        return tabulate(rows, headers=headers, tablefmt="github")
+
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, col in enumerate(row):
+            widths[i] = max(widths[i], len(str(col)))
+
+    def fmt_line(values: list[Any]) -> str:
+        cells = [str(v).ljust(widths[i]) for i, v in enumerate(values)]
+        return "| " + " | ".join(cells) + " |"
+
+    sep = "| " + " | ".join("-" * w for w in widths) + " |"
+    lines = [fmt_line(headers), sep]
+    lines.extend(fmt_line(row) for row in rows)
+    return "\n".join(lines)
+
+
+def generate_top_clans_image(clans: list[dict], page: int = 0, per_page: int = 10):
+    """Generate top clans leaderboard image."""
+    width, height = 1000, 850 
+    img = Image.new("RGB", (width, height), (30, 31, 34)) 
+    draw = ImageDraw.Draw(img)
+
+    try:
+        font_normal = ImageFont.truetype("arial.ttf", 32)
+        font_bold = ImageFont.truetype("arialbd.ttf", 32)
+        font_title = ImageFont.truetype("arialbd.ttf", 52)
+        font_header = ImageFont.truetype("arialbd.ttf", 34)
+    except:
+        font_normal = ImageFont.load_default()
+        font_bold = font_normal
+        font_title = font_normal
+        font_header = font_normal
+
+    start = page * per_page
+    end = start + per_page
+    sliced = clans[start:end]
+
+    draw.text((40, 40), "🏆 GLOBAL LEADERBOARD", fill=(255, 255, 255), font=font_title)
+    
+    page_text = f"PAGE {page+1} / {max(1, (len(clans)//per_page)+1)}"
+    draw.text((width - 250, 55), page_text, fill=(150, 150, 150), font=font_bold)
+
+    y_offset = 140
+    cols = [40, 150, 540, 800] 
+    headers = ["RANK", "CLAN", "EXPERIENCE", "USERS"]
+    
+    draw.rectangle([(20, y_offset), (width - 20, y_offset + 70)], fill=(43, 45, 49))
+    
+    for x, text in zip(cols, headers):
+        draw.text((x, y_offset + 15), text, fill=(88, 101, 242), font=font_header)
+
+    y_offset += 100 
+    rank = start + 1
+
+    for c in sliced:
+        name = c.get("name", "Unknown")
+        scores = c.get("scores", 0)
+        members = c.get("membersCount", 0)
+
+        is_my_clan = name.lower() == "usasone!"
+        
+        if is_my_clan:
+            text_color = (255, 215, 0) 
+            draw.rectangle([(20, y_offset - 10), (width - 20, y_offset + 55)], fill=(49, 51, 56), outline=(255, 215, 0), width=3)
+            current_font = font_bold
+        else:
+            text_color = (220, 221, 222) 
+            current_font = font_normal
+
+        draw.text((cols[0], y_offset), f"#{rank}", fill=text_color, font=current_font)
+        draw.text((cols[1], y_offset), name, fill=text_color, font=current_font)
+        draw.text((cols[2], y_offset), f"{scores:,} XP", fill=text_color, font=current_font)
+        draw.text((cols[3], y_offset), f"{members}", fill=text_color, font=current_font)
+
+        y_offset += 65 
+        rank += 1
+
+    draw.rectangle([(20, height - 20), (width - 20, height - 15)], fill=(88, 101, 242))
+
+    path = f"top_clans_page_{page}.png"
+    img.save(path)
+    return path
+
+
+# ================================================== 
+# DISCORD VIEWS / UI CLASSES
+# ==================================================
+
 class SellSelect(discord.ui.Select):
 
     def __init__(self, ctx, inventory):
@@ -467,8 +684,8 @@ class SellSelect(discord.ui.Select):
             {
                 "$inc": {"wallet": item["value"]},
                 "$set": {"inventory": inventory}
-    }
-)
+            }
+        )
 
         embed = discord.Embed(
             title="💰 Item Sold",
@@ -485,6 +702,8 @@ class SellSelect(discord.ui.Select):
             embed=embed,
             view=None
         )
+
+
 class SellView(discord.ui.View):
 
     def __init__(self, ctx, inventory):
@@ -494,6 +713,8 @@ class SellView(discord.ui.View):
         self.add_item(
             SellSelect(ctx, inventory)
         )
+
+
 class AdventureView(discord.ui.View):
 
     def __init__(self, ctx, pets):
@@ -503,6 +724,8 @@ class AdventureView(discord.ui.View):
         self.add_item(
             AdventurePetSelect(ctx, pets)
         )
+
+
 class AdventurePetSelect(discord.ui.Select):
 
     def __init__(self, ctx, pets):
@@ -550,6 +773,8 @@ class AdventurePetSelect(discord.ui.Select):
             self.ctx,
             selected_pet
         )
+
+
 class BlackjackView(discord.ui.View):
     def __init__(self, ctx, bet, user_wallet):
         super().__init__(timeout=60)
@@ -826,6 +1051,10 @@ class PetBattleSelectView(discord.ui.View):
                 "opponent_pet"
             )
         )
+
+# ================================================== 
+# API CLASSES
+# ==================================================
 
 class ClanClient:
     async def get_top_clans(self):
@@ -1207,6 +1436,10 @@ def parse_duration(duration_str: str):
         return None
 
 
+# ================================================== 
+# ADMIN COMMANDS
+# ==================================================
+
 @bot.hybrid_command(name="ban", description="Ban a member from the server (Admin only)")
 @app_commands.describe(member="The member to ban", reason="The reason for the ban")
 @app_commands.default_permissions(administrator=True)
@@ -1481,6 +1714,11 @@ async def role_remove(ctx: commands.Context, member: discord.Member, role: disco
         await ctx.send(f"✅ Removed the role **{role.name}** from **{member.name}**.")
     except Exception as e:
         await ctx.send(f"❌ Failed to remove role: {e}", ephemeral=True)
+
+# ================================================== 
+# PET COMMANDS
+# ==================================================
+
 @bot.hybrid_command(
     name="battle",
     description="Battle your pet against another member's pet!"
@@ -1722,6 +1960,10 @@ async def avatar(ctx: commands.Context, member: discord.Member = None):
     embed = discord.Embed(title=f"🖼️ Avatar of {target.name}", color=0x2b2d31)
     embed.set_image(url=target.display_avatar.url)
     await ctx.send(embed=embed)
+
+# ================================================== 
+# ECONOMY COMMANDS
+# ==================================================
 
 @bot.hybrid_command(name="balance", aliases=["bal"], description="Check your economy profile")
 async def balance(ctx: commands.Context, member: discord.Member = None):
@@ -2058,6 +2300,10 @@ async def leaderboard(ctx: commands.Context):
 
     await ctx.send(embed=embed)
 
+# ================================================== 
+# KIRKA / API COMMANDS
+# ==================================================
+
 @bot.hybrid_command(name="top_clans", description="View the top clans leaderboard")
 async def top_clans(ctx: commands.Context):
     await ctx.defer()
@@ -2311,6 +2557,11 @@ async def claimdrop(ctx: commands.Context):
         )
 
     active_global_drop = None
+
+# ================================================== 
+# BACKGROUND TASKS
+# ==================================================
+
 @tasks.loop(minutes=300)
 async def spawn_global_drop():
 
@@ -2810,6 +3061,9 @@ async def rob(ctx: commands.Context, member: discord.Member):
     await ctx.send(embed=embed)
 
 
+# ================================================== 
+# UTILITY COMMANDS
+# ==================================================
 
 @bot.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")
 @app_commands.describe(question="The question you want to ask")
@@ -3578,6 +3832,10 @@ async def delete_snaps(ctx: commands.Context) -> None:
     except Exception as exc:
         await ctx.send(f"Failed deleting snapshots: {exc}")
 
+
+# ================================================== 
+# BOT STARTUP
+# ==================================================
 
 def validate_environment() -> None:
     if not DISCORD_TOKEN:

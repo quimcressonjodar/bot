@@ -3286,104 +3286,65 @@ async def shop(
     action: str = "view",
     pet_name: str = None
 ):
-
     user_id = str(ctx.author.id)
 
     # =========================
     # VIEW SHOP
     # =========================
-
     if action.lower() == "view":
-
         embed = discord.Embed(
             title="🏪 Shop",
             description=(
-            "🐾 Buy pets for battles\n"
-            "💎 Buy roles for passive income"
-                ),
+                "🐾 Buy pets for battles\n"
+                "💎 Buy roles for passive income"
+            ),
             color=0x3498db
-    )
-
-    # =========================
-    # PET SHOP
-    # =========================
-
-    pet_text = ""
-
-    for name, stats in PET_SHOP.items():
-
-        pet_text += (
-            f"{stats['emoji']} **{name.capitalize()}**\n"
-            f"🪙 {stats['price']:,}\n"
-            f"❤️ {stats['hp']} | ⚔️ {stats['damage']}\n\n"
         )
 
-    embed.add_field(
-        name="🐾 Pets",
-        value=pet_text,
-        inline=True
-    )
-
-    # =========================
-    # ROLE SHOP
-    # =========================
-
-    role_text = ""
-
-    for key, data in ROLE_SHOP.items():
-
-        role = ctx.guild.get_role(
-            int(data["role_id"])
-)
-
-        role_name = role.name if role else key.capitalize()
-
-        role_text += (
-            f"{role_name}\n"
-            f"🪙 {data['price']:,}\n"
-            f"💰 {data['claim']:,}/hour\n\n"
-        )
-
-    embed.add_field(
-        name="💎 Roles",
-        value=role_text,
-        inline=True
-    )
-
-    embed.set_footer(
-        text="/shop buy <pet/role>"
-    )
-
-    return await ctx.send(embed=embed)
-
-    # =========================
-    # BUY
-    # =========================
-
-        elif action.lower() == "buy":
-
-        if not pet_name:
-            return await ctx.send(
-                "❌ Please specify a pet or role name."
+        # PET SHOP (Ahora está DENTRO del if view)
+        pet_text = ""
+        for name, stats in PET_SHOP.items():
+            pet_text += (
+                f"{stats['emoji']} **{name.capitalize()}**\n"
+                f"🪙 {stats['price']:,}\n"
+                f"❤️ {stats['hp']} | ⚔️ {stats['damage']}\n\n"
             )
 
-        item_key = pet_name.lower()
+        if pet_text:
+            embed.add_field(name="🐾 Pets", value=pet_text, inline=True)
 
+        # ROLE SHOP (Ahora está DENTRO del if view)
+        role_text = ""
+        for key, data_shop in ROLE_SHOP.items():
+            role = ctx.guild.get_role(int(data_shop["role_id"]))
+            role_name = role.name if role else key.capitalize()
+            role_text += (
+                f"{role_name}\n"
+                f"🪙 {data_shop['price']:,}\n"
+                f"💰 {data_shop['claim']:,}/hour\n\n"
+            )
+
+        if role_text:
+            embed.add_field(name="💎 Roles", value=role_text, inline=True)
+
+        embed.set_footer(text="/shop buy <pet/role>")
+        return await ctx.send(embed=embed)
+
+    # =========================
+    # BUY (Ahora el elif sigue directamente al if anterior)
+    # =========================
+    elif action.lower() == "buy":
+        if not pet_name:
+            return await ctx.send("❌ Please specify a pet or role name.")
+
+        item_key = pet_name.lower()
         balance = get_wallet(user_id)
 
-        # =========================
-        # BUY PET
-        # =========================
-
+        # COMPRAR PET
         if item_key in PET_SHOP:
-
             pet_data = PET_SHOP[item_key]
-
             if balance < pet_data["price"]:
-
-                return await ctx.send(
-                    f"❌ You need 🪙 {pet_data['price']:,} coins."
-                )
+                return await ctx.send(f"❌ You need 🪙 {pet_data['price']:,}")
 
             pet_instance = {
                 "pet_id": str(uuid.uuid4()),
@@ -3394,94 +3355,49 @@ async def shop(
 
             pets_col.update_one(
                 {"_id": user_id},
-                {
-                    "$push": {
-                        "pets": pet_instance
-                    }
-                },
+                {"$push": {"pets": pet_instance}},
                 upsert=True
             )
-
-            update_wallet(
-                user_id,
-                -pet_data["price"]
-            )
+            update_wallet(user_id, -pet_data["price"])
 
             embed = discord.Embed(
                 title="🎉 Pet Purchased",
-                description=(
-                    f"You bought a "
-                    f"{pet_data['emoji']} "
-                    f"**{item_key.capitalize()}**!"
-                ),
+                description=f"You bought a {pet_data['emoji']} **{item_key.capitalize()}**!",
                 color=0x00ff00
             )
-
             return await ctx.send(embed=embed)
 
-        # =========================
-        # BUY ROLE
-        # =========================
-
+        # COMPRAR ROLE
         elif item_key in ROLE_SHOP:
-
             role_data = ROLE_SHOP[item_key]
-
             if balance < role_data["price"]:
+                return await ctx.send(f"❌ You need 🪙 {role_data['price']:,}")
 
-                return await ctx.send(
-                    f"❌ You need 🪙 "
-                    f"{role_data['price']:,} coins."
-                )
-
-            role = ctx.guild.get_role(
-                int(data["role_id"])
-                )
+            # Corregido: antes usabas 'data["role_id"]', pero debe ser 'role_data'
+            role = ctx.guild.get_role(int(role_data["role_id"]))
 
             if not role:
-
-                return await ctx.send(
-                    f"❌ Role not found: "
-                    f"{role_data['role_id']}"
-                )
+                return await ctx.send(f"❌ Role ID {role_data['role_id']} not found.")
 
             if role in ctx.author.roles:
+                return await ctx.send("❌ You already own this role.")
 
-                return await ctx.send(
-                    "❌ You already own this role."
-                )
-
-            update_wallet(
-                user_id,
-                -role_data["price"]
-            )
-
+            update_wallet(user_id, -role_data["price"])
             await ctx.author.add_roles(role)
 
             embed = discord.Embed(
                 title="💎 Role Purchased",
                 description=(
-                    f"You bought "
-                    f"{role_data['role_name']}\n\n"
-                    f"Cost: 🪙 "
-                    f"{role_data['price']:,}\n"
-                    f"Claim Reward: 🪙 "
-                    f"{role_data['claim']:,}/hour"
+                    f"You bought **{role.name}**\n\n"
+                    f"Cost: 🪙 {role_data['price']:,}\n"
+                    f"Claim: 🪙 {role_data['claim']:,}/hour"
                 ),
                 color=0xf1c40f
             )
-
             return await ctx.send(embed=embed)
 
-        # =========================
-        # INVALID ITEM
-        # =========================
-
         else:
-
-            return await ctx.send(
-                "❌ That pet or role does not exist."
-            )
+            return await ctx.send("❌ That pet or role does not exist.")
 
 
 async def run_battle_logic(interaction: discord.Interaction, p1: discord.Member, p2: discord.Member, p1_pet_id: str, p2_pet_id: str):

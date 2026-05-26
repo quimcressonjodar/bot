@@ -1904,92 +1904,69 @@ async def weekly(ctx: commands.Context):
     description="Claim rewards from your roles"
 )
 async def claim(ctx: commands.Context):
+    # 1. Deferimos la respuesta. Esto le dice a Discord que el bot está pensando
+    # y evita el error de "App didn't respond" si la base de datos tarda.
+    await ctx.defer()
 
     user_id = str(ctx.author.id)
-
     user_data = get_user_data(user_id)
-
     now = datetime.now(timezone.utc)
-
     last_claim = user_data.get("last_claim")
 
+    # Verificación de Cooldown
     if last_claim:
-
         if isinstance(last_claim, str):
-
             last_claim = datetime.fromisoformat(last_claim)
-
-        elapsed = (
-            now - last_claim
-        ).total_seconds()
-
+        
+        elapsed = (now - last_claim).total_seconds()
+        
         if elapsed < 3600:
-
             remaining = int(3600 - elapsed)
-
-            next_claim = int(
-                (now + timedelta(seconds=remaining)).timestamp()
-            )
+            next_claim_ts = int((now + timedelta(seconds=remaining)).timestamp())
 
             return await ctx.send(
-                f"❌ You already claimed your rewards.\n"
-                f"Try again <t:{next_claim}:R>.",
+                f"❌ You already claimed your rewards. Try again <t:{next_claim_ts}:R>.",
                 ephemeral=True
             )
 
     total = 0
-
     breakdown = []
 
+    # 2. CORRECCIÓN DEL BUCLE
     for key, data in ROLE_SHOP.items():
-
-        role = ctx.guild.get_role(
-            int(role_data["role_id"])
-)
+        # Cambiado 'role_data' por 'data', que es como lo definiste en el 'for'
+        role_id = data.get("role_id")
+        if not role_id:
+            continue
+            
+        role = ctx.guild.get_role(int(role_id))
 
         if role and role in ctx.author.roles:
-
             reward = data["claim"]
-
             total += reward
-
-            breakdown.append(
-                f"{data['role_id']} → 🪙 {reward:,}"
-            )
+            # Opcional: Usamos el nombre del rol para que quede mejor
+            breakdown.append(f"✨ **{role.name}** → 🪙 {reward:,}")
 
     if total == 0:
+        return await ctx.send("❌ You don't own any claim roles.")
 
-        return await ctx.send(
-            "❌ You don't own any claim roles."
-        )
-
+    # Guardar en DB
     eco_col.update_one(
         {"_id": user_id},
         {
             "$inc": {"wallet": total},
-            "$set": {
-                "last_claim": now.isoformat()
-            }
+            "$set": {"last_claim": now.isoformat()}
         },
         upsert=True
     )
 
     embed = discord.Embed(
         title="💰 Claim Rewards",
+        description="\n".join(breakdown),
         color=0x00ff99
     )
-
-    embed.description = "\n".join(breakdown)
-
-    embed.add_field(
-        name="Total Claimed",
-        value=f"🪙 {total:,}",
-        inline=False
-    )
-
-    embed.set_footer(
-        text="Come back in 1 hour for more rewards."
-    )
+    embed.add_field(name="Total Claimed", value=f"🪙 {total:,}", inline=False)
+    embed.set_footer(text="Come back in 1 hour for more rewards.")
 
     await ctx.send(embed=embed)
 @bot.hybrid_command(name="pay", description="Send coins to another member")

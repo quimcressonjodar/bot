@@ -450,13 +450,15 @@ class SellSelect(discord.ui.Select):
 
         item = inventory[selected_index]
 
+        inventory.pop(selected_index)
+
         eco_col.update_one(
             {"_id": user_id},
             {
                 "$inc": {"wallet": item["value"]},
-                "$pull": {"inventory": item}
-            }
-        )
+                "$set": {"inventory": inventory}
+    }
+)
 
         embed = discord.Embed(
             title="💰 Item Sold",
@@ -3293,62 +3295,66 @@ async def shop(
 
     if action.lower() == "view":
 
-        embed = discord.Embed(
-            title="🏪 Shop",
-            description=(
-                "Welcome to the shop!\n\n"
-                "🐾 Pets for battle\n"
-                "💎 Roles for passive income"
-            ),
-            color=0x3498db
+    embed = discord.Embed(
+        title="🏪 Shop",
+        description=(
+            "🐾 Buy pets for battles\n"
+            "💎 Buy roles for passive income"
+        ),
+        color=0x3498db
+    )
+
+    # =========================
+    # PET SHOP
+    # =========================
+
+    pet_text = ""
+
+    for name, stats in PET_SHOP.items():
+
+        pet_text += (
+            f"{stats['emoji']} **{name.capitalize()}**\n"
+            f"🪙 {stats['price']:,}\n"
+            f"❤️ {stats['hp']} | ⚔️ {stats['damage']}\n\n"
         )
 
-        # =========================
-        # PET SHOP
-        # =========================
+    embed.add_field(
+        name="🐾 Pets",
+        value=pet_text,
+        inline=True
+    )
 
-        pet_text = ""
+    # =========================
+    # ROLE SHOP
+    # =========================
 
-        for name, stats in PET_SHOP.items():
+    role_text = ""
 
-            pet_text += (
-                f"{stats['emoji']} **{name.capitalize()}** "
-                f"- 🪙 {stats['price']:,}\n"
-                f"❤️ HP: {stats['hp']} | "
-                f"⚔️ Damage: {stats['damage']}\n\n"
-            )
+    for key, data in ROLE_SHOP.items():
 
-        embed.add_field(
-            name="🐾 Pet Shop",
-            value=pet_text,
-            inline=False
+        role = ctx.guild.get_role(
+            data["role_id"]
         )
 
-        # =========================
-        # ROLE SHOP
-        # =========================
+        role_name = role.name if role else key.capitalize()
 
-        role_text = ""
-
-        for key, data in ROLE_SHOP.items():
-
-            role_text += (
-                f"{data['role_id']} "
-                f"- 🪙 {data['price']:,}\n"
-                f"💰 Claim: 🪙 {data['claim']:,}/hour\n\n"
-            )
-
-        embed.add_field(
-            name="💎 Role Shop",
-            value=role_text,
-            inline=False
+        role_text += (
+            f"{role_name}\n"
+            f"🪙 {data['price']:,}\n"
+            f"💰 {data['claim']:,}/hour\n\n"
         )
 
-        embed.set_footer(
-            text="/shop buy <pet/role>"
-        )
+    embed.add_field(
+        name="💎 Roles",
+        value=role_text,
+        inline=True
+    )
 
-        return await ctx.send(embed=embed)
+    embed.set_footer(
+        text="/shop buy <pet/role>"
+    )
+
+    return await ctx.send(embed=embed)
 
     # =========================
     # BUY

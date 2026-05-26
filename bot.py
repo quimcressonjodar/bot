@@ -3360,7 +3360,7 @@ async def shop(
     # BUY
     # =========================
 
-    elif action.lower() == "buy":
+        elif action.lower() == "buy":
 
         if not pet_name:
             return await ctx.send(

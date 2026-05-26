@@ -135,6 +135,16 @@ HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
 WELCOME_CHANNEL_ID = 1206229312743809054
 ROULETTE_RED = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
+VALID_BETS = {
+    "red",
+    "black",
+    "even",
+    "odd",
+    "specific_number",
+    "1st",
+    "2nd",
+    "3rd"
+}
 CARD_EMOJIS = {
     '♠️': {'2': '🂢', '3': '🂣', '4': '🂤', '5': '🂥', '6': '🂦', '7': '🂧', '8': '🂨', '9': '🂩', '10': '🂪', 'J': '🂫', 'Q': '🂭', 'K': '🂮', 'A': '🂡'},
     '♥️': {'2': '🂲', '3': '🂳', '4': '🂴', '5': '🂵', '6': '🂶', '7': '🂷', '8': '🂸', '9': '🂹', '10': '🂺', 'J': '🂻', 'Q': '🂽', 'K': '🂾', 'A': '🂱'},
@@ -2087,6 +2097,9 @@ async def flip(ctx: commands.Context):
     app_commands.Choice(name="⚫ Black (x2)", value="black"),
     app_commands.Choice(name="🔢 Even (x2)", value="even"),
     app_commands.Choice(name="🔢 Odd (x2)", value="odd"),
+    app_commands.Choice(name="🥇 1st 12 (1-12) (x3)", value="1st"),
+    app_commands.Choice(name="🥈 2nd 12 (13-24) (x3)", value="2nd"),
+    app_commands.Choice(name="🥉 3rd 12 (25-36) (x3)", value="3rd"),
     app_commands.Choice(name="🎯 Specific Number (x36)", value="specific_number")
 ])
 async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: int = None):
@@ -2100,6 +2113,15 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
         return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
     if user_data["wallet"] < bet:
         return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.", ephemeral=True)
+    # Validate bet type
+    if bet_on.lower() not in VALID_BETS:
+        return await ctx.send(
+            "❌ Invalid bet type.\n"
+            "Valid bets: red, black, even, odd, specific_number, 1st, 2nd, 3rd",
+            ephemeral=True
+    )
+
+    bet_on = bet_on.lower()
     
     if bet_on == "specific_number":
         if number is None or not (0 <= number <= 36):
@@ -2143,9 +2165,26 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
         win, multiplier = True, 2
     elif bet_on == "specific_number" and number == winning_number:
         win, multiplier = True, 36
+    elif bet_on == "1st" and 1 <= winning_number <= 12:
+        win, multiplier = True, 3
+
+    elif bet_on == "2nd" and 13 <= winning_number <= 24:
+        win, multiplier = True, 3
+
+    elif bet_on == "3rd" and 25 <= winning_number <= 36:
+        win, multiplier = True, 3
 
     # Clean up what the user bet on for the display
-    bet_target_display = bet_on.capitalize()
+    bet_target_display = {
+        "red": "Red",
+        "black": "Black",
+        "even": "Even",
+        "odd": "Odd",
+        "1st": "1st 12 (1-12)",
+        "2nd": "2nd 12 (13-24)",
+        "3rd": "3rd 12 (25-36)",
+    }.get(bet_on, bet_on.capitalize())
+
     if bet_on == "specific_number":
         bet_target_display = f"Number {number}"
 

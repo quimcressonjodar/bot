@@ -3122,7 +3122,7 @@ async def run_adventure(interaction, ctx, selected_pet):
 
     loot_rarity = "common"
 
-        for r, chance in chances.items():
+    for r, chance in chances.items():
 
         cumulative += chance
 

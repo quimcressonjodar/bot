@@ -2745,12 +2745,13 @@ async def spawn_global_drop():
     if drop_type == "coins":
 
         rewards = [
-            5000,
-            10000,
-            15000,
-            25000,
-            50000
-        ]
+            50000,
+            75000,
+            100000,
+            125000,
+            150000,
+            200000,
+]
 
         reward = random.choice(rewards)
 
@@ -2762,7 +2763,7 @@ async def spawn_global_drop():
         embed = discord.Embed(
             title="🌠 GLOBAL DROP",
             description=(
-                "A mysterious treasure appeared!\n\n"
+                "💸 A MASSIVE treasure drop appeared!\nFirst person to claim it wins!\n"
                 "Use `!claimdrop` first!"
             ),
             color=0xf1c40f
@@ -2777,13 +2778,13 @@ async def spawn_global_drop():
 
         rarity_roll = random.randint(1, 100)
 
-        if rarity_roll <= 60:
+        if rarity_roll <= 35:
             rarity = "common"
 
-        elif rarity_roll <= 88:
+        elif rarity_roll <= 65:
             rarity = "rare"
 
-        elif rarity_roll <= 98:
+        elif rarity_roll <= 92:
             rarity = "epic"
 
         else:
@@ -2792,6 +2793,10 @@ async def spawn_global_drop():
         item_name, item_value = random.choice(
             ADVENTURE_LOOT[rarity]
         )
+        if rarity == "legendary":
+            await channel.send(
+                "🌌 A LEGENDARY item has appeared!!!"
+    )
 
         active_global_drop = {
             "type": "item",

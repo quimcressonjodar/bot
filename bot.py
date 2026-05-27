@@ -777,12 +777,12 @@ class AdventurePetSelect(discord.ui.Select):
 
             rarity = PET_RARITIES.get(pet_type, "basic").capitalize()
 
-                options.append(
-                    discord.SelectOption(
-                        label=pet_type.capitalize(),
-                        description=f"{rarity} Pet",
-                        emoji=emoji,
-                        value=pet_type
+            options.append(
+                discord.SelectOption(
+                    label=pet_type.capitalize(),
+                    description=f"{rarity} Pet",
+                    emoji=emoji,
+                    value=pet_type
                 )
             )
 
@@ -838,7 +838,7 @@ class BlackjackView(discord.ui.View):
         current_score = self.calculate_score(self.player_hand)
 
 
-        if random.random() < 0.35:
+        if random.random() < 0.40:
 
             safe_cards = []
 
@@ -2505,7 +2505,7 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
 
     owner_luck = (
         ctx.author.id in OWNER_IDS
-        and random.random() < 0.25
+        and random.random() < 0.35
     )
 
     if owner_luck:

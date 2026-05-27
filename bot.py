@@ -3104,7 +3104,7 @@ async def run_adventure(interaction, ctx, selected_pet):
 
     pet_type = selected_pet["type"]
 
-        rarity = PET_RARITIES.get(pet_type, "basic")
+    rarity = PET_RARITIES.get(pet_type, "basic")
 
     chances = PET_LOOT_PROBABILITIES.get(
         pet_type.lower(),

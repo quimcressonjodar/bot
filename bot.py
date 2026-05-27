@@ -808,7 +808,7 @@ class BlackjackView(discord.ui.View):
         current_score = self.calculate_score(self.player_hand)
 
 
-        if random.random() < 0.30:
+        if random.random() < 0.35:
 
             safe_cards = []
 
@@ -2415,7 +2415,28 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
         )
 
     # Validate bet type
-    if bet_on.lower() not in VALID_BETS:
+    bet_aliases = {
+    "number": "specific_number",
+    "num": "specific_number",
+    "n": "specific_number",
+    "red": "red",
+    "black": "black",
+    "even": "even",
+    "odd": "odd",
+    
+}
+
+    bet_on = bet_aliases.get(
+        bet_on.lower(),
+        bet_on.lower()
+)
+
+    if bet_on not in VALID_BETS:
+        return await ctx.send(
+            "❌ Invalid bet type.\n"
+            "Valid bets: red, black, even, odd, number, 1st, 2nd, 3rd",
+            ephemeral=True
+    )
         return await ctx.send(
             "❌ Invalid bet type.\n"
             "Valid bets: red, black, even, odd, specific_number, 1st, 2nd, 3rd",
@@ -2454,7 +2475,7 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
 
     owner_luck = (
         ctx.author.id in OWNER_IDS
-        and random.random() < 0.18
+        and random.random() < 0.25
     )
 
     if owner_luck:

@@ -67,6 +67,10 @@ HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
 # Channel & Server Settings
 WELCOME_CHANNEL_ID = 1206229312743809054
 
+OWNER_IDS = {
+    1436417791615045785,
+}
+
 # Game Constants - Roulette
 ROULETTE_RED = {1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36}
 VALID_BETS = {
@@ -794,6 +798,48 @@ class BlackjackView(discord.ui.View):
 
     def draw_card(self):
         return self.deck.pop()
+    def draw_player_card(self):
+
+    # Normal users
+        if self.ctx.author.id not in OWNER_IDS:
+            return self.draw_card()
+
+
+        current_score = self.calculate_score(self.player_hand)
+
+
+        if random.random() < 0.30:
+
+            safe_cards = []
+
+            for card in self.deck:
+
+                temp_score = current_score
+
+                if card['val'].isdigit():
+                temp_score += int(card['val'])
+
+                elif card['val'] in ['J', 'Q', 'K']:
+                temp_score += 10
+
+                else:
+                temp_score += 11
+
+                # Evitar bust
+                if temp_score <= 21:
+                    safe_cards.append(card)
+
+            # Si hay cartas seguras → elegir una
+            if safe_cards:
+
+                chosen = random.choice(safe_cards)
+
+                self.deck.remove(chosen)
+
+                return chosen
+
+        # RNG normal
+        return self.draw_card()
 
     def calculate_score(self, hand):
         score = 0
@@ -860,7 +906,7 @@ class BlackjackView(discord.ui.View):
 
     @discord.ui.button(label="Hit", style=discord.ButtonStyle.green)
     async def hit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.player_hand.append(self.draw_card())
+        self.player_hand.append(self.draw_player_card())
         if self.calculate_score(self.player_hand) >= 21:
             await self.check_winner(interaction, stand=True)
         else:
@@ -2332,10 +2378,10 @@ async def flip(ctx: commands.Context):
     
     await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
 
-@bot.hybrid_command(name="roulette",aliases=["r"], description="Bet on the casino roulette wheel")
+@bot.hybrid_command(name="roulette", aliases=["r"], description="Bet on the casino roulette wheel")
 @app_commands.describe(
-    bet_amount="Amount ('all', 'half', or number)", 
-    bet_on="What are you betting on?", 
+    bet_amount="Amount ('all', 'half', or number)",
+    bet_on="What are you betting on?",
     number="Number to bet on (if you chose specific_number)"
 )
 @app_commands.choices(bet_on=[
@@ -2349,34 +2395,48 @@ async def flip(ctx: commands.Context):
     app_commands.Choice(name="🎯 Specific Number (x36)", value="specific_number")
 ])
 async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: int = None):
+
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
-    
+
     bet = parse_economy_amount(bet_amount, user_data["wallet"])
 
     # Validation checks
     if bet <= 0:
-        return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
+        return await ctx.send(
+            "❌ Invalid bet. Please specify a positive number, 'all', or 'half'.",
+            ephemeral=True
+        )
+
     if user_data["wallet"] < bet:
-        return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.", ephemeral=True)
+        return await ctx.send(
+            f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.",
+            ephemeral=True
+        )
+
     # Validate bet type
     if bet_on.lower() not in VALID_BETS:
         return await ctx.send(
             "❌ Invalid bet type.\n"
             "Valid bets: red, black, even, odd, specific_number, 1st, 2nd, 3rd",
             ephemeral=True
-    )
+        )
 
     bet_on = bet_on.lower()
-    
+
+    # Validate specific number
     if bet_on == "specific_number":
         if number is None or not (0 <= number <= 36):
-            return await ctx.send("❌ Please provide a valid number between 0 and 36.", ephemeral=True)
+            return await ctx.send(
+                "❌ Please provide a valid number between 0 and 36.",
+                ephemeral=True
+            )
 
     # --- 1. Start Visual Animation ---
-    spin_msg = await ctx.send("🎰 **Throwing the ball...** 🔄\n`[          ] 0%`")
+    spin_msg = await ctx.send(
+        "🎰 **Throwing the ball...** 🔄\n`[          ] 0%`"
+    )
 
-    # Safe frames to avoid Discord rate limits
     animation_frames = [
         "🎰 **Spinning...** 🔴 14\n`[▬▬        ] 25%`",
         "🎰 **Spinning...** ⬛ 22\n`[▬▬▬▬▬     ] 50%`",
@@ -2385,17 +2445,74 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
     ]
 
     for frame in animation_frames:
-        await asyncio.sleep(0.8)  # Pause to simulate the spin
+        await asyncio.sleep(0.8)
         await spin_msg.edit(content=frame)
 
-    # --- 2. Game Logic ---
-    winning_number = secrets.randbelow(37)
+    # =================================
+    # OWNER LUCK SYSTEM
+    # =================================
+
+    owner_luck = (
+        ctx.author.id in OWNER_IDS
+        and random.random() < 0.18
+    )
+
+    if owner_luck:
+
+        if bet_on == "red":
+            winning_number = random.choice(list(ROULETTE_RED))
+
+        elif bet_on == "black":
+            black_numbers = [
+                n for n in range(1, 37)
+                if n not in ROULETTE_RED
+            ]
+            winning_number = random.choice(black_numbers)
+
+        elif bet_on == "even":
+            winning_number = random.choice([
+                n for n in range(2, 37, 2)
+            ])
+
+        elif bet_on == "odd":
+            winning_number = random.choice([
+                n for n in range(1, 37, 2)
+            ])
+
+        elif bet_on == "1st":
+            winning_number = random.randint(1, 12)
+
+        elif bet_on == "2nd":
+            winning_number = random.randint(13, 24)
+
+        elif bet_on == "3rd":
+            winning_number = random.randint(25, 36)
+
+        elif bet_on == "specific_number":
+            winning_number = number
+
+        else:
+            winning_number = secrets.randbelow(37)
+
+    else:
+        winning_number = secrets.randbelow(37)
+
+    # =================================
+    # RESULT CALCULATIONS
+    # =================================
+
     is_red = winning_number in ROULETTE_RED
     is_black = winning_number != 0 and not is_red
 
-    # Determine visual text and emoji for final result
-    color_emoji = "🟩" if winning_number == 0 else ("🟥" if is_red else "⬛")
-    color_text = "Green" if winning_number == 0 else ("Red" if is_red else "Black")
+    color_emoji = (
+        "🟩" if winning_number == 0
+        else ("🟥" if is_red else "⬛")
+    )
+
+    color_text = (
+        "Green" if winning_number == 0
+        else ("Red" if is_red else "Black")
+    )
 
     win = False
     multiplier = 0
@@ -2403,14 +2520,19 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
     # Win conditions
     if bet_on == "red" and is_red:
         win, multiplier = True, 2
+
     elif bet_on == "black" and is_black:
         win, multiplier = True, 2
+
     elif bet_on == "even" and winning_number != 0 and winning_number % 2 == 0:
         win, multiplier = True, 2
+
     elif bet_on == "odd" and winning_number % 2 != 0:
         win, multiplier = True, 2
+
     elif bet_on == "specific_number" and number == winning_number:
         win, multiplier = True, 36
+
     elif bet_on == "1st" and 1 <= winning_number <= 12:
         win, multiplier = True, 3
 
@@ -2420,7 +2542,7 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
     elif bet_on == "3rd" and 25 <= winning_number <= 36:
         win, multiplier = True, 3
 
-    # Clean up what the user bet on for the display
+    # Display text
     bet_target_display = {
         "red": "Red",
         "black": "Black",
@@ -2434,50 +2556,74 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
     if bet_on == "specific_number":
         bet_target_display = f"Number {number}"
 
-    # --- 3. Apply Results & Build The Detailed Embed ---
+    # =================================
+    # APPLY RESULTS
+    # =================================
+
     embed = discord.Embed(
         title="🎰 Casino Roulette",
         color=0x00ff00 if win else 0xff0000
     )
-    embed.set_author(name=f"{ctx.author.display_name}'s Spin", icon_url=ctx.author.display_avatar.url)
 
-    # Add the detailed fields
+    embed.set_author(
+        name=f"{ctx.author.display_name}'s Spin",
+        icon_url=ctx.author.display_avatar.url
+    )
+
     embed.add_field(
-        name="📝 Bet Details", 
-        value=f"**Amount:** 🪙 {bet:,}\n**Bet On:** {bet_target_display}", 
+        name="📝 Bet Details",
+        value=f"**Amount:** 🪙 {bet:,}\n**Bet On:** {bet_target_display}",
         inline=True
     )
+
     embed.add_field(
-        name="🎯 The Spin", 
-        value=f"**Landed On:**\n{color_emoji} **{color_text} {winning_number}**", 
+        name="🎯 The Spin",
+        value=f"**Landed On:**\n{color_emoji} **{color_text} {winning_number}**",
         inline=True
     )
 
     if win:
+
         winnings = bet * multiplier
         profit = winnings - bet
+
         update_wallet(user_id, profit)
-        
+
         embed.add_field(
-            name="🎉 Outcome", 
-            value=f"**WIN!** (x{multiplier} multiplier)\nYou won 🪙 **{winnings:,}**!", 
+            name="🎉 Outcome",
+            value=(
+                f"**WIN!** (x{multiplier} multiplier)\n"
+                f"You won 🪙 **{winnings:,}**!"
+            ),
             inline=False
         )
+
     else:
+
         update_wallet(user_id, -bet)
-        
+
         embed.add_field(
-            name="💀 Outcome", 
-            value=f"**LOSS!**\nYou lost 🪙 **{bet:,}**.", 
+            name="💀 Outcome",
+            value=f"**LOSS!**\nYou lost 🪙 **{bet:,}**.",
             inline=False
         )
 
     new_balance = get_wallet(user_id)
-    embed.set_footer(text=f"New Wallet Balance: 🪙 {new_balance:,}")
-    
-    # --- 4. Final Output ---
+
+    embed.set_footer(
+        text=f"New Wallet Balance: 🪙 {new_balance:,}"
+    )
+
+    # =================================
+    # FINAL OUTPUT
+    # =================================
+
     await asyncio.sleep(0.8)
-    await spin_msg.edit(content="🛑 **The wheel stopped!**", embed=embed)
+
+    await spin_msg.edit(
+        content="🛑 **The wheel stopped!**",
+        embed=embed
+    )
 @bot.hybrid_command(name="sell", description="Sell an item from your inventory")
 async def sell(ctx: commands.Context):
 

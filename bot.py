@@ -64,6 +64,36 @@ HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "20"))
 HTTP_MAX_RETRIES = int(os.getenv("HTTP_MAX_RETRIES", "3"))
 HTTP_RETRY_BASE_DELAY = float(os.getenv("HTTP_RETRY_BASE_DELAY", "0.8"))
 
+# Los pesos suman 100 en cada pet (representan porcentajes: %)
+PET_LOOT_PROBABILITIES = {
+    # Basic Pets
+    "slime":    {"common": 80, "rare": 15, "epic": 4,  "legendary": 1},
+    "dog":      {"common": 75, "rare": 20, "epic": 4,  "legendary": 1},
+    "cat":      {"common": 70, "rare": 23, "epic": 6,  "legendary": 1},
+    "owl":      {"common": 65, "rare": 25, "epic": 8,  "legendary": 2},
+    "fox":      {"common": 60, "rare": 30, "epic": 8,  "legendary": 2},
+    
+    # Rare Pets
+    "wolf":     {"common": 50, "rare": 35, "epic": 12, "legendary": 3},
+    "tiger":    {"common": 45, "rare": 38, "epic": 14, "legendary": 3},
+    "bear":     {"common": 40, "rare": 40, "epic": 15, "legendary": 5},
+    "griffin":  {"common": 35, "rare": 42, "epic": 18, "legendary": 5},
+    
+    # Epic Pets
+    "dragon":   {"common": 25, "rare": 45, "epic": 22, "legendary": 8},
+    "golem":    {"common": 20, "rare": 45, "epic": 25, "legendary": 10},
+    "hydra":    {"common": 15, "rare": 45, "epic": 28, "legendary": 12},
+    "pegasus":  {"common": 10, "rare": 40, "epic": 35, "legendary": 15},
+    
+    # Legendary Pets
+    "phoenix":  {"common": 5,  "rare": 35, "epic": 40, "legendary": 20},
+    "chimera":  {"common": 5,  "rare": 30, "epic": 40, "legendary": 25},
+    "kraken":   {"common": 2,  "rare": 28, "epic": 40, "legendary": 30},
+    "leviathan":{"common": 0,  "rare": 25, "epic": 40, "legendary": 35},
+    "titan":    {"common": 0,  "rare": 15, "epic": 45, "legendary": 40},
+    "bahamut":  {"common": 0,  "rare": 5,  "epic": 45, "legendary": 50}
+}
+
 # Channel & Server Settings
 WELCOME_CHANNEL_ID = 1206229312743809054
 
@@ -3074,37 +3104,17 @@ async def run_adventure(interaction, ctx, selected_pet):
 
     pet_type = selected_pet["type"]
 
-    rarity = PET_RARITIES.get(pet_type, "basic")
+        rarity = PET_RARITIES.get(pet_type, "basic")
 
-    chances = {
-        "basic": {
+    chances = PET_LOOT_PROBABILITIES.get(
+        pet_type.lower(),
+        {
             "common": 80,
-            "rare": 18,
-            "epic": 2,
-            "legendary": 0
-        },
-
-        "rare": {
-            "common": 60,
-            "rare": 30,
-            "epic": 9,
+            "rare": 15,
+            "epic": 4,
             "legendary": 1
-        },
-
-        "epic": {
-            "common": 40,
-            "rare": 40,
-            "epic": 17,
-            "legendary": 3
-        },
-
-        "legendary": {
-            "common": 20,
-            "rare": 45,
-            "epic": 25,
-            "legendary": 10
         }
-    }
+    )
 
     roll = random.randint(1, 100)
 
@@ -3112,7 +3122,7 @@ async def run_adventure(interaction, ctx, selected_pet):
 
     loot_rarity = "common"
 
-    for r, chance in chances[rarity].items():
+        for r, chance in chances.items():
 
         cumulative += chance
 

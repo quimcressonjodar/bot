@@ -789,7 +789,7 @@ class BlackjackView(discord.ui.View):
         suits = ['♠️', '♥️', '♦️', '♣️']
         values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
         deck = [{'val': v, 'suit': s} for v in values for s in suits]
-        random.shuffle(deck)
+        secrets.SystemRandom().shuffle(deck)
         return deck
 
     def draw_card(self):
@@ -2389,7 +2389,7 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
         await spin_msg.edit(content=frame)
 
     # --- 2. Game Logic ---
-    winning_number = random.randint(0, 36)
+    winning_number = secrets.randbelow(37)
     is_red = winning_number in ROULETTE_RED
     is_black = winning_number != 0 and not is_red
 

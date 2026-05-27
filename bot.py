@@ -817,13 +817,13 @@ class BlackjackView(discord.ui.View):
                 temp_score = current_score
 
                 if card['val'].isdigit():
-                temp_score += int(card['val'])
+                    temp_score += int(card['val'])
 
                 elif card['val'] in ['J', 'Q', 'K']:
-                temp_score += 10
+                    temp_score += 10
 
                 else:
-                temp_score += 11
+                    temp_score += 11
 
                 # Evitar bust
                 if temp_score <= 21:

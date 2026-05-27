@@ -777,12 +777,12 @@ class AdventurePetSelect(discord.ui.Select):
 
             rarity = PET_RARITIES.get(pet_type, "basic").capitalize()
 
-            options.append(
-                discord.SelectOption(
-                    label=pet_type.capitalize(),
-                    description=f"{rarity} Pet",
-                    emoji=emoji,
-                    value=pet_type
+                options.append(
+                    discord.SelectOption(
+                        label=pet_type.capitalize(),
+                        description=f"{rarity} Pet",
+                        emoji=emoji,
+                        value=pet_type
                 )
             )
 

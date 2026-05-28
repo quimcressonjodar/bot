@@ -2761,9 +2761,13 @@ async def claimdrop(ctx: commands.Context):
 
 @tasks.loop(minutes=300)
 async def spawn_global_drop():
+    
 
     global active_global_drop
+    channel_id = 1206197908399980575
 
+    channel = bot.get_channel(channel_id)
+    
     drop_type = random.choice([
         "coins",
         "coins",
@@ -2863,9 +2867,7 @@ async def spawn_global_drop():
             value=rarity.capitalize()
         )
 
-    channel_id = 1206197908399980575
 
-    channel = bot.get_channel(channel_id)
 
     if channel:
 

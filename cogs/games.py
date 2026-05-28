@@ -74,7 +74,7 @@ class GamesCog(commands.Cog):
             await asyncio.sleep(0.8)
             await spin_msg.edit(content=frame)
 
-        owner_luck = ctx.author.id in OWNER_IDS and random.random() < 0.30
+        owner_luck = ctx.author.id in OWNER_IDS and random.random() < 0.25
         if owner_luck:
             if bet_on == "red":
                 winning_number = random.choice(list(ROULETTE_RED))

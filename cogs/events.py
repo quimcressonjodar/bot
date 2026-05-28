@@ -18,6 +18,7 @@ GLOBAL_DROP_COIN_REWARDS = [50000, 75000, 100000, 125000, 150000, 200000]
 class EventsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        print("EVENTS COG LOADED", id(self))
         self.spawn_global_drop.start()
         self._recent_member_events = {}
 

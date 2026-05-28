@@ -75,8 +75,8 @@ class WeeklyXPBot(commands.Bot):
         await self.change_presence(
             status=discord.Status.online,
             activity=discord.Game(name="Kirka.io 🏆"),
-            print(f"READY: {self.user} | {id(self)}")
         )
+        print(f"READY: {self.user} | {id(self)}")
 
     async def close(self) -> None:
         await self.clan_client.close()

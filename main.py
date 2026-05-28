@@ -23,7 +23,12 @@ def home():
 def _run_flask():
     import os
     port = int(os.getenv("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False,
+        use_reloader=False
+    )
 
 
 def keep_alive():
@@ -70,6 +75,8 @@ class WeeklyXPBot(commands.Bot):
         await self.change_presence(
             status=discord.Status.online,
             activity=discord.Game(name="Kirka.io 🏆"),
+            async def on_ready(self):
+            print(f"READY: {self.user} | {id(self)}")
         )
 
     async def close(self) -> None:

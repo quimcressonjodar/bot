@@ -329,7 +329,7 @@ class EconomyCog(commands.Cog):
 
         success = random.choice([True, False])
         if success:
-            stolen = random.randint(150, int(target_data.get("wallet", 0) * 0.35))
+            stolen = random.randint(150, int(target_data.get("wallet", 0) * 0.30))
             eco_col.update_one({"_id": thief_id}, {"$inc": {"wallet": stolen}, "$set": {"last_rob": now}}, upsert=True)
             eco_col.update_one({"_id": target_id}, {"$inc": {"wallet": -stolen}}, upsert=True)
             msg = random.choice([

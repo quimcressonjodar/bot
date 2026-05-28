@@ -2505,7 +2505,7 @@ async def roulette(ctx: commands.Context, bet_amount: str, bet_on: str, number: 
 
     owner_luck = (
         ctx.author.id in OWNER_IDS
-        and random.random() < 0.35
+        and random.random() < 0.30
     )
 
     if owner_luck:

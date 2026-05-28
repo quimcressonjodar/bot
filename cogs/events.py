@@ -1,6 +1,7 @@
 import random
 import asyncio
 import time
+import logging
 
 import discord
 from discord.ext import commands, tasks
@@ -9,6 +10,7 @@ from datetime import timedelta
 import state
 from config import WELCOME_CHANNEL_ID, ADVENTURE_LOOT
 from database import eco_col
+logger = logging.getLogger("weekly-xp-bot")
 
 
 GLOBAL_DROP_CHANNEL_ID = 1206197908399980575
@@ -18,7 +20,7 @@ GLOBAL_DROP_COIN_REWARDS = [50000, 75000, 100000, 125000, 150000, 200000]
 class EventsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        print("EVENTS COG LOADED", id(self))
+        logger.info(f"EVENTS COG LOADED {id(self)}")
         self.spawn_global_drop.start()
         self._recent_member_events = {}
 

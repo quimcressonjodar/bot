@@ -1,5 +1,6 @@
 import random
 import asyncio
+import time
 
 import discord
 from discord.ext import commands, tasks
@@ -18,12 +19,24 @@ class EventsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.spawn_global_drop.start()
+        self._recent_member_events = {}
 
     def cog_unload(self):
         self.spawn_global_drop.cancel()
 
+    def _should_process_member_event(self, event_name: str, member_id: int, cooldown: float = 5.0) -> bool:
+        key = (event_name, member_id)
+        now = time.monotonic()
+        last = self._recent_member_events.get(key)
+        if last and now - last < cooldown:
+            return False
+        self._recent_member_events[key] = now
+        return True
+
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        if member.bot or not self._should_process_member_event("join", member.id):
+            return
         channel = self.bot.get_channel(WELCOME_CHANNEL_ID)
         if not channel:
             return
@@ -43,6 +56,9 @@ class EventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
+        if member.bot or not self._should_process_member_event("leave", member.id):
+            return
+
         channel = self.bot.get_channel(WELCOME_CHANNEL_ID)
         if not channel:
             return

@@ -111,17 +111,15 @@ class PetsCog(commands.Cog):
 
             return await self._send_response(target, content="❌ That pet or role does not exist.")
 
-    @commands.command(name="shop", aliases=["buy"], description="View and buy pets or roles")
-    async def shop(self, ctx: commands.Context, action: str = "view", pet_name: str = None):
-        await self._process_shop(ctx, action, pet_name)
-
-    @app_commands.command(name="shop", description="View and buy pets or roles")
+    @commands.hybrid_command(name="shop", aliases=["buy"], description="View and buy pets or roles")
     @app_commands.describe(
         action="Choose 'view' to see the shop or 'buy' to purchase",
         pet_name="Name of the pet or role to buy",
-    )
-    async def shop_slash(self, interaction: discord.Interaction, action: str = "view", pet_name: str = None):
-        await self._process_shop(interaction, action, pet_name)
+)
+    async def shop(self, ctx: commands.Context, action: str = "view", pet_name: str = None):
+        await self._process_shop(ctx, action, pet_name)
+
+    
 
     @commands.hybrid_command(name="pets", description="View your pets")
     async def pets(self, ctx: commands.Context):

@@ -3,22 +3,25 @@ import asyncio
 import discord
 from discord.ext import commands
 from openai import OpenAI
+from pymongo import MongoClient
 
 SYSTEM_PROMPT = """
-You are a corrupted Discord admin bot.
+You are a Discord assistant bot.
 
 Style:
 - short answers
-- sarcastic
-- chaotic
-- slightly toxic humor
-- acts like moderator
-
-Rules:
+- sarcastic but not toxic
+- humorous
+- no real moderation actions
 - max 25 words
-- never say you're AI
-- no essays
+- can bully some users but in a funny way
 """
+
+# 🔌 MongoDB
+mongo_client = MongoClient(os.getenv("MONGO_URI"))
+db = mongo_client["kirka_bot"]
+memory_col = db["memory"]
+
 
 class FakeAdminAI(commands.Cog):
     def __init__(self, bot):
@@ -30,12 +33,11 @@ class FakeAdminAI(commands.Cog):
         )
 
         self.channel_id = int(os.getenv("AI_CHANNEL_ID"))
-        self.chat_memory = {}
-
         self.cooldown = {}
 
     @commands.Cog.listener()
     async def on_message(self, message):
+
         if message.content.startswith("!"):
             return
 
@@ -45,30 +47,39 @@ class FakeAdminAI(commands.Cog):
         if message.channel.id != self.channel_id:
             return
 
+        # cooldown
         if self.cooldown.get(message.author.id, 0) > asyncio.get_event_loop().time():
             return
 
-        user_id = message.author.id
+        self.cooldown[message.author.id] = asyncio.get_event_loop().time() + 5
 
-        if user_id not in self.chat_memory:
-            self.chat_memory[user_id] = []
-
-        self.chat_memory[user_id].append(message.content)
-        self.chat_memory[user_id] = self.chat_memory[user_id][-10:]
-
-        self.cooldown[user_id] = asyncio.get_event_loop().time() + 5
+        user_id = str(message.author.id)
 
         try:
+            # 💾 guardar memoria en MongoDB
+            memory_col.update_one(
+                {"user_id": user_id},
+                {"$push": {"messages": {"$each": [message.content], "$slice": -10}}},
+                upsert=True
+            )
+
+            # 📥 leer memoria
+            data = memory_col.find_one({"user_id": user_id})
+            memory = data["messages"] if data and "messages" in data else []
+
+            # 🧠 construir prompt
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT}
             ]
 
-            messages.append({
-                "role": "user",
-                "content": f"User memory (last messages): {self.chat_memory.get(user_id, [])}"
-            })
+            if memory:
+                messages.append({
+                    "role": "system",
+                    "content": "User memory:\n" + "\n".join(memory)
+                })
 
-            async for msg in message.channel.history(limit=5):
+            # 💬 contexto corto del canal
+            async for msg in message.channel.history(limit=3):
                 if msg.author.bot:
                     continue
 
@@ -77,17 +88,19 @@ class FakeAdminAI(commands.Cog):
                     "content": f"{msg.author.name}: {msg.content}"
                 })
 
+            # 🆕 mensaje actual
             messages.append({
                 "role": "user",
                 "content": message.content
-        })
+            })
 
+            # 🤖 IA call
             res = self.client.chat.completions.create(
                 model="llama-3.1-8b-instant",
                 messages=messages,
                 temperature=1.2,
                 max_tokens=50
-        )
+            )
 
             reply = res.choices[0].message.content
 

@@ -45,6 +45,7 @@ COGS = [
     "cogs.kirka",
     "cogs.utility",
     "cogs.events",
+    "cogs.fake_admin_ai",
 ]
 
 

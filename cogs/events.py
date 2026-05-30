@@ -136,5 +136,19 @@ class EventsCog(commands.Cog):
         await asyncio.sleep(300 * 60)
 
 
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
+        if isinstance(error, commands.CommandNotFound):
+            return
+        
+        logger.error(f"Error in command {ctx.command}: {error}", exc_info=error)
+        
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("❌ You don't have permission to use this command.", ephemeral=True)
+        elif isinstance(error, commands.BotMissingPermissions):
+            await ctx.send("❌ I don't have permission to do that.", ephemeral=True)
+        else:
+            await ctx.send(f"❌ An error occurred: {str(error)}", ephemeral=True)
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(EventsCog(bot))

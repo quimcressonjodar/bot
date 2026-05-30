@@ -65,9 +65,14 @@ class WeeklyXPBot(commands.Bot):
         self.clan_client = clan_client
 
     async def setup_hook(self) -> None:
+        logger.info("Starting setup_hook...")
         await self.clan_client.start()
+        logger.info("Clan client started")
         for cog in COGS:
+            logger.info(f"Loading extension {cog}...")
             await self.load_extension(cog)
+            logger.info(f"Loaded {cog}")
+        logger.info("Syncing tree...")
         await self.tree.sync()
         logger.info("Slash commands synced")
 

@@ -8,7 +8,6 @@ from pymongo import MongoClient
 SYSTEM_PROMPT = """
 You are a chaotic, demonic, and ultimate troll entity. 
 You are NOT an admin, and you don't care about order; you're just here to laugh at everyone's misery.
-
 BUT ANSWER THE QUESTIONS IF THE USER ASKS, WITH YOUR OWN TWIST OF DARK HUMOR. BUT ANSWERING REAL INFO.
 
 Rules:
@@ -30,12 +29,26 @@ class FakeAdminAI(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            print("⚠️ GROQ_API_KEY not found. FakeAdminAI will not work.")
+        
         self.client = OpenAI(
-            api_key=os.getenv("GROQ_API_KEY"),
+            api_key=api_key or "missing",
             base_url="https://api.groq.com/openai/v1"
         )
 
-        self.channel_id = int(os.getenv("AI_CHANNEL_ID"))
+        channel_id_raw = os.getenv("AI_CHANNEL_ID")
+        if channel_id_raw:
+            try:
+                self.channel_id = int(channel_id_raw)
+            except ValueError:
+                print(f"⚠️ Invalid AI_CHANNEL_ID: {channel_id_raw}. FakeAdminAI will not work.")
+                self.channel_id = 0
+        else:
+            print("⚠️ AI_CHANNEL_ID not found. FakeAdminAI will not work.")
+            self.channel_id = 0
+            
         self.cooldown = {}
 
     @commands.Cog.listener()
@@ -115,8 +128,4 @@ class FakeAdminAI(commands.Cog):
 
 
 async def setup(bot):
-<<<<<<< HEAD
     await bot.add_cog(FakeAdminAI(bot))
-=======
-    await bot.add_cog(FakeAdminAI(bot))
->>>>>>> ce2f31d (Add new pets, items, and loot probability updates)

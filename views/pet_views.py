@@ -305,8 +305,8 @@ class ShopView(discord.ui.View):
             pet_fields = []
             current_field = ""
             for name, stats in self.pet_shop.items():
-                entry = f"{stats['emoji']} **{name.capitalize()}**: 🪙 {stats['price']:,} (❤️ {stats['hp']} | ⚔️ {stats['damage']})\n"
-                if len(current_field) + len(entry) > 1000:
+                entry = f"{stats['emoji']} **{name.capitalize()}**\n🪙 {stats['price']:,} | ❤️ {stats['hp']} | ⚔️ {stats['damage']}\n\n"
+                if len(current_field) + len(entry) > 1024:
                     pet_fields.append(current_field)
                     current_field = entry
                 else:
@@ -315,7 +315,8 @@ class ShopView(discord.ui.View):
                 pet_fields.append(current_field)
 
             for i, field_content in enumerate(pet_fields):
-                name = "🐾 Pets" if i == 0 else "🐾 Pets (cont.)"
+                # Use zero-width space for subsequent fields to make them look continuous
+                name = "🐾 Pets" if i == 0 else "\u200b"
                 embed.add_field(name=name, value=field_content, inline=False)
         else:
             embed = discord.Embed(

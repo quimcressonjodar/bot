@@ -27,27 +27,39 @@ class PetsCog(commands.Cog):
             color=0x3498DB,
         )
 
-        pet_text = ""
+        pet_fields = []
+        current_field = ""
         for name, stats in PET_SHOP.items():
-            pet_text += (
-                f"{stats['emoji']} **{name.capitalize()}**\n"
-                f"🪙 {stats['price']:,}\n"
-                f"❤️ {stats['hp']} | ⚔️ {stats['damage']}\n\n"
-            )
-        if pet_text:
-            embed.add_field(name="🐾 Pets", value=pet_text, inline=True)
+            entry = f"{stats['emoji']} **{name.capitalize()}**: 🪙 {stats['price']:,} (❤️ {stats['hp']} | ⚔️ {stats['damage']})\n"
+            if len(current_field) + len(entry) > 1000:
+                pet_fields.append(current_field)
+                current_field = entry
+            else:
+                current_field += entry
+        if current_field:
+            pet_fields.append(current_field)
+
+        for i, field_content in enumerate(pet_fields):
+            name = "🐾 Pets" if i == 0 else "🐾 Pets (cont.)"
+            embed.add_field(name=name, value=field_content, inline=False)
 
         role_text = ""
         for key, data_shop in ROLE_SHOP.items():
             role = guild.get_role(int(data_shop["role_id"]))
             role_name = role.name if role else key.capitalize()
             role_text += (
-                f"{role_name}\n"
-                f"🪙 {data_shop['price']:,}\n"
-                f"💰 {data_shop['claim']:,}/hour\n\n"
+                f"**{role_name}**\n"
+                f"🪙 {data_shop['price']:,} | 💰 {data_shop['claim']:,}/h\n\n"
             )
+        
         if role_text:
-            embed.add_field(name="💎 Roles", value=role_text, inline=True)
+            if len(role_text) > 1024:
+                # Fallback if roles also exceed limit (unlikely with current list but safe)
+                role_parts = [role_text[i:i+1000] for i in range(0, len(role_text), 1000)]
+                for i, part in enumerate(role_parts):
+                    embed.add_field(name="💎 Roles" if i == 0 else "💎 Roles (cont.)", value=part, inline=False)
+            else:
+                embed.add_field(name="💎 Roles", value=role_text, inline=False)
 
         embed.set_footer(text="/shop buy <pet/role>")
         return embed

@@ -284,3 +284,69 @@ class BattleRequestView(discord.ui.View):
                 "❌ This battle request isn't for you.", ephemeral=True
             )
         await interaction.response.edit_message(content="❌ Battle declined.", embed=None, view=None)
+
+
+class ShopView(discord.ui.View):
+    def __init__(self, ctx, pet_shop, role_shop):
+        super().__init__(timeout=60)
+        self.ctx = ctx
+        self.pet_shop = pet_shop
+        self.role_shop = role_shop
+        self.page = "pets"  # "pets" or "roles"
+
+    def _build_embed(self, guild):
+        if self.page == "pets":
+            embed = discord.Embed(
+                title="🏪 Pet Shop",
+                description="🐾 Buy pets for battles and adventures!",
+                color=0x3498DB
+            )
+            
+            pet_fields = []
+            current_field = ""
+            for name, stats in self.pet_shop.items():
+                entry = f"{stats['emoji']} **{name.capitalize()}**: 🪙 {stats['price']:,} (❤️ {stats['hp']} | ⚔️ {stats['damage']})\n"
+                if len(current_field) + len(entry) > 1000:
+                    pet_fields.append(current_field)
+                    current_field = entry
+                else:
+                    current_field += entry
+            if current_field:
+                pet_fields.append(current_field)
+
+            for i, field_content in enumerate(pet_fields):
+                name = "🐾 Pets" if i == 0 else "🐾 Pets (cont.)"
+                embed.add_field(name=name, value=field_content, inline=False)
+        else:
+            embed = discord.Embed(
+                title="💎 Role Shop",
+                description="✨ Buy roles for passive income!",
+                color=0xF1C40F
+            )
+            
+            role_text = ""
+            for key, data_shop in self.role_shop.items():
+                role = guild.get_role(int(data_shop["role_id"]))
+                role_name = role.name if role else key.capitalize()
+                role_text += f"**{role_name}**\n🪙 {data_shop['price']:,} | 💰 {data_shop['claim']:,}/h\n\n"
+            
+            if role_text:
+                if len(role_text) > 1024:
+                    role_parts = [role_text[i:i+1000] for i in range(0, len(role_text), 1000)]
+                    for i, part in enumerate(role_parts):
+                        embed.add_field(name="💎 Roles" if i == 0 else "💎 Roles (cont.)", value=part, inline=False)
+                else:
+                    embed.add_field(name="💎 Roles", value=role_text, inline=False)
+
+        embed.set_footer(text="/shop buy <name>")
+        return embed
+
+    @discord.ui.button(label="🐾 Pets", style=discord.ButtonStyle.primary)
+    async def show_pets(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = "pets"
+        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+
+    @discord.ui.button(label="💎 Roles", style=discord.ButtonStyle.secondary)
+    async def show_roles(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = "roles"
+        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)

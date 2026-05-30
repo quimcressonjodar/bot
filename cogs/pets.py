@@ -7,7 +7,7 @@ from discord.ext import commands
 from config import PET_SHOP, ROLE_SHOP
 from database import pets_col
 from utils.economy import get_wallet, update_wallet
-from views.pet_views import AdventureView, BattleRequestView
+from views.pet_views import AdventureView, BattleRequestView, ShopView
 
 
 class PetsCog(commands.Cog):
@@ -20,58 +20,15 @@ class PetsCog(commands.Cog):
         else:
             await target.send(content=content, embed=embed)
 
-    def _build_shop_embed(self, guild: discord.Guild) -> discord.Embed:
-        embed = discord.Embed(
-            title="🏪 Shop",
-            description="🐾 Buy pets for battles\n💎 Buy roles for passive income",
-            color=0x3498DB,
-        )
-
-        pet_fields = []
-        current_field = ""
-        for name, stats in PET_SHOP.items():
-            entry = f"{stats['emoji']} **{name.capitalize()}**: 🪙 {stats['price']:,} (❤️ {stats['hp']} | ⚔️ {stats['damage']})\n"
-            if len(current_field) + len(entry) > 1000:
-                pet_fields.append(current_field)
-                current_field = entry
-            else:
-                current_field += entry
-        if current_field:
-            pet_fields.append(current_field)
-
-        for i, field_content in enumerate(pet_fields):
-            name = "🐾 Pets" if i == 0 else "🐾 Pets (cont.)"
-            embed.add_field(name=name, value=field_content, inline=False)
-
-        role_text = ""
-        for key, data_shop in ROLE_SHOP.items():
-            role = guild.get_role(int(data_shop["role_id"]))
-            role_name = role.name if role else key.capitalize()
-            role_text += (
-                f"**{role_name}**\n"
-                f"🪙 {data_shop['price']:,} | 💰 {data_shop['claim']:,}/h\n\n"
-            )
-        
-        if role_text:
-            if len(role_text) > 1024:
-                # Fallback if roles also exceed limit (unlikely with current list but safe)
-                role_parts = [role_text[i:i+1000] for i in range(0, len(role_text), 1000)]
-                for i, part in enumerate(role_parts):
-                    embed.add_field(name="💎 Roles" if i == 0 else "💎 Roles (cont.)", value=part, inline=False)
-            else:
-                embed.add_field(name="💎 Roles", value=role_text, inline=False)
-
-        embed.set_footer(text="/shop buy <pet/role>")
-        return embed
-
     async def _process_shop(self, target, action: str = "view", pet_name: str = None):
         guild = target.guild
         author = target.user if isinstance(target, discord.Interaction) else target.author
         user_id = str(author.id)
 
         if action.lower() == "view":
-            embed = self._build_shop_embed(guild)
-            return await self._send_response(target, embed=embed)
+            view = ShopView(target, PET_SHOP, ROLE_SHOP)
+            embed = view._build_embed(guild)
+            return await self._send_response(target, embed=embed, view=view)
 
         if action.lower() == "buy":
             if not pet_name:

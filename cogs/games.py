@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import ROULETTE_RED, VALID_BETS, OWNER_IDS
+from config import ROULETTE_RED, VALID_BETS
 from utils.economy import get_user_data, get_wallet, update_wallet, parse_economy_amount
 from views.game_views import BlackjackView, RPSView
 
@@ -74,28 +74,7 @@ class GamesCog(commands.Cog):
             await asyncio.sleep(0.8)
             await spin_msg.edit(content=frame)
 
-        owner_luck = ctx.author.id in OWNER_IDS and random.random() < 0.25
-        if owner_luck:
-            if bet_on == "red":
-                winning_number = random.choice(list(ROULETTE_RED))
-            elif bet_on == "black":
-                winning_number = random.choice([n for n in range(1, 37) if n not in ROULETTE_RED])
-            elif bet_on == "even":
-                winning_number = random.choice([n for n in range(2, 37, 2)])
-            elif bet_on == "odd":
-                winning_number = random.choice([n for n in range(1, 37, 2)])
-            elif bet_on == "1st":
-                winning_number = random.randint(1, 12)
-            elif bet_on == "2nd":
-                winning_number = random.randint(13, 24)
-            elif bet_on == "3rd":
-                winning_number = random.randint(25, 36)
-            elif bet_on == "specific_number":
-                winning_number = number
-            else:
-                winning_number = secrets.randbelow(37)
-        else:
-            winning_number = secrets.randbelow(37)
+        winning_number = secrets.randbelow(37)
 
         is_red = winning_number in ROULETTE_RED
         is_black = winning_number != 0 and not is_red

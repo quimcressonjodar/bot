@@ -3,7 +3,6 @@ import secrets
 
 import discord
 
-from config import OWNER_IDS
 from utils.economy import update_wallet
 
 
@@ -28,27 +27,6 @@ class BlackjackView(discord.ui.View):
         return self.deck.pop()
 
     def _draw_player_card(self) -> dict:
-        if self.ctx.author.id not in OWNER_IDS:
-            return self._draw_card()
-
-        current_score = self._calculate_score(self.player_hand)
-        if random.random() < 0.40:
-            safe_cards = []
-            for card in self.deck:
-                temp_score = current_score
-                if card['val'].isdigit():
-                    temp_score += int(card['val'])
-                elif card['val'] in ['J', 'Q', 'K']:
-                    temp_score += 10
-                else:
-                    temp_score += 11
-                if temp_score <= 21:
-                    safe_cards.append(card)
-            if safe_cards:
-                chosen = random.choice(safe_cards)
-                self.deck.remove(chosen)
-                return chosen
-
         return self._draw_card()
 
     def _calculate_score(self, hand: list) -> int:

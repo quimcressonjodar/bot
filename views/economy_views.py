@@ -16,8 +16,11 @@ class SellSelect(discord.ui.Select):
             "legendary": "🟡",
             "godly": "🌌",
         }
-        options = []
-        for index, item in enumerate(inventory[:25]):
+        options = [
+            discord.SelectOption(label="💰 Sell All Items", value="all", description="Liquidate your entire inventory")
+        ]
+        
+        for index, item in enumerate(inventory[:24]):
             rarity = item.get("rarity", "common")
             options.append(
                 discord.SelectOption(
@@ -36,11 +39,27 @@ class SellSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("❌ This menu is not for you.", ephemeral=True)
+
         user_id = str(self.ctx.author.id)
-        selected_index = int(self.values[0])
         user_data = get_user_data(user_id)
         inventory = user_data.get("inventory", [])
 
+        if self.values[0] == "all":
+            if not inventory:
+                return await interaction.response.send_message("❌ Your inventory is empty.", ephemeral=True)
+                
+            total_value = sum(item["value"] for item in inventory)
+            eco_col.update_one(
+                {"_id": user_id},
+                {"$inc": {"wallet": total_value}, "$set": {"inventory": []}},
+            )
+            embed = discord.Embed(title="💰 All Items Sold", color=0x2ECC71)
+            embed.description = f"Sold **{len(inventory)}** items\n\nTotal Received: 🪙 **{total_value:,}**"
+            return await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+        selected_index = int(self.values[0])
         if selected_index >= len(inventory):
             return await interaction.response.send_message("❌ Item no longer exists.", ephemeral=True)
 
@@ -63,23 +82,3 @@ class SellView(discord.ui.View):
         self.ctx = ctx
         self.inventory = inventory
         self.add_item(SellSelect(ctx, inventory))
-
-    @discord.ui.button(label="Sell All", style=discord.ButtonStyle.danger)
-    async def sell_all(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = str(self.ctx.author.id)
-        user_data = get_user_data(user_id)
-        inventory = user_data.get("inventory", [])
-        
-        if not inventory:
-            return await interaction.response.send_message("❌ Your inventory is empty.", ephemeral=True)
-            
-        total_value = sum(item["value"] for item in inventory)
-        
-        eco_col.update_one(
-            {"_id": user_id},
-            {"$inc": {"wallet": total_value}, "$set": {"inventory": []}},
-        )
-        
-        embed = discord.Embed(title="💰 All Items Sold", color=0x2ECC71)
-        embed.description = f"Sold **{len(inventory)}** items\n\nTotal Received: 🪙 **{total_value:,}**"
-        await interaction.response.edit_message(content=None, embed=embed, view=None)

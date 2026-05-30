@@ -33,7 +33,7 @@ class EventsCog(commands.Cog):
         if last and now - last < cooldown:
             return False
         state.recent_member_events[key] = now
-            return True
+        return True
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):

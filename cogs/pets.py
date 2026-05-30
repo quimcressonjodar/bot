@@ -14,11 +14,11 @@ class PetsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    async def _send_response(self, target, content=None, embed=None, ephemeral=False):
+    async def _send_response(self, target, content=None, embed=None, view=None, ephemeral=False):
         if isinstance(target, discord.Interaction):
-            await target.response.send_message(content=content, embed=embed, ephemeral=ephemeral)
+            await target.response.send_message(content=content, embed=embed, view=view, ephemeral=ephemeral)
         else:
-            await target.send(content=content, embed=embed)
+            await target.send(content=content, embed=embed, view=view)
 
     async def _process_shop(self, target, action: str = "view", pet_name: str = None):
         guild = target.guild

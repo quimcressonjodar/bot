@@ -88,13 +88,15 @@ class UtilityCog(commands.Cog):
             "**`/withdraw`** - Withdraw money.\n"
             "**`/daily`** - Claim daily reward.\n"
             "**`/weekly`** - Claim weekly reward.\n"
+            "**`/claim`** - Claim role rewards.\n"
             "**`/pay`** - Send coins to users.\n"
             "**`/leaderboard`** - Richest players leaderboard.\n"
             "**`/work`** - Work for coins.\n"
             "**`/crime`** - Risk stealing coins.\n"
             "**`/rob`** - Rob another player.\n"
             "**`/blackjack`** - Play blackjack.\n"
-            "**`/roulette`** - Play roulette."
+            "**`/roulette`** - Play roulette.\n"
+            "**`/claimdrop`** - Claim global drops."
         )
         embed.add_field(name="💰 Economy Commands", value=eco_cmds, inline=False)
 
@@ -102,8 +104,10 @@ class UtilityCog(commands.Cog):
             "**`/shop`** - View pet shop.\n"
             "**`/buy [pet]`** - Buy a pet.\n"
             "**`/pets`** - View your pets.\n"
+            "**`/feed`** - Feed your pets.\n"
             "**`/battle`** - Battle another player.\n"
-            "**`/adventure`** - Send pets on adventures.\n"
+            "**`/adventures`** - Send pets on adventures.\n"
+            "**`/sell_pet`** - Sell your pets.\n"
             "**`/inventory`** - View your loot inventory.\n"
             "**`/sell`** - Sell inventory items."
         )
@@ -133,7 +137,8 @@ class UtilityCog(commands.Cog):
             "**`/register_monday`** - Save Monday snapshot.\n"
             "**`/register_sunday`** - Save Sunday snapshot.\n"
             "**`/weekly_lb`** - Weekly XP leaderboard.\n"
-            "**`/delete_snaps`** - Delete snapshot data."
+            "**`/delete_snaps`** - Delete snapshot data.\n"
+            "**`/reset_economy`** - Reset all economy data."
         )
         embed.add_field(name="🛡️ Admin Commands", value=admin_cmds, inline=False)
 

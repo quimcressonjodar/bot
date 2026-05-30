@@ -5,6 +5,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.helpers import is_admin, parse_duration, load_warns, save_warns
+from database import eco_col, pets_col
+from config import ROLE_SHOP
 
 
 class AdminCog(commands.Cog):
@@ -323,6 +325,53 @@ class AdminCog(commands.Cog):
             title="💰 Coins Added",
             description=f"Added 🪙 **{amount:,}** to {member.mention}\n\nNew Wallet Balance: 🪙 **{wallet:,}**",
             color=0x00FF00,
+        )
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(name="reset_economy", description="RESETS EVERYTHING: coins, pets, items, and roles (Admin only)")
+    @app_commands.default_permissions(administrator=True)
+    async def reset_economy(self, ctx: commands.Context):
+        if not is_admin(ctx):
+            return await ctx.send("❌ Admin only command.", ephemeral=True)
+
+        await ctx.defer()
+
+        # 1. Clear coins and inventory in eco_col for all users
+        eco_col.update_many({}, {"$set": {"wallet": 0, "bank": 0, "inventory": []}})
+
+        # 2. Clear pets in pets_col for all users
+        pets_col.update_many({}, {"$set": {"pets": []}})
+
+        # 3. Remove shop roles from all members in the guild
+        role_ids = [data["role_id"] for data in ROLE_SHOP.values() if "role_id" in data]
+        roles_to_remove = []
+        for rid in role_ids:
+            role = ctx.guild.get_role(rid)
+            if role:
+                roles_to_remove.append(role)
+
+        removed_count = 0
+        if roles_to_remove:
+            for member in ctx.guild.members:
+                member_roles_to_remove = [r for r in roles_to_remove if r in member.roles]
+                if member_roles_to_remove:
+                    try:
+                        await member.remove_roles(*member_roles_to_remove, reason="Economy Reset")
+                        removed_count += 1
+                    except Exception:
+                        pass
+
+        embed = discord.Embed(
+            title="🧨 Economy Reset Complete",
+            description=(
+                "The economy has been fully reset!\n\n"
+                "✅ All wallets and banks set to 🪙 0\n"
+                "✅ All inventories cleared\n"
+                "✅ All pets removed\n"
+                f"✅ Removed shop roles from **{removed_count}** members"
+            ),
+            color=0xFF0000,
+            timestamp=datetime.now(timezone.utc)
         )
         await ctx.send(embed=embed)
 

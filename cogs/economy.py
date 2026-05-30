@@ -4,11 +4,11 @@ from datetime import datetime, timezone, timedelta
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import state
 from config import ROLE_SHOP
-from database import eco_col
+from database import eco_col, memory_col
 from utils.economy import (
     get_user_data,
     get_wallet,
@@ -23,6 +23,52 @@ from views.economy_views import SellView
 class EconomyCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    def cog_load(self):
+        self.daily_tax.start()
+
+    def cog_unload(self):
+        self.daily_tax.cancel()
+
+    @tasks.loop(minutes=60)
+    async def daily_tax(self):
+        data = memory_col.find_one({"_id": "global_state"})
+        last_tax = data.get("last_tax_collection", 0) if data else 0
+        now = time.time()
+
+        if now - last_tax < 86400:
+            return
+
+        users = eco_col.find()
+        for user_data in users:
+            user_id = user_data["_id"]
+            wallet = user_data.get("wallet", 0)
+            bank = user_data.get("bank", 0)
+            total = wallet + bank
+
+            tax_rate = 0
+            if total >= 500_000_000:
+                tax_rate = 0.003
+            elif total >= 50_000_000:
+                tax_rate = 0.002
+            elif total >= 5_000_000:
+                tax_rate = 0.001
+
+            if tax_rate > 0:
+                tax_amount = int(total * tax_rate)
+                if bank >= tax_amount:
+                    eco_col.update_one({"_id": user_id}, {"$inc": {"bank": -tax_amount}})
+                elif total >= tax_amount:
+                    remaining_tax = tax_amount - bank
+                    eco_col.update_one({"_id": user_id}, {"$set": {"bank": 0}, "$inc": {"wallet": -remaining_tax}})
+                else:
+                    eco_col.update_one({"_id": user_id}, {"$set": {"bank": 0, "wallet": 0}})
+
+        memory_col.update_one(
+            {"_id": "global_state"},
+            {"$set": {"last_tax_collection": now}},
+            upsert=True,
+        )
 
     @commands.hybrid_command(name="balance", aliases=["bal"], description="Check your economy profile")
     async def balance(self, ctx: commands.Context, member: discord.Member = None):

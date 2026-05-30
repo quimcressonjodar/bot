@@ -148,6 +148,12 @@ PET_SHOP = {
     "void_dragon":{"price": 75_000_000_000, "hp": 1_500_000, "damage": 150_000, "emoji": "🌌"},
 }
 
+FOOD_ITEMS = {
+    "basic": {"price": 25_000, "hunger": 20, "emoji": "🍖", "name": "Basic Food"},
+    "premium": {"price": 100_000, "hunger": 50, "emoji": "🥩", "name": "Premium Food"},
+    "enchanted": {"price": 500_000, "hunger": 100, "emoji": "🍱", "name": "Enchanted Food"},
+}
+
 ROLE_SHOP = {
     "bronze":    {"price": 25_000,        "claim": 2_000,       "role_id": 1508820992749867212},
     "silver":    {"price": 75_000,        "claim": 5_000,       "role_id": 1508821178645610638},

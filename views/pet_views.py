@@ -5,9 +5,10 @@ import time
 import discord
 
 import state
-from config import PET_SHOP, PET_RARITIES, PET_LOOT_PROBABILITIES, ADVENTURE_LOOT, ADVENTURE_EVENTS
+from config import PET_SHOP, PET_RARITIES, PET_LOOT_PROBABILITIES, ADVENTURE_LOOT, ADVENTURE_EVENTS, FOOD_ITEMS
 from database import eco_col, pets_col
 from utils.economy import get_user_data
+from utils.pets import get_current_hunger, get_pet_state
 
 
 async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dict) -> None:
@@ -43,6 +44,10 @@ async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dic
 
     bonus_multiplier = {"basic": 1, "rare": 1.5, "epic": 2, "legendary": 4}
     final_value = int(item_value * bonus_multiplier[rarity])
+    
+    _, penalties = get_pet_state(selected_pet)
+    if penalties.get("xp_penalty"):
+        final_value = int(final_value * (1 - penalties["xp_penalty"]))
 
     eco_col.update_one(
         {"_id": user_id},
@@ -100,8 +105,20 @@ async def start_pet_battle(channel, battle_id: str) -> None:
         await asyncio.sleep(1.2)
         await battle_msg.edit(content=frame)
 
-    user_power = user_pet["hp"] + user_pet["damage"] + random.randint(1, 50)
-    opp_power = opp_pet["hp"] + opp_pet["damage"] + random.randint(1, 50)
+    # Apply penalties
+    _, c_penalties = get_pet_state(user_pet)
+    _, o_penalties = get_pet_state(opp_pet)
+
+    user_damage = user_pet["damage"]
+    if c_penalties.get("damage_penalty"):
+        user_damage = int(user_damage * (1 - c_penalties["damage_penalty"]))
+
+    opp_damage = opp_pet["damage"]
+    if o_penalties.get("damage_penalty"):
+        opp_damage = int(opp_damage * (1 - o_penalties["damage_penalty"]))
+
+    user_power = user_pet["hp"] + user_damage + random.randint(1, 50)
+    opp_power = opp_pet["hp"] + opp_damage + random.randint(1, 50)
     bet_amount = random.randint(15000, 30000)
 
     if user_power >= opp_power:
@@ -180,6 +197,11 @@ class AdventurePetSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         selected_pet_type = self.values[0]
         selected_pet = next(p for p in self.pets if p["type"] == selected_pet_type.lower())
+        
+        hunger = get_current_hunger(selected_pet)
+        if hunger < 30:
+            return await interaction.response.send_message("😿 Your pet is too weak and needs food before it can participate.", ephemeral=True)
+            
         await run_adventure(interaction, self.ctx, selected_pet)
 
 
@@ -222,6 +244,11 @@ class PetBattleSelect(discord.ui.Select):
             )
 
         selected_pet = next(p for p in self.pets if p["type"] == self.values[0])
+        
+        hunger = get_current_hunger(selected_pet)
+        if hunger < 30:
+            return await interaction.response.send_message("😿 Your pet is too weak and needs food before it can participate.", ephemeral=True)
+
         battle = state.active_battles[self.battle_id]
         battle[self.role] = selected_pet
 
@@ -292,7 +319,7 @@ class ShopView(discord.ui.View):
         self.ctx = ctx
         self.pet_shop = pet_shop
         self.role_shop = role_shop
-        self.page = "pets"  # "pets" or "roles"
+        self.page = "pets"  # "pets", "roles", or "food"
         self.pet_subpage = 0
         self.pets_per_page = 15
 
@@ -327,7 +354,7 @@ class ShopView(discord.ui.View):
             for i, field_content in enumerate(pet_fields):
                 name = "🐾 Pets" if i == 0 else "\u200b"
                 embed.add_field(name=name, value=field_content, inline=False)
-        else:
+        elif self.page == "roles":
             embed = discord.Embed(
                 title="💎 Role Shop",
                 description="✨ Buy roles for passive income!",
@@ -347,12 +374,23 @@ class ShopView(discord.ui.View):
                         embed.add_field(name="💎 Roles" if i == 0 else "💎 Roles (cont.)", value=part, inline=False)
                 else:
                     embed.add_field(name="💎 Roles", value=role_text, inline=False)
+        else: # Food page
+            embed = discord.Embed(
+                title="🍱 Food Shop",
+                description="🍖 Buy food to keep your pets strong!",
+                color=0x2ECC71
+            )
+            
+            food_text = ""
+            for key, data in FOOD_ITEMS.items():
+                food_text += f"{data['emoji']} **{data['name']}**\n🪙 {data['price']:,} | 🍖 +{data['hunger']} Hunger\n\n"
+            
+            embed.add_field(name="🍱 Food Items", value=food_text, inline=False)
 
         embed.set_footer(text="/shop buy <name>")
         return embed
 
     def _update_buttons(self):
-        # Only show prev/next buttons if we are on pets page and there are multiple subpages
         pet_items = list(self.pet_shop.items())
         total_subpages = (len(pet_items) - 1) // self.pets_per_page + 1
         
@@ -368,6 +406,12 @@ class ShopView(discord.ui.View):
     @discord.ui.button(label="💎 Roles", style=discord.ButtonStyle.secondary, row=0)
     async def show_roles(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page = "roles"
+        self._update_buttons()
+        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+
+    @discord.ui.button(label="🍱 Food", style=discord.ButtonStyle.success, row=0)
+    async def show_food(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = "food"
         self._update_buttons()
         await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
 
@@ -427,6 +471,108 @@ class SellPetSelect(discord.ui.Select):
         embed = discord.Embed(title="💰 Pet Sold", color=0x2ECC71)
         embed.description = f"Sold your **{pet['type'].capitalize()}**\n\nReceived: 🪙 **{sell_price:,}**"
         await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+
+class FeedPetSelect(discord.ui.Select):
+    def __init__(self, ctx, pets):
+        options = []
+        for pet in pets:
+            hunger = get_current_hunger(pet)
+            pet_type = pet["type"]
+            emoji = PET_SHOP.get(pet_type, {}).get("emoji", "🐾")
+            options.append(
+                discord.SelectOption(
+                    label=pet_type.capitalize(),
+                    description=f"Hunger: {int(hunger)}/100",
+                    emoji=emoji,
+                    value=pet["pet_id"],
+                )
+            )
+        super().__init__(placeholder="Select a pet to feed...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_pet_id = self.values[0]
+        await interaction.response.defer()
+
+
+class FeedFoodSelect(discord.ui.Select):
+    def __init__(self, food_items):
+        options = []
+        food_counts = {}
+        for item in food_items:
+            key = item["key"]
+            food_counts[key] = food_counts.get(key, 0) + 1
+
+        for key, count in food_counts.items():
+            food_data = FOOD_ITEMS[key]
+            options.append(
+                discord.SelectOption(
+                    label=f"{food_data['name']} (x{count})",
+                    description=f"+{food_data['hunger']} Hunger",
+                    emoji=food_data["emoji"],
+                    value=key,
+                )
+            )
+        super().__init__(placeholder="Select food...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.selected_food_key = self.values[0]
+        await self.view.process_feed(interaction)
+
+
+class FeedView(discord.ui.View):
+    def __init__(self, ctx, pets, food_items):
+        super().__init__(timeout=60)
+        self.ctx = ctx
+        self.pets = pets
+        self.food_items = food_items
+        self.selected_pet_id = None
+        self.selected_food_key = None
+
+        self.add_item(FeedPetSelect(ctx, pets))
+        self.add_item(FeedFoodSelect(food_items))
+
+    async def process_feed(self, interaction: discord.Interaction):
+        if not self.selected_pet_id:
+            return await interaction.followup.send("❌ Please select a pet first!", ephemeral=True)
+
+        user_id = str(self.ctx.author.id)
+        pet_index = next(
+            (i for i, p in enumerate(self.pets) if p["pet_id"] == self.selected_pet_id), None
+        )
+        if pet_index is None:
+            return await interaction.followup.send("❌ Pet not found.", ephemeral=True)
+
+        pet = self.pets[pet_index]
+        current_hunger = get_current_hunger(pet)
+        food_data = FOOD_ITEMS[self.selected_food_key]
+        new_hunger = min(100, current_hunger + food_data["hunger"])
+
+        self.pets[pet_index]["hunger"] = new_hunger
+        self.pets[pet_index]["last_fed"] = time.time()
+        self.pets[pet_index]["starvation_since"] = None
+
+        pets_col.update_one({"_id": user_id}, {"$set": {"pets": self.pets}})
+
+        user_data = eco_col.find_one({"_id": user_id})
+        inventory = user_data.get("inventory", []) if user_data else []
+
+        for i, item in enumerate(inventory):
+            if item.get("type") == "food" and item.get("key") == self.selected_food_key:
+                inventory.pop(i)
+                break
+
+        eco_col.update_one({"_id": user_id}, {"$set": {"inventory": inventory}})
+
+        embed = discord.Embed(
+            title="🍖 Pet Fed",
+            description=(
+                f"You fed your **{pet['type'].capitalize()}** {food_data['emoji']} **{food_data['name']}**.\n\n"
+                f"🍖 Hunger: {int(current_hunger)} → **{int(new_hunger)}**/100"
+            ),
+            color=0x00FF00,
+        )
+        await interaction.message.edit(content=None, embed=embed, view=None)
 
 
 class SellPetView(discord.ui.View):

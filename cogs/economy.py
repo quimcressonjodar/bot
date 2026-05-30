@@ -374,7 +374,13 @@ class EconomyCog(commands.Cog):
         inventory = user_data.get("inventory", [])
         if not inventory:
             return await ctx.send("🎒 Your inventory is empty.")
-        rarity_emojis = {"common": "⚪", "rare": "🔵", "epic": "🟣", "legendary": "🟡"}
+        rarity_emojis = {
+            "common": "⚪",
+            "rare": "🔵",
+            "epic": "🟣",
+            "legendary": "🟡",
+            "godly": "🌌",
+        }
         embed = discord.Embed(title=f"🎒 {ctx.author.name}'s Inventory", color=0x2ECC71)
         total_value = 0
         text = ""

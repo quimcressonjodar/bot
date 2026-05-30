@@ -22,7 +22,6 @@ class EventsCog(commands.Cog):
         self.bot = bot
         logger.info(f"EVENTS COG LOADED {id(self)}")
         self.spawn_global_drop.start()
-        self._recent_member_events = {}
 
     def cog_unload(self):
         self.spawn_global_drop.cancel()
@@ -30,11 +29,11 @@ class EventsCog(commands.Cog):
     def _should_process_member_event(self, event_name: str, member_id: int, cooldown: float = 5.0) -> bool:
         key = (event_name, member_id)
         now = time.monotonic()
-        last = self._recent_member_events.get(key)
+        last = state.recent_member_events.get(key)
         if last and now - last < cooldown:
             return False
-        self._recent_member_events[key] = now
-        return True
+        state.recent_member_events[key] = now
+            return True
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -98,14 +97,18 @@ class EventsCog(commands.Cog):
                 rarity = "common"
             elif rarity_roll <= 65:
                 rarity = "rare"
-            elif rarity_roll <= 92:
+            elif rarity_roll <= 88:
                 rarity = "epic"
-            else:
+            elif rarity_roll <= 98:
                 rarity = "legendary"
+            else:
+                rarity = "godly"
 
             item_name, item_value = random.choice(ADVENTURE_LOOT[rarity])
 
-            if rarity == "legendary" and channel:
+            if rarity == "godly" and channel:
+                await channel.send("🌌 A GODLY item has appeared!!! THE UNIVERSE TREMBLES!")
+            elif rarity == "legendary" and channel:
                 await channel.send("🌌 A LEGENDARY item has appeared!!!")
 
             state.active_global_drop = {
@@ -114,7 +117,7 @@ class EventsCog(commands.Cog):
             }
 
             rarity_colors = {
-                "common": 0x95A5A6, "rare": 0x3498DB, "epic": 0x9B59B6, "legendary": 0xF1C40F,
+                "common": 0x95A5A6, "rare": 0x3498DB, "epic": 0x9B59B6, "legendary": 0xF1C40F, "godly": 0xFF00FF,
             }
             embed = discord.Embed(
                 title="🌠 GLOBAL ITEM DROP",

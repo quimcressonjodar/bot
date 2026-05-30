@@ -9,7 +9,13 @@ class SellSelect(discord.ui.Select):
         self.ctx = ctx
         self.inventory = inventory
 
-        rarity_emojis = {"common": "⚪", "rare": "🔵", "epic": "🟣", "legendary": "🟡"}
+        rarity_emojis = {
+            "common": "⚪",
+            "rare": "🔵",
+            "epic": "🟣",
+            "legendary": "🟡",
+            "godly": "🌌",
+        }
         options = []
         for index, item in enumerate(inventory[:25]):
             rarity = item.get("rarity", "common")

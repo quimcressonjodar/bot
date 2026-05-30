@@ -54,7 +54,13 @@ async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dic
     )
 
     event_text = random.choice(ADVENTURE_EVENTS[loot_rarity])
-    rarity_colors = {"common": 0x95A5A6, "rare": 0x3498DB, "epic": 0x9B59B6, "legendary": 0xF1C40F}
+    rarity_colors = {
+        "common": 0x95A5A6,
+        "rare": 0x3498DB,
+        "epic": 0x9B59B6,
+        "legendary": 0xF1C40F,
+        "godly": 0xFF00FF,
+    }
     pet_emoji = PET_SHOP[pet_type]["emoji"]
 
     embed = discord.Embed(title="🌍 Pet Adventure", color=rarity_colors[loot_rarity])

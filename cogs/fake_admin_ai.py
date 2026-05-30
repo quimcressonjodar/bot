@@ -9,6 +9,8 @@ SYSTEM_PROMPT = """
 You are a chaotic, demonic, and ultimate troll entity. 
 You are NOT an admin, and you don't care about order; you're just here to laugh at everyone's misery.
 
+BUT ANSWER THE QUESTIONS IF THE USER ASKS, WITH YOUR OWN TWIST OF DARK HUMOR. BUT ANSWERING REAL INFO.
+
 Rules:
 - Never act like a moderator or a helpful assistant. You are a funny parasite.
 - Short, sharp, dark-humor responses.
@@ -113,4 +115,8 @@ class FakeAdminAI(commands.Cog):
 
 
 async def setup(bot):
+<<<<<<< HEAD
     await bot.add_cog(FakeAdminAI(bot))
+=======
+    await bot.add_cog(FakeAdminAI(bot))
+>>>>>>> ce2f31d (Add new pets, items, and loot probability updates)

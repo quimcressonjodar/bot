@@ -60,4 +60,26 @@ class SellSelect(discord.ui.Select):
 class SellView(discord.ui.View):
     def __init__(self, ctx, inventory):
         super().__init__(timeout=60)
+        self.ctx = ctx
+        self.inventory = inventory
         self.add_item(SellSelect(ctx, inventory))
+
+    @discord.ui.button(label="Sell All", style=discord.ButtonStyle.danger)
+    async def sell_all(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = str(self.ctx.author.id)
+        user_data = get_user_data(user_id)
+        inventory = user_data.get("inventory", [])
+        
+        if not inventory:
+            return await interaction.response.send_message("❌ Your inventory is empty.", ephemeral=True)
+            
+        total_value = sum(item["value"] for item in inventory)
+        
+        eco_col.update_one(
+            {"_id": user_id},
+            {"$inc": {"wallet": total_value}, "$set": {"inventory": []}},
+        )
+        
+        embed = discord.Embed(title="💰 All Items Sold", color=0x2ECC71)
+        embed.description = f"Sold **{len(inventory)}** items\n\nTotal Received: 🪙 **{total_value:,}**"
+        await interaction.response.edit_message(content=None, embed=embed, view=None)

@@ -293,6 +293,8 @@ class ShopView(discord.ui.View):
         self.pet_shop = pet_shop
         self.role_shop = role_shop
         self.page = "pets"  # "pets" or "roles"
+        self.pet_subpage = 0
+        self.pets_per_page = 15
 
     def _build_embed(self, guild):
         if self.page == "pets":
@@ -302,9 +304,17 @@ class ShopView(discord.ui.View):
                 color=0x3498DB
             )
             
+            pet_items = list(self.pet_shop.items())
+            start = self.pet_subpage * self.pets_per_page
+            end = start + self.pets_per_page
+            current_pets = pet_items[start:end]
+            
+            total_subpages = (len(pet_items) - 1) // self.pets_per_page + 1
+            embed.set_author(name=f"Page {self.pet_subpage + 1} of {total_subpages}")
+
             pet_fields = []
             current_field = ""
-            for name, stats in self.pet_shop.items():
+            for name, stats in current_pets:
                 entry = f"{stats['emoji']} **{name.capitalize()}**\n🪙 {stats['price']:,} | ❤️ {stats['hp']} | ⚔️ {stats['damage']}\n\n"
                 if len(current_field) + len(entry) > 1024:
                     pet_fields.append(current_field)
@@ -315,7 +325,6 @@ class ShopView(discord.ui.View):
                 pet_fields.append(current_field)
 
             for i, field_content in enumerate(pet_fields):
-                # Use zero-width space for subsequent fields to make them look continuous
                 name = "🐾 Pets" if i == 0 else "\u200b"
                 embed.add_field(name=name, value=field_content, inline=False)
         else:
@@ -342,12 +351,85 @@ class ShopView(discord.ui.View):
         embed.set_footer(text="/shop buy <name>")
         return embed
 
-    @discord.ui.button(label="🐾 Pets", style=discord.ButtonStyle.primary)
+    def _update_buttons(self):
+        # Only show prev/next buttons if we are on pets page and there are multiple subpages
+        pet_items = list(self.pet_shop.items())
+        total_subpages = (len(pet_items) - 1) // self.pets_per_page + 1
+        
+        self.prev_button.disabled = (self.page != "pets" or self.pet_subpage == 0)
+        self.next_button.disabled = (self.page != "pets" or self.pet_subpage >= total_subpages - 1)
+
+    @discord.ui.button(label="🐾 Pets", style=discord.ButtonStyle.primary, row=0)
     async def show_pets(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page = "pets"
+        self._update_buttons()
         await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
 
-    @discord.ui.button(label="💎 Roles", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="💎 Roles", style=discord.ButtonStyle.secondary, row=0)
     async def show_roles(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page = "roles"
+        self._update_buttons()
         await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+
+    @discord.ui.button(label="◀️", style=discord.ButtonStyle.gray, row=1, disabled=True)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.pet_subpage > 0:
+            self.pet_subpage -= 1
+            self._update_buttons()
+            await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+
+    @discord.ui.button(label="▶️", style=discord.ButtonStyle.gray, row=1)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pet_items = list(self.pet_shop.items())
+        total_subpages = (len(pet_items) - 1) // self.pets_per_page + 1
+        if self.pet_subpage < total_subpages - 1:
+            self.pet_subpage += 1
+            self._update_buttons()
+            await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+
+
+class SellPetSelect(discord.ui.Select):
+    def __init__(self, ctx, pets):
+        self.ctx = ctx
+        self.pets = pets
+        options = []
+        for index, pet in enumerate(pets):
+            pet_type = pet["type"]
+            price = PET_SHOP.get(pet_type, {}).get("price", 0)
+            sell_price = price // 2
+            emoji = PET_SHOP.get(pet_type, {}).get("emoji", "🐾")
+            options.append(
+                discord.SelectOption(
+                    label=f"{pet_type.capitalize()} (ID: {pet['pet_id'][:8]})",
+                    description=f"Sell for 🪙 {sell_price:,}",
+                    emoji=emoji,
+                    value=str(index)
+                )
+            )
+        super().__init__(placeholder="Choose a pet to sell...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        user_id = str(self.ctx.author.id)
+        selected_index = int(self.values[0])
+        pet_data = pets_col.find_one({"_id": user_id})
+        pets = pet_data.get("pets", [])
+        
+        if selected_index >= len(pets):
+            return await interaction.response.send_message("❌ Pet no longer exists.", ephemeral=True)
+            
+        pet = pets.pop(selected_index)
+        shop_price = PET_SHOP.get(pet["type"], {}).get("price", 0)
+        sell_price = shop_price // 2
+        
+        pets_col.update_one({"_id": user_id}, {"$set": {"pets": pets}})
+        eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": sell_price}}, upsert=True)
+        
+        embed = discord.Embed(title="💰 Pet Sold", color=0x2ECC71)
+        embed.description = f"Sold your **{pet['type'].capitalize()}**\n\nReceived: 🪙 **{sell_price:,}**"
+        await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+
+class SellPetView(discord.ui.View):
+    def __init__(self, ctx, pets):
+        super().__init__(timeout=60)
+        self.add_item(SellPetSelect(ctx, pets))

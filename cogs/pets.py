@@ -7,7 +7,7 @@ from discord.ext import commands
 from config import PET_SHOP, ROLE_SHOP
 from database import pets_col
 from utils.economy import get_wallet, update_wallet
-from views.pet_views import AdventureView, BattleRequestView, ShopView
+from views.pet_views import AdventureView, BattleRequestView, ShopView, SellPetView
 
 
 class PetsCog(commands.Cog):
@@ -139,6 +139,16 @@ class PetsCog(commands.Cog):
         if not user_pets or not user_pets.get("pets"):
             return await ctx.send("❌ You don't own any pets.", ephemeral=True)
         await ctx.send("🌍 Choose a pet for the adventure:", view=AdventureView(ctx, user_pets["pets"]))
+
+    @commands.hybrid_command(name="sell_pet", description="Sell one of your pets for 50% of its shop price")
+    async def sell_pet(self, ctx: commands.Context):
+        user_id = str(ctx.author.id)
+        user_pets_data = pets_col.find_one({"_id": user_id})
+        if not user_pets_data or not user_pets_data.get("pets"):
+            return await ctx.send("❌ You don't own any pets.")
+        
+        embed = discord.Embed(title="💰 Sell Pet", description="Choose a pet to sell back to the shop.", color=0xE67E22)
+        await ctx.send(embed=embed, view=SellPetView(ctx, user_pets_data["pets"]))
 
 
 async def setup(bot: commands.Bot):

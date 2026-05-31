@@ -336,8 +336,23 @@ class AdminCog(commands.Cog):
 
         await ctx.defer()
 
-        # 1. Clear coins and inventory in eco_col for all users
-        eco_col.update_many({}, {"$set": {"wallet": 0, "bank": 0, "inventory": []}})
+        # 1. Clear coins, inventory and all cooldowns in eco_col for all users
+        eco_col.update_many(
+            {},
+            {
+                "$set": {"wallet": 0, "bank": 0, "inventory": []},
+                "$unset": {
+                    "last_daily": "",
+                    "last_weekly": "",
+                    "last_claim": "",
+                    "last_work": "",
+                    "last_crime": "",
+                    "last_rob": "",
+                    "last_adventure": "",
+                    "balance": ""
+                }
+            }
+        )
 
         # 2. Clear pets in pets_col for all users
         pets_col.update_many({}, {"$set": {"pets": []}})
@@ -366,7 +381,7 @@ class AdminCog(commands.Cog):
             description=(
                 "The economy has been fully reset!\n\n"
                 "✅ All wallets and banks set to 🪙 0\n"
-                "✅ All inventories cleared\n"
+                "✅ All inventories and cooldowns cleared\n"
                 "✅ All pets removed\n"
                 f"✅ Removed shop roles from **{removed_count}** members"
             ),

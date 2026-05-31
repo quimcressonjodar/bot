@@ -136,7 +136,76 @@ class GamesCog(commands.Cog):
         if user_data["wallet"] < bet:
             return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.")
         view = BlackjackView(ctx, bet)
-        await ctx.send(embed=view.create_embed(), view=view)
+        msg = await ctx.send(embed=view.create_embed(), view=view)
+        
+        # Check for natural blackjack
+        if view._calculate_score(view.player_hand) == 21:
+            await asyncio.sleep(1)
+            p_score = 21
+            d_score = view._calculate_score(view.dealer_hand)
+            
+            view.finished = True
+            view.hit_button.disabled = True
+            view.stand_button.disabled = True
+            
+            if d_score == 21:
+                result_text = "Both have Blackjack! It's a draw!"
+                win_amount = 0
+            else:
+                result_text = "Blackjack! You win!"
+                win_amount = int(bet * 1.5)
+                update_wallet(user_id, win_amount)
+                
+            embed = view.create_embed(result_text)
+            if isinstance(msg, discord.Interaction):
+                await msg.edit_original_response(embed=embed, view=view)
+            else:
+                await msg.edit(embed=embed, view=view)
+
+    @commands.hybrid_command(name="dice", description="Roll two dice against the house")
+    @app_commands.describe(bet_amount="Amount ('all', 'half', or number)")
+    async def dice(self, ctx: commands.Context, bet_amount: str):
+        user_id = str(ctx.author.id)
+        user_data = get_user_data(user_id)
+        bet = parse_economy_amount(bet_amount, user_data["wallet"])
+
+        if bet <= 0:
+            return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
+        if user_data["wallet"] < bet:
+            return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.", ephemeral=True)
+
+        # Roll dice using secrets for fairness
+        p_dice1 = secrets.randbelow(6) + 1
+        p_dice2 = secrets.randbelow(6) + 1
+        p_total = p_dice1 + p_dice2
+
+        h_dice1 = secrets.randbelow(6) + 1
+        h_dice2 = secrets.randbelow(6) + 1
+        h_total = h_dice1 + h_dice2
+
+        msg = await ctx.send("🎲 **Rolling the dice...** 🔄")
+        await asyncio.sleep(1.5)
+
+        embed = discord.Embed(title="🎲 Dice Duel", color=0x2B2D31)
+        embed.set_author(name=f"{ctx.author.display_name}'s Roll", icon_url=ctx.author.display_avatar.url)
+        
+        embed.add_field(name="👤 Your Roll", value=f"🎲 **{p_dice1}** + **{p_dice2}** = **{p_total}**", inline=True)
+        embed.add_field(name="🏠 House Roll", value=f"🎲 **{h_dice1}** + **{h_dice2}** = **{h_total}**", inline=True)
+
+        if p_total > h_total:
+            update_wallet(user_id, bet)
+            embed.color = 0x00FF00
+            embed.add_field(name="🎉 Outcome", value=f"**WIN!**\nYou won 🪙 **{bet:,}** coins!", inline=False)
+        elif p_total < h_total:
+            update_wallet(user_id, -bet)
+            embed.color = 0xFF0000
+            embed.add_field(name="💀 Outcome", value=f"**LOSS!**\nYou lost 🪙 **{bet:,}** coins.", inline=False)
+        else:
+            embed.color = 0xFFFF00
+            embed.add_field(name="🤝 Outcome", value="**TIE!**\nYour bet has been refunded.", inline=False)
+
+        embed.set_footer(text=f"New Wallet Balance: 🪙 {get_wallet(user_id):,}")
+        await msg.edit(content=None, embed=embed)
 
     @commands.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")
     @app_commands.describe(question="The question you want to ask")

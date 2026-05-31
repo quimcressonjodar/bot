@@ -65,6 +65,12 @@ class BlackjackView(discord.ui.View):
 
     async def _check_winner(self, interaction: discord.Interaction, stand: bool = False) -> None:
         p_score = self._calculate_score(self.player_hand)
+        d_score = self._calculate_score(self.dealer_hand)
+
+        if len(self.player_hand) == 2 and p_score == 21:
+            if len(self.dealer_hand) == 2 and d_score == 21:
+                return await self._end_game(interaction, "Both have Blackjack! It's a draw!", 0)
+            return await self._end_game(interaction, "Blackjack! You win!", int(self.bet * 1.5))
 
         if p_score > 21:
             return await self._end_game(interaction, "You busted! Dealer wins.", -self.bet)

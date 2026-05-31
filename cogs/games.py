@@ -163,6 +163,7 @@ class GamesCog(commands.Cog):
                 await msg.edit(embed=embed, view=view)
 
     @commands.hybrid_command(name="dice", description="Roll two dice against the house")
+    @commands.cooldown(1, 900, commands.BucketType.user)
     @app_commands.describe(bet_amount="Amount ('all', 'half', or number)")
     async def dice(self, ctx: commands.Context, bet_amount: str):
         user_id = str(ctx.author.id)
@@ -170,8 +171,10 @@ class GamesCog(commands.Cog):
         bet = parse_economy_amount(bet_amount, user_data["wallet"])
 
         if bet <= 0:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
         if user_data["wallet"] < bet:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.", ephemeral=True)
 
         # Roll dice using secrets for fairness
@@ -197,13 +200,25 @@ class GamesCog(commands.Cog):
         await asyncio.sleep(1.2)
 
         if p_total > h_total:
-            update_wallet(user_id, bet)
-            result = f"you **won** **{bet:,}** 🪙"
+            multiplier = 1
+            bonus_text = ""
+            if p_dice1 == p_dice2:
+                if p_dice1 == 6:
+                    multiplier = 3
+                    bonus_text = " **(DOUBLE 6! x3 MULTIPLIER)**"
+                else:
+                    multiplier = 2
+                    bonus_text = " **(DOUBLE! x2 MULTIPLIER)**"
+            
+            winnings = bet * multiplier
+            update_wallet(user_id, winnings)
+            result = f"you **won** **{winnings:,}** 🪙{bonus_text}"
         elif p_total < h_total:
             update_wallet(user_id, -bet)
             result = f"you **lost** **{bet:,}** 🪙"
         else:
             result = f"you **tied**, **{bet:,}** 🪙 refunded"
+            ctx.command.reset_cooldown(ctx)
 
         content += f"\n🎲 {username}, {result}"
         await msg.edit(content=content)

@@ -183,29 +183,30 @@ class GamesCog(commands.Cog):
         h_dice2 = secrets.randbelow(6) + 1
         h_total = h_dice1 + h_dice2
 
-        msg = await ctx.send("🎲 **Rolling the dice...** 🔄")
-        await asyncio.sleep(1.5)
+        username = ctx.author.name.lower()
+        content = f"🎲 {username} bets **{bet:,}** 🪙 and throws their dice..."
+        msg = await ctx.send(content)
+        await asyncio.sleep(1.2)
 
-        embed = discord.Embed(title="🎲 Dice Duel", color=0x2B2D31)
-        embed.set_author(name=f"{ctx.author.display_name}'s Roll", icon_url=ctx.author.display_avatar.url)
-        
-        embed.add_field(name="👤 Your Roll", value=f"🎲 **{p_dice1}** + **{p_dice2}** = **{p_total}**", inline=True)
-        embed.add_field(name="🏠 House Roll", value=f"🎲 **{h_dice1}** + **{h_dice2}** = **{h_total}**", inline=True)
+        content += f"\n🎲 {username} gets **{p_dice1}** and **{p_dice2}**..."
+        await msg.edit(content=content)
+        await asyncio.sleep(1.2)
+
+        content += f"\n🎲 {username}, your opponent throws their dice... and gets **{h_dice1}** and **{h_dice2}**..."
+        await msg.edit(content=content)
+        await asyncio.sleep(1.2)
 
         if p_total > h_total:
             update_wallet(user_id, bet)
-            embed.color = 0x00FF00
-            embed.add_field(name="🎉 Outcome", value=f"**WIN!**\nYou won 🪙 **{bet:,}** coins!", inline=False)
+            result = f"you **won** **{bet:,}** 🪙"
         elif p_total < h_total:
             update_wallet(user_id, -bet)
-            embed.color = 0xFF0000
-            embed.add_field(name="💀 Outcome", value=f"**LOSS!**\nYou lost 🪙 **{bet:,}** coins.", inline=False)
+            result = f"you **lost** **{bet:,}** 🪙"
         else:
-            embed.color = 0xFFFF00
-            embed.add_field(name="🤝 Outcome", value="**TIE!**\nYour bet has been refunded.", inline=False)
+            result = f"you **tied**, **{bet:,}** 🪙 refunded"
 
-        embed.set_footer(text=f"New Wallet Balance: 🪙 {get_wallet(user_id):,}")
-        await msg.edit(content=None, embed=embed)
+        content += f"\n🎲 {username}, {result}"
+        await msg.edit(content=content)
 
     @commands.hybrid_command(name="8ball", description="Ask the magic 8-ball a question")
     @app_commands.describe(question="The question you want to ask")

@@ -108,7 +108,12 @@ class KirkaCog(commands.Cog):
         except Exception as e:
             await ctx.send(f"⚠️ An error occurred: {e}")
 
-    @commands.hybrid_command(name="register_monday", description="Save Monday baseline snapshot")
+    @commands.hybrid_group(name="register", description="Weekly snapshot registration system")
+    async def register_group(self, ctx: commands.Context):
+        if ctx.invoked_subcommand is None:
+            await ctx.send("Please specify a subcommand: `monday` or `sunday`.")
+
+    @register_group.command(name="monday", description="🔥 FIRST (START OF WEEK): Run on Mondays to start the new week. High priority.")
     async def register_monday(self, ctx: commands.Context):
         if not is_admin(ctx):
             return await ctx.send("Admin only command.", ephemeral=True)
@@ -125,7 +130,7 @@ class KirkaCog(commands.Cog):
         except Exception as exc:
             await ctx.send(f"Failed to save Monday snapshot: {exc}")
 
-    @commands.hybrid_command(name="register_sunday", description="Save Sunday snapshot")
+    @register_group.command(name="sunday", description="✅ SECOND (END OF WEEK): Run only when the week has ended, after having used /register monday.")
     async def register_sunday(self, ctx: commands.Context):
         if not is_admin(ctx):
             return await ctx.send("Admin only command.", ephemeral=True)
@@ -152,7 +157,7 @@ class KirkaCog(commands.Cog):
             sunday_data = load_snapshot(SUNDAY_SNAPSHOT_PATH)
             if not monday_data or not sunday_data:
                 return await ctx.send(
-                    "Need both files first. Run `/register_monday` and `/register_sunday` before `/weekly_lb`."
+                    "Need both files first. Run `/register monday` and `/register sunday` before `/weekly_lb`."
                 )
 
             rows = build_weekly_rows(monday_data["members"], sunday_data["members"])

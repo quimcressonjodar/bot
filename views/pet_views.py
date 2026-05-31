@@ -19,10 +19,9 @@ async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dic
     last_adventure = user_data.get("last_adventure", 0)
 
     if now - last_adventure < cooldown:
-        remaining = int(cooldown - (now - last_adventure))
-        minutes, seconds = divmod(remaining, 60)
+        next_adv_ts = int(last_adventure + cooldown)
         return await interaction.response.send_message(
-            f"⏳ Your pets are resting. Try again in {minutes}m {seconds}s.", ephemeral=True
+            f"⏳ Your pets are resting. Try again <t:{next_adv_ts}:R>.", ephemeral=True
         )
 
     pet_type = selected_pet["type"]
@@ -67,17 +66,18 @@ async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dic
         "godly": 0xFF00FF,
     }
     pet_emoji = PET_SHOP[pet_type]["emoji"]
+    next_adv_ts = int(now + cooldown)
 
     embed = discord.Embed(title="🌍 Pet Adventure", color=rarity_colors[loot_rarity])
     embed.description = (
         f"{pet_emoji} Your **{pet_type}** {event_text}...\n\n"
         f"🎁 It discovered:\n"
         f"## {item_name}\n\n"
-        f"💰 Sold for: 🪙 **{final_value:,}**"
+        f"💰 Sold for: 🪙 **{final_value:,}**\n\n"
+        f"🌍 Your pet can adventure again <t:{next_adv_ts}:R>."
     )
     embed.add_field(name="✨ Loot Rarity", value=loot_rarity.capitalize())
     embed.add_field(name="🐾 Pet Rarity", value=rarity.capitalize())
-    embed.set_footer(text="Your pet can adventure again in 30 minutes.")
 
     await interaction.response.edit_message(content=None, embed=embed, view=None)
 

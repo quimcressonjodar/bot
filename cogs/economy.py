@@ -182,9 +182,13 @@ class EconomyCog(commands.Cog):
             {"$inc": {"wallet": total}, "$set": {"last_claim": now.isoformat()}},
             upsert=True,
         )
-        embed = discord.Embed(title="💰 Claim Rewards", description="\n".join(breakdown), color=0x00FF99)
+        next_claim_ts = int(now.timestamp() + 3600)
+        embed = discord.Embed(
+            title="💰 Claim Rewards", 
+            description="\n".join(breakdown) + f"\n\nCome back <t:{next_claim_ts}:R> for more rewards.", 
+            color=0x00FF99
+        )
         embed.add_field(name="Total Claimed", value=f"🪙 {total:,}", inline=False)
-        embed.set_footer(text="Come back in 1 hour for more rewards.")
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="pay", description="Send coins to another member")
@@ -240,9 +244,8 @@ class EconomyCog(commands.Cog):
         last_work = user_data.get("last_work", 0)
         now = time.time()
         if now - last_work < cooldown:
-            time_left = int(cooldown - (now - last_work))
-            minutes, seconds = divmod(time_left, 60)
-            return await ctx.send(f"⏳ You are too tired! Come back to work in {minutes}m {seconds}s.", ephemeral=True)
+            next_work_ts = int(last_work + cooldown)
+            return await ctx.send(f"⏳ You are too tired! Come back to work <t:{next_work_ts}:R>.", ephemeral=True)
 
         earnings = random.randint(250, 800)
         jobs = [
@@ -262,13 +265,13 @@ class EconomyCog(commands.Cog):
             "won a legendary rap battle against an AI",
         ]
         reason = random.choice(jobs)
+        next_work_ts = int(now + cooldown)
         eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": earnings}, "$set": {"last_work": now}}, upsert=True)
         embed = discord.Embed(
             title="💼 Work Complete",
-            description=f"You {reason} and earned 🪙 **{earnings:,}** coins.",
+            description=f"You {reason} and earned 🪙 **{earnings:,}** coins.\n\nCome back <t:{next_work_ts}:R> for another shift.",
             color=0x00FF99,
         )
-        embed.set_footer(text="Come back in 45 minutes for another shift.")
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="crime", description="Commit a crime for big money, but risk getting caught!")
@@ -280,10 +283,9 @@ class EconomyCog(commands.Cog):
         last_crime = user_data.get("last_crime", 0)
         now = time.time()
         if now - last_crime < cooldown:
-            time_left = int(cooldown - (now - last_crime))
-            hours, minutes = divmod(time_left, 3600)
+            next_crime_ts = int(last_crime + cooldown)
             return await ctx.send(
-                f"⏳ The heat is too high! Lay low for {hours}h {minutes // 60}m before committing another crime.",
+                f"⏳ The heat is too high! Lay low <t:{next_crime_ts}:R> before committing another crime.",
                 ephemeral=True,
             )
         if wallet < 1000:
@@ -320,8 +322,8 @@ class EconomyCog(commands.Cog):
         last_rob = user_data.get("last_rob", 0)
         now = time.time()
         if now - last_rob < cooldown:
-            time_left = int(cooldown - (now - last_rob))
-            return await ctx.send(f"⏳ The cops are still looking for you! Lay low for {time_left // 60}m.", ephemeral=True)
+            next_rob_ts = int(last_rob + cooldown)
+            return await ctx.send(f"⏳ The cops are still looking for you! Lay low <t:{next_rob_ts}:R>.", ephemeral=True)
         if thief_id == target_id:
             return await ctx.send("❌ You cannot rob yourself.", ephemeral=True)
         if target_data.get("wallet", 0) < 300:

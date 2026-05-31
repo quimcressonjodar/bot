@@ -147,6 +147,9 @@ class EventsCog(commands.Cog):
             await ctx.send("❌ You don't have permission to use this command.", ephemeral=True)
         elif isinstance(error, commands.BotMissingPermissions):
             await ctx.send("❌ I don't have permission to do that.", ephemeral=True)
+        elif isinstance(error, commands.CommandOnCooldown):
+            next_ts = int(time.time() + error.retry_after)
+            await ctx.send(f"⏳ This command is on cooldown. Try again <t:{next_ts}:R>.", ephemeral=True)
         else:
             await ctx.send(f"❌ An error occurred: {str(error)}", ephemeral=True)
 

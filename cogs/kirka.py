@@ -156,6 +156,7 @@ class KirkaCog(commands.Cog):
                 )
 
             rows = build_weekly_rows(monday_data["members"], sunday_data["members"])
+            total_weekly_xp = sum(row[3] for row in rows)
 
             lines = []
             header = f"{'Player':<18} {'Short ID':<10} {'XP':>10}   Status"
@@ -183,6 +184,7 @@ class KirkaCog(commands.Cog):
 
             report_header = (
                 f"Clan: {sunday_data['clan_name']}\n"
+                f"Total Weekly XP: {total_weekly_xp:,}\n"
                 f"Requirement: {config.WEEKLY_XP_REQUIREMENT:,} XP\n"
                 f"Monday: {monday_data['timestamp_utc']}\n"
                 f"Sunday: {sunday_data['timestamp_utc']}\n\n"

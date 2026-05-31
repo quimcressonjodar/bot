@@ -31,7 +31,7 @@ CARD_EMOJIS = {
 }
 CARD_BACK = "🂠"
 
-MONDAY_SNAPSHOT_PATH = "monday_snapshot"
+MONDAY_SNAPSHOT_PATH = "xp_monday.json"
 SUNDAY_SNAPSHOT_PATH = "sunday_snapshot"
 
 PET_LOOT_PROBABILITIES = {

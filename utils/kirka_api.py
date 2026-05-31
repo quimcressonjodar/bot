@@ -103,10 +103,16 @@ def extract_member_map(clan_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if not isinstance(item, dict):
             continue
         user = item.get("user") if isinstance(item.get("user"), dict) else item
-        user_id = str(user.get("id") or item.get("id") or user.get("userId") or "").strip()
+        user_id = str(user.get("id") or user.get("_id") or item.get("id") or item.get("_id") or user.get("userId") or item.get("userId") or "").strip()
         if not user_id:
             continue
-        score_raw = item.get("allScores", item.get("scores", item.get("xp", 0)))
+        score_raw = (
+            item.get("allScores") or user.get("allScores") or
+            item.get("scores") or user.get("scores") or
+            item.get("xp") or user.get("xp") or
+            item.get("experience") or user.get("experience") or
+            item.get("points") or user.get("points") or 0
+        )
         try:
             all_scores = int(score_raw or 0)
         except (TypeError, ValueError):

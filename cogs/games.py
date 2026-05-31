@@ -1,12 +1,14 @@
 import asyncio
 import random
 import secrets
+import time
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from config import ROULETTE_RED, VALID_BETS
+from database import eco_col
 from utils.economy import get_user_data, get_wallet, update_wallet, parse_economy_amount
 from views.game_views import BlackjackView, RPSView
 
@@ -163,18 +165,24 @@ class GamesCog(commands.Cog):
                 await msg.edit(embed=embed, view=view)
 
     @commands.hybrid_command(name="dice", description="Roll two dice against the house")
-    @commands.cooldown(1, 900, commands.BucketType.user)
     @app_commands.describe(bet_amount="Amount ('all', 'half', or number)")
     async def dice(self, ctx: commands.Context, bet_amount: str):
         user_id = str(ctx.author.id)
         user_data = get_user_data(user_id)
+        
+        # Cooldown check
+        cooldown = 900
+        last_dice = user_data.get("last_dice", 0)
+        now = time.time()
+        if now - last_dice < cooldown:
+            next_dice_ts = int(last_dice + cooldown)
+            return await ctx.send(f"⏳ You need to wait <t:{next_dice_ts}:R> before rolling the dice again.", ephemeral=True)
+
         bet = parse_economy_amount(bet_amount, user_data["wallet"])
 
         if bet <= 0:
-            ctx.command.reset_cooldown(ctx)
             return await ctx.send("❌ Invalid bet. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
         if user_data["wallet"] < bet:
-            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f"❌ You don't have enough coins. Your balance is 🪙 {user_data['wallet']:,}.", ephemeral=True)
 
         # Roll dice using secrets for fairness
@@ -211,14 +219,13 @@ class GamesCog(commands.Cog):
                     bonus_text = " **(DOUBLE! x2 MULTIPLIER)**"
             
             winnings = bet * multiplier
-            update_wallet(user_id, winnings)
+            eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": winnings}, "$set": {"last_dice": now}}, upsert=True)
             result = f"you **won** **{winnings:,}** 🪙{bonus_text}"
         elif p_total < h_total:
-            update_wallet(user_id, -bet)
+            eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": -bet}, "$set": {"last_dice": now}}, upsert=True)
             result = f"you **lost** **{bet:,}** 🪙"
         else:
             result = f"you **tied**, **{bet:,}** 🪙 refunded"
-            ctx.command.reset_cooldown(ctx)
 
         content += f"\n🎲 {username}, {result}"
         await msg.edit(content=content)

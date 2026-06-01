@@ -93,13 +93,13 @@ class EventsCog(commands.Cog):
             embed.add_field(name="💰 Coin Reward", value=f"🪙 {reward:,}")
         else:
             rarity_roll = random.randint(1, 100)
-            if rarity_roll <= 35:
+            if rarity_roll <= 50:
                 rarity = "common"
-            elif rarity_roll <= 65:
+            elif rarity_roll <= 80:
                 rarity = "rare"
-            elif rarity_roll <= 88:
+            elif rarity_roll <= 94:
                 rarity = "epic"
-            elif rarity_roll <= 98:
+            elif rarity_roll <= 99:
                 rarity = "legendary"
             else:
                 rarity = "godly"

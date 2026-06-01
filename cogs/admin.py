@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import asyncio
 
 import discord
 from discord import app_commands
@@ -102,8 +103,22 @@ class AdminCog(commands.Cog):
             return await ctx.send("Please specify a number greater than 0.", ephemeral=True)
         await ctx.defer(ephemeral=True)
         try:
-            deleted = await ctx.channel.purge(limit=amount)
-            await ctx.send(f"🧹 Successfully deleted **{len(deleted)}** messages.", ephemeral=True)
+            # If prefix command, we need to delete the command message itself as well
+            limit = amount if ctx.interaction else amount + 1
+            deleted = await ctx.channel.purge(limit=limit)
+            
+            # Count excludes the command message if it was a prefix command
+            count = len(deleted) if ctx.interaction else len(deleted) - 1
+            
+            msg = await ctx.send(f"🧹 Successfully deleted **{count}** messages.", ephemeral=True)
+            
+            # Auto-delete success message for prefix commands
+            if not ctx.interaction:
+                await asyncio.sleep(3)
+                try:
+                    await msg.delete()
+                except discord.NotFound:
+                    pass
         except Exception as e:
             await ctx.send(f"❌ Failed to purge messages: {e}", ephemeral=True)
 

@@ -46,6 +46,7 @@ COGS = [
     "cogs.utility",
     "cogs.events",
     "cogs.fake_admin_ai",
+    "cogs.starboard",
 ]
 
 

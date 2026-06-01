@@ -133,7 +133,7 @@ class EventsCog(commands.Cog):
     @spawn_global_drop.before_loop
     async def before_spawn_global_drop(self):
         await self.bot.wait_until_ready()
-        await asyncio.sleep(300 * 60)
+        await asyncio.sleep(60) # Wait 1 minute after startup before first drop
 
 
     @commands.Cog.listener()

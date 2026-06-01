@@ -169,7 +169,14 @@ class PetsCog(commands.Cog):
         if not data or not data.get("pets"):
             return await ctx.send("❌ You don't own any pets.")
         embed = discord.Embed(title=f"🐾 {ctx.author.display_name}'s Pets", color=0x3498DB)
-        for pet in data["pets"]:
+        
+        # Sort pets by price from PET_SHOP
+        sorted_pets = sorted(
+            data["pets"], 
+            key=lambda p: PET_SHOP.get(p["type"].lower(), {}).get("price", 0)
+        )
+        
+        for pet in sorted_pets:
             hunger = get_current_hunger(pet)
             state_name, _ = get_pet_state(pet)
             embed.add_field(

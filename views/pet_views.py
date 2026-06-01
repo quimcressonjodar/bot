@@ -331,7 +331,7 @@ class ShopView(discord.ui.View):
                 color=0x3498DB
             )
             
-            pet_items = list(self.pet_shop.items())
+            pet_items = sorted(self.pet_shop.items(), key=lambda x: x[1]['price'])
             start = self.pet_subpage * self.pets_per_page
             end = start + self.pets_per_page
             current_pets = pet_items[start:end]

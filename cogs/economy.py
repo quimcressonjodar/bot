@@ -484,11 +484,22 @@ class EconomyCog(commands.Cog):
         bank = user_data.get("bank", 0)
         net_worth = max(0, wallet + bank)
         
-        # Limit loan to 20% of net worth or 50,000, whichever is higher (for new players)
-        limit = max(50000, int(net_worth * 0.2))
+        # Limit loan based on Prestige or Net Worth
+        from config import PRESTIGE_LEVELS
+        from utils.economy import get_prestige_level
+        level = get_prestige_level(net_worth)
+        
+        # Default ratio is 20%, but increases with prestige
+        ratio = 0.2
+        if level > 0:
+            # Bronze: 20%, Silver: 30%, Gold: 50%, Platinum+: 100%
+            ratios = {1: 0.2, 2: 0.3, 3: 0.5, 4: 1.0, 5: 1.0, 6: 1.0, 7: 1.0}
+            ratio = ratios.get(level, 0.2)
+            
+        limit = max(50000, int(net_worth * ratio))
         
         if amount > limit:
-            return await ctx.send(f"❌ Your credit limit is 🪙 {limit:,} based on your net worth.", ephemeral=True)
+            return await ctx.send(f"❌ Your credit limit is 🪙 {limit:,} based on your net worth and prestige.", ephemeral=True)
             
         # Operación atómica para evitar duplicación
         now = time.time()

@@ -465,14 +465,45 @@ class EconomyCog(commands.Cog):
         state.active_global_drop = None
 
     @commands.hybrid_command(name="loan", description="Request a loan from the clan bank")
-    @app_commands.describe(amount="Amount to borrow (max 20% of net worth)")
-    async def loan(self, ctx: commands.Context, amount: int):
+    @app_commands.describe(amount="Amount to borrow (e.g. 1000 or 'max')")
+    async def loan(self, ctx: commands.Context, amount: str):
         user_id = str(ctx.author.id)
         
+        user_data = get_user_data(user_id)
+        wallet = user_data.get("wallet", 0)
+        bank = user_data.get("bank", 0)
+        net_worth = max(0, wallet + bank)
+        
+        # Limit loan based on Prestige or Net Worth
+        from config import PRESTIGE_LEVELS
+        from utils.economy import get_prestige_level
+        level = get_prestige_level(net_worth)
+        
+        # Default ratio is 20%, but increases with prestige
+        ratio = 0.2
+        if level > 0:
+            # Bronze: 20%, Silver: 30%, Gold: 50%, Platinum+: 100%
+            ratios = {1: 0.2, 2: 0.3, 3: 0.5, 4: 1.0, 5: 1.0, 6: 1.0, 7: 1.0}
+            ratio = ratios.get(level, 0.2)
+            
+        limit = int(net_worth * ratio)
+
+        # Parse amount
+        if amount.lower() in ["max", "all"]:
+            parsed_amount = limit
+        else:
+            try:
+                parsed_amount = int(amount)
+            except ValueError:
+                return await ctx.send("❌ Invalid amount. Please use a number or 'max'.", ephemeral=True)
+
         # Validación de entrada
-        if amount <= 0:
+        if parsed_amount <= 0:
+            if limit <= 0:
+                return await ctx.send("❌ Your credit limit is 0 because you have no net worth.", ephemeral=True)
             return await ctx.send("❌ Please specify a positive amount.", ephemeral=True)
-        if amount > 1000000000000: # Límite técnico para evitar desbordamientos
+            
+        if parsed_amount > 1000000000000: # Límite técnico para evitar desbordamientos
             return await ctx.send("❌ That amount is too high even for our bank!", ephemeral=True)
 
         current_debt = get_debt(user_id)
@@ -498,7 +529,7 @@ class EconomyCog(commands.Cog):
             
         limit = int(net_worth * ratio)
         
-        if amount > limit:
+        if parsed_amount > limit:
             return await ctx.send(f"❌ Your credit limit is 🪙 {limit:,} based on your net worth and prestige.", ephemeral=True)
             
         # Operación atómica para evitar duplicación
@@ -506,7 +537,7 @@ class EconomyCog(commands.Cog):
         result = eco_col.update_one(
             {"_id": user_id, "$or": [{"loan_amount": {"$exists": False}}, {"loan_amount": 0}]},
             {
-                "$inc": {"loan_amount": amount, "wallet": amount},
+                "$inc": {"loan_amount": parsed_amount, "wallet": parsed_amount},
                 "$set": {"last_interest_calc": now, "loan_start_time": now}
             }
         )

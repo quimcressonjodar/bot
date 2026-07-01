@@ -583,6 +583,9 @@ class BreedView(discord.ui.View):
 
     @discord.ui.button(label="Start Breeding", style=discord.ButtonStyle.green)
     async def start_breed(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # First, defer the interaction because DB operations might take time
+        await interaction.response.defer()
+
         p1_id = self.children[0].values[0] if self.children[0].values else None
         p2_id = self.children[1].values[0] if self.children[1].values else None
 
@@ -592,8 +595,11 @@ class BreedView(discord.ui.View):
             return await interaction.followup.send("❌ You cannot breed a pet with itself.", ephemeral=True)
 
         user_id = str(self.ctx.author.id)
-        p1 = next(p for p in self.pets if p["pet_id"] == p1_id)
-        p2 = next(p for p in self.pets if p["pet_id"] == p2_id)
+        p1 = next((p for p in self.pets if p["pet_id"] == p1_id), None)
+        p2 = next((p for p in self.pets if p["pet_id"] == p2_id), None)
+
+        if not p1 or not p2:
+            return await interaction.followup.send("❌ One of the selected pets was not found.", ephemeral=True)
 
         from config import PET_SHOP, BREEDING_COST_RATIO, BREEDING_SUCCESS_CHANCE, BREEDING_RISK_CHANCE
         v1 = PET_SHOP.get(p1["type"], {}).get("price", 0)
@@ -613,7 +619,7 @@ class BreedView(discord.ui.View):
         
         success = random.randint(1, 100) <= BREEDING_SUCCESS_CHANCE
         if success and possible_evolutions:
-            # Get the next one or a random one from the possible ones (weighted towards lower ones)
+            # Get the next one
             new_type = possible_evolutions[0] 
             new_pet = {
                 "pet_id": str(uuid.uuid4()),
@@ -633,11 +639,10 @@ class BreedView(discord.ui.View):
         else:
             risk = random.randint(1, 100) <= BREEDING_RISK_CHANCE
             if risk:
-                lost_pet = random.choice([p1, p2])
-                self.pets = [p for p in self.pets if p["pet_id"] != lost_pet["pet_id"]]
-                pets_col.update_one({"_id": user_id}, {"$set": {"pets": self.pets}})
-                embed = discord.Embed(title="💔 Breeding Failed", description=f"The breeding failed and your **{lost_pet['type'].capitalize()}** ran away in the confusion...", color=0xFF0000)
+                # Remove one parent
+                pets_col.update_one({"_id": user_id}, {"$pull": {"pets": {"pet_id": random.choice([p1_id, p2_id])}}})
+                embed = discord.Embed(title="💔 Breeding Failed", description="The breeding failed and one of your pets ran away in the confusion...", color=0xFF0000)
             else:
                 embed = discord.Embed(title="💨 Breeding Failed", description="The pets didn't bond. You lost the coins but kept your pets.", color=0x95A5A6)
 
-        await interaction.message.edit(embed=embed, view=None)
+        await interaction.edit_original_response(embed=embed, view=None)

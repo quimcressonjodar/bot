@@ -583,66 +583,84 @@ class BreedView(discord.ui.View):
 
     @discord.ui.button(label="Start Breeding", style=discord.ButtonStyle.green)
     async def start_breed(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # First, defer the interaction because DB operations might take time
-        await interaction.response.defer()
+        try:
+            # First, defer the interaction because DB operations might take time
+            await interaction.response.defer()
 
-        p1_id = self.children[0].values[0] if self.children[0].values else None
-        p2_id = self.children[1].values[0] if self.children[1].values else None
+            # Find the select components to get their values
+            p1_id = None
+            p2_id = None
+            for child in self.children:
+                if isinstance(child, BreedSelect):
+                    if child.custom_id == "parent1" and child.values:
+                        p1_id = child.values[0]
+                    elif child.custom_id == "parent2" and child.values:
+                        p2_id = child.values[0]
 
-        if not p1_id or not p2_id:
-            return await interaction.followup.send("❌ Please select both parents.", ephemeral=True)
-        if p1_id == p2_id:
-            return await interaction.followup.send("❌ You cannot breed a pet with itself.", ephemeral=True)
+            if not p1_id or not p2_id:
+                return await interaction.followup.send("❌ Please select both parents from the menus.", ephemeral=True)
+            
+            if p1_id == p2_id:
+                return await interaction.followup.send("❌ You cannot breed a pet with itself.", ephemeral=True)
 
-        user_id = str(self.ctx.author.id)
-        p1 = next((p for p in self.pets if p["pet_id"] == p1_id), None)
-        p2 = next((p for p in self.pets if p["pet_id"] == p2_id), None)
+            user_id = str(self.ctx.author.id)
+            p1 = next((p for p in self.pets if p["pet_id"] == p1_id), None)
+            p2 = next((p for p in self.pets if p["pet_id"] == p2_id), None)
 
-        if not p1 or not p2:
-            return await interaction.followup.send("❌ One of the selected pets was not found.", ephemeral=True)
+            if not p1 or not p2:
+                return await interaction.followup.send("❌ One of the selected pets was not found in your collection.", ephemeral=True)
 
-        from config import PET_SHOP, BREEDING_COST_RATIO, BREEDING_SUCCESS_CHANCE, BREEDING_RISK_CHANCE
-        v1 = PET_SHOP.get(p1["type"], {}).get("price", 0)
-        v2 = PET_SHOP.get(p2["type"], {}).get("price", 0)
-        combined_value = v1 + v2
-        cost = int(combined_value * BREEDING_COST_RATIO)
+            from config import PET_SHOP, BREEDING_COST_RATIO, BREEDING_SUCCESS_CHANCE, BREEDING_RISK_CHANCE
+            v1 = PET_SHOP.get(p1["type"], {}).get("price", 0)
+            v2 = PET_SHOP.get(p2["type"], {}).get("price", 0)
+            combined_value = v1 + v2
+            cost = int(combined_value * BREEDING_COST_RATIO)
 
-        wallet = get_wallet(user_id)
-        if wallet < cost:
-            return await interaction.followup.send(f"❌ You need 🪙 {cost:,} to breed these pets.", ephemeral=True)
+            wallet = get_wallet(user_id)
+            if wallet < cost:
+                return await interaction.followup.send(f"❌ You need 🪙 {cost:,} to breed these pets.", ephemeral=True)
 
-        update_wallet(user_id, -cost)
-        
-        # Breeding logic: Find a pet in PET_SHOP that is more expensive than combined_value
-        available_pets = sorted(PET_SHOP.items(), key=lambda x: x[1]['price'])
-        possible_evolutions = [name for name, stats in available_pets if stats['price'] > combined_value]
-        
-        success = random.randint(1, 100) <= BREEDING_SUCCESS_CHANCE
-        if success and possible_evolutions:
-            # Get the next one
-            new_type = possible_evolutions[0] 
-            new_pet = {
-                "pet_id": str(uuid.uuid4()),
-                "type": new_type,
-                "hp": PET_SHOP[new_type]["hp"],
-                "damage": PET_SHOP[new_type]["damage"],
-                "hunger": 100,
-                "last_fed": time.time(),
-            }
-            pets_col.update_one({"_id": user_id}, {"$push": {"pets": new_pet}})
-            embed = discord.Embed(
-                title="💖 Evolution Success!", 
-                description=f"Your pets bonded and evolved into a **{new_type.capitalize()}**!", 
-                color=0xFF69B4
-            )
-            embed.add_field(name="New Pet Value", value=f"🪙 {PET_SHOP[new_type]['price']:,}")
-        else:
-            risk = random.randint(1, 100) <= BREEDING_RISK_CHANCE
-            if risk:
-                # Remove one parent
-                pets_col.update_one({"_id": user_id}, {"$pull": {"pets": {"pet_id": random.choice([p1_id, p2_id])}}})
-                embed = discord.Embed(title="💔 Breeding Failed", description="The breeding failed and one of your pets ran away in the confusion...", color=0xFF0000)
+            # Atomic wallet update
+            update_wallet(user_id, -cost)
+            
+            # Breeding logic: Find a pet in PET_SHOP that is more expensive than combined_value
+            available_pets = sorted(PET_SHOP.items(), key=lambda x: x[1]['price'])
+            possible_evolutions = [name for name, stats in available_pets if stats['price'] > combined_value]
+            
+            success = random.randint(1, 100) <= BREEDING_SUCCESS_CHANCE
+            if success and possible_evolutions:
+                # Get the next one
+                new_type = possible_evolutions[0] 
+                new_pet = {
+                    "pet_id": str(uuid.uuid4()),
+                    "type": new_type,
+                    "hp": PET_SHOP[new_type]["hp"],
+                    "damage": PET_SHOP[new_type]["damage"],
+                    "hunger": 100,
+                    "last_fed": time.time(),
+                }
+                pets_col.update_one({"_id": user_id}, {"$push": {"pets": new_pet}})
+                embed = discord.Embed(
+                    title="💖 Evolution Success!", 
+                    description=f"Your pets bonded and evolved into a **{new_type.capitalize()}**!", 
+                    color=0xFF69B4
+                )
+                embed.add_field(name="New Pet Value", value=f"🪙 {PET_SHOP[new_type]['price']:,}")
             else:
-                embed = discord.Embed(title="💨 Breeding Failed", description="The pets didn't bond. You lost the coins but kept your pets.", color=0x95A5A6)
+                risk = random.randint(1, 100) <= BREEDING_RISK_CHANCE
+                if risk:
+                    # Remove one parent
+                    lost_id = random.choice([p1_id, p2_id])
+                    lost_type = p1["type"] if lost_id == p1_id else p2["type"]
+                    pets_col.update_one({"_id": user_id}, {"$pull": {"pets": {"pet_id": lost_id}}})
+                    embed = discord.Embed(title="💔 Breeding Failed", description=f"The breeding failed and your **{lost_type.capitalize()}** ran away in the confusion...", color=0xFF0000)
+                else:
+                    embed = discord.Embed(title="💨 Breeding Failed", description="The pets didn't bond. You lost the coins but kept your pets.", color=0x95A5A6)
 
-        await interaction.edit_original_response(embed=embed, view=None)
+            await interaction.edit_original_response(embed=embed, view=None)
+        except Exception as e:
+            print(f"BREEDING ERROR: {e}")
+            try:
+                await interaction.followup.send(f"❌ An internal error occurred: {e}", ephemeral=True)
+            except:
+                pass

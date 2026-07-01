@@ -581,7 +581,7 @@ class BreedView(discord.ui.View):
         self.add_item(BreedSelect(pets, "Select first parent...", "parent1"))
         self.add_item(BreedSelect(pets, "Select second parent...", "parent2"))
 
-    @discord.ui.button(label="Start Breeding", style=discord.ButtonStyle.heart)
+    @discord.ui.button(label="Start Breeding", style=discord.ButtonStyle.green)
     async def start_breed(self, interaction: discord.Interaction, button: discord.ui.Button):
         p1_id = self.children[0].values[0] if self.children[0].values else None
         p2_id = self.children[1].values[0] if self.children[1].values else None

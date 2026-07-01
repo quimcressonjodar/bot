@@ -496,7 +496,7 @@ class EconomyCog(commands.Cog):
             ratios = {1: 0.2, 2: 0.3, 3: 0.5, 4: 1.0, 5: 1.0, 6: 1.0, 7: 1.0}
             ratio = ratios.get(level, 0.2)
             
-        limit = max(50000, int(net_worth * ratio))
+        limit = int(net_worth * ratio)
         
         if amount > limit:
             return await ctx.send(f"❌ Your credit limit is 🪙 {limit:,} based on your net worth and prestige.", ephemeral=True)

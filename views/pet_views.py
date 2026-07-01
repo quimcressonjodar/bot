@@ -340,11 +340,22 @@ class ShopView(discord.ui.View):
         self.pet_subpage = 0
         self.pets_per_page = 15
 
+    def _get_discount(self):
+        from utils.economy import get_wallet, get_bank, get_prestige_level
+        from config import PRESTIGE_LEVELS
+        user_id = str(self.ctx.author.id)
+        w = get_wallet(user_id)
+        b = get_bank(user_id)
+        level = get_prestige_level(w + b)
+        return PRESTIGE_LEVELS[level]["discount"] if level > 0 else 0.0
+
     def _build_embed(self, guild):
+        discount = self._get_discount()
+        
         if self.page == "pets":
             embed = discord.Embed(
                 title="🏪 Pet Shop",
-                description="🐾 Buy pets for battles and adventures!",
+                description=f"🐾 Buy pets for battles and adventures!\n✨ Your Prestige Discount: **{discount*100}%**",
                 color=0x3498DB
             )
             
@@ -359,7 +370,8 @@ class ShopView(discord.ui.View):
             pet_fields = []
             current_field = ""
             for name, stats in current_pets:
-                entry = f"{stats['emoji']} **{name.capitalize()}**\n🪙 {stats['price']:,} | ❤️ {stats['hp']} | ⚔️ {stats['damage']}\n\n"
+                price = int(stats['price'] * (1 - discount))
+                entry = f"{stats['emoji']} **{name.capitalize()}**\n🪙 {price:,} | ❤️ {stats['hp']} | ⚔️ {stats['damage']}\n\n"
                 if len(current_field) + len(entry) > 1024:
                     pet_fields.append(current_field)
                     current_field = entry
@@ -371,10 +383,11 @@ class ShopView(discord.ui.View):
             for i, field_content in enumerate(pet_fields):
                 name = "🐾 Pets" if i == 0 else "\u200b"
                 embed.add_field(name=name, value=field_content, inline=False)
+
         elif self.page == "roles":
             embed = discord.Embed(
                 title="💎 Role Shop",
-                description="✨ Buy roles for passive income!",
+                description=f"✨ Buy roles for passive income!\n✨ Your Prestige Discount: **{discount*100}%**",
                 color=0xF1C40F
             )
             
@@ -382,30 +395,64 @@ class ShopView(discord.ui.View):
             for key, data_shop in self.role_shop.items():
                 role = guild.get_role(int(data_shop["role_id"]))
                 role_name = role.name if role else key.capitalize()
-                role_text += f"**{role_name}**\n🪙 {data_shop['price']:,} | 💰 {data_shop['claim']:,}/h\n\n"
+                price = int(data_shop['price'] * (1 - discount))
+                role_text += f"**{role_name}**\n🪙 {price:,} | 💰 {data_shop['claim']:,}/h\n\n"
             
             if role_text:
-                if len(role_text) > 1024:
-                    role_parts = [role_text[i:i+1000] for i in range(0, len(role_text), 1000)]
-                    for i, part in enumerate(role_parts):
-                        embed.add_field(name="💎 Roles" if i == 0 else "\u200b", value=part, inline=False)
-                else:
-                    embed.add_field(name="💎 Roles", value=role_text, inline=False)
+                embed.add_field(name="💎 Roles", value=role_text, inline=False)
+
+        elif self.page == "food":
+            embed = discord.Embed(
+                title="🍖 Food Shop",
+                description=f"😋 Keep your pets healthy and strong!\n✨ Your Prestige Discount: **{discount*100}%**",
+                color=0x2ECC71
+            )
+            from config import FOOD_ITEMS
+            food_text = ""
+            for key, data in FOOD_ITEMS.items():
+                price = int(data['price'] * (1 - discount))
+                food_text += f"{data['emoji']} **{data['name']}**\n🪙 {price:,} | 🍖 +{data['hunger']} Hunger\n\n"
+            
+            embed.add_field(name="🍖 Food Items", value=food_text, inline=False)
+            
         return embed
+
+    @discord.ui.button(label="Pets", style=discord.ButtonStyle.primary, row=0)
+    async def show_pets(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = "pets"
+        self.pet_subpage = 0
+        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+
+    @discord.ui.button(label="Roles", style=discord.ButtonStyle.primary, row=0)
+    async def show_roles(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = "roles"
+        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+
+    @discord.ui.button(label="Food", style=discord.ButtonStyle.primary, row=0)
+    async def show_food(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = "food"
+        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
 
     @discord.ui.button(label="◀️", style=discord.ButtonStyle.gray, row=1)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.pet_subpage > 0:
+        if self.page == "pets" and self.pet_subpage > 0:
             self.pet_subpage -= 1
             await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+        else:
+            await interaction.response.defer()
 
     @discord.ui.button(label="▶️", style=discord.ButtonStyle.gray, row=1)
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pet_items = list(self.pet_shop.items())
-        total_subpages = (len(pet_items) - 1) // self.pets_per_page + 1
-        if self.pet_subpage < total_subpages - 1:
-            self.pet_subpage += 1
-            await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+        if self.page == "pets":
+            pet_items = list(self.pet_shop.items())
+            total_subpages = (len(pet_items) - 1) // self.pets_per_page + 1
+            if self.pet_subpage < total_subpages - 1:
+                self.pet_subpage += 1
+                await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
+            else:
+                await interaction.response.defer()
+        else:
+            await interaction.response.defer()
 
 
 class SellPetSelect(discord.ui.Select):

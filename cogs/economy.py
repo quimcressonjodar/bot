@@ -547,7 +547,7 @@ class EconomyCog(commands.Cog):
         
         embed = discord.Embed(
             title="🏦 Loan Approved",
-            description=f"You borrowed 🪙 **{amount:,}** coins.\n\n⚠️ **Note:** A 2% interest will be applied every 24 hours. 30% of your future earnings will be automatically used to repay this loan.",
+            description=f"You borrowed 🪙 **{parsed_amount:,}** coins.\n\n⚠️ **Note:** A 2% interest will be applied every 24 hours. 30% of your future earnings will be automatically used to repay this loan.",
             color=0xF1C40F
         )
         await ctx.send(embed=embed)

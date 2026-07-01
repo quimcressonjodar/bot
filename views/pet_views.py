@@ -1,13 +1,14 @@
 import asyncio
 import random
 import time
+import uuid
 
 import discord
 
 import state
 from config import PET_SHOP, PET_RARITIES, PET_LOOT_PROBABILITIES, ADVENTURE_LOOT, ADVENTURE_EVENTS, FOOD_ITEMS
 from database import eco_col, pets_col
-from utils.economy import get_user_data
+from utils.economy import get_user_data, get_wallet, update_wallet
 from utils.pets import get_current_hunger, get_pet_state
 
 
@@ -135,6 +136,7 @@ async def start_pet_battle(channel, battle_id: str) -> None:
     eco_col.update_one({"_id": winner_id}, {"$inc": {"wallet": bet_amount}}, upsert=True)
     
     # Check if wallet will go negative
+    from utils.economy import get_user_data as _get
     loser_data_before = _get(loser_id)
     current_wallet = loser_data_before.get("wallet", 0)
     
@@ -148,7 +150,6 @@ async def start_pet_battle(channel, battle_id: str) -> None:
     else:
         eco_col.update_one({"_id": loser_id}, {"$inc": {"wallet": -bet_amount}}, upsert=True)
 
-    from utils.economy import get_user_data as _get
     winner_data = _get(winner_id)
     loser_data = _get(loser_id)
 
@@ -387,55 +388,15 @@ class ShopView(discord.ui.View):
                 if len(role_text) > 1024:
                     role_parts = [role_text[i:i+1000] for i in range(0, len(role_text), 1000)]
                     for i, part in enumerate(role_parts):
-                        embed.add_field(name="💎 Roles" if i == 0 else "💎 Roles (cont.)", value=part, inline=False)
+                        embed.add_field(name="💎 Roles" if i == 0 else "\u200b", value=part, inline=False)
                 else:
                     embed.add_field(name="💎 Roles", value=role_text, inline=False)
-        else: # Food page
-            embed = discord.Embed(
-                title="🍱 Food Shop",
-                description="🍖 Buy food to keep your pets strong!",
-                color=0x2ECC71
-            )
-            
-            food_text = ""
-            for key, data in FOOD_ITEMS.items():
-                food_text += f"{data['emoji']} **{data['name']}**\n🪙 {data['price']:,} | 🍖 +{data['hunger']} Hunger\n\n"
-            
-            embed.add_field(name="🍱 Food Items", value=food_text, inline=False)
-
-        embed.set_footer(text="/shop buy <name>")
         return embed
 
-    def _update_buttons(self):
-        pet_items = list(self.pet_shop.items())
-        total_subpages = (len(pet_items) - 1) // self.pets_per_page + 1
-        
-        self.prev_button.disabled = (self.page != "pets" or self.pet_subpage == 0)
-        self.next_button.disabled = (self.page != "pets" or self.pet_subpage >= total_subpages - 1)
-
-    @discord.ui.button(label="🐾 Pets", style=discord.ButtonStyle.primary, row=0)
-    async def show_pets(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.page = "pets"
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
-
-    @discord.ui.button(label="💎 Roles", style=discord.ButtonStyle.secondary, row=0)
-    async def show_roles(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.page = "roles"
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
-
-    @discord.ui.button(label="🍱 Food", style=discord.ButtonStyle.success, row=0)
-    async def show_food(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.page = "food"
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
-
-    @discord.ui.button(label="◀️", style=discord.ButtonStyle.gray, row=1, disabled=True)
+    @discord.ui.button(label="◀️", style=discord.ButtonStyle.gray, row=1)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.pet_subpage > 0:
             self.pet_subpage -= 1
-            self._update_buttons()
             await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
 
     @discord.ui.button(label="▶️", style=discord.ButtonStyle.gray, row=1)
@@ -444,7 +405,6 @@ class ShopView(discord.ui.View):
         total_subpages = (len(pet_items) - 1) // self.pets_per_page + 1
         if self.pet_subpage < total_subpages - 1:
             self.pet_subpage += 1
-            self._update_buttons()
             await interaction.response.edit_message(embed=self._build_embed(interaction.guild), view=self)
 
 
@@ -595,3 +555,89 @@ class SellPetView(discord.ui.View):
     def __init__(self, ctx, pets):
         super().__init__(timeout=60)
         self.add_item(SellPetSelect(ctx, pets))
+
+
+class BreedSelect(discord.ui.Select):
+    def __init__(self, pets, placeholder, custom_id):
+        options = []
+        for p in pets:
+            pet_type = p["type"]
+            emoji = PET_SHOP.get(pet_type, {}).get("emoji", "🐾")
+            options.append(discord.SelectOption(
+                label=f"{pet_type.capitalize()} (ID: {p['pet_id'][:8]})",
+                emoji=emoji,
+                value=p["pet_id"]
+            ))
+        super().__init__(placeholder=placeholder, options=options, custom_id=custom_id)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+class BreedView(discord.ui.View):
+    def __init__(self, ctx, pets):
+        super().__init__(timeout=60)
+        self.ctx = ctx
+        self.pets = pets
+        self.add_item(BreedSelect(pets, "Select first parent...", "parent1"))
+        self.add_item(BreedSelect(pets, "Select second parent...", "parent2"))
+
+    @discord.ui.button(label="Start Breeding", style=discord.ButtonStyle.heart)
+    async def start_breed(self, interaction: discord.Interaction, button: discord.ui.Button):
+        p1_id = self.children[0].values[0] if self.children[0].values else None
+        p2_id = self.children[1].values[0] if self.children[1].values else None
+
+        if not p1_id or not p2_id:
+            return await interaction.followup.send("❌ Please select both parents.", ephemeral=True)
+        if p1_id == p2_id:
+            return await interaction.followup.send("❌ You cannot breed a pet with itself.", ephemeral=True)
+
+        user_id = str(self.ctx.author.id)
+        p1 = next(p for p in self.pets if p["pet_id"] == p1_id)
+        p2 = next(p for p in self.pets if p["pet_id"] == p2_id)
+
+        from config import PET_SHOP, BREEDING_COST_RATIO, BREEDING_SUCCESS_CHANCE, BREEDING_RISK_CHANCE
+        v1 = PET_SHOP.get(p1["type"], {}).get("price", 0)
+        v2 = PET_SHOP.get(p2["type"], {}).get("price", 0)
+        combined_value = v1 + v2
+        cost = int(combined_value * BREEDING_COST_RATIO)
+
+        wallet = get_wallet(user_id)
+        if wallet < cost:
+            return await interaction.followup.send(f"❌ You need 🪙 {cost:,} to breed these pets.", ephemeral=True)
+
+        update_wallet(user_id, -cost)
+        
+        # Breeding logic: Find a pet in PET_SHOP that is more expensive than combined_value
+        available_pets = sorted(PET_SHOP.items(), key=lambda x: x[1]['price'])
+        possible_evolutions = [name for name, stats in available_pets if stats['price'] > combined_value]
+        
+        success = random.randint(1, 100) <= BREEDING_SUCCESS_CHANCE
+        if success and possible_evolutions:
+            # Get the next one or a random one from the possible ones (weighted towards lower ones)
+            new_type = possible_evolutions[0] 
+            new_pet = {
+                "pet_id": str(uuid.uuid4()),
+                "type": new_type,
+                "hp": PET_SHOP[new_type]["hp"],
+                "damage": PET_SHOP[new_type]["damage"],
+                "hunger": 100,
+                "last_fed": time.time(),
+            }
+            pets_col.update_one({"_id": user_id}, {"$push": {"pets": new_pet}})
+            embed = discord.Embed(
+                title="💖 Evolution Success!", 
+                description=f"Your pets bonded and evolved into a **{new_type.capitalize()}**!", 
+                color=0xFF69B4
+            )
+            embed.add_field(name="New Pet Value", value=f"🪙 {PET_SHOP[new_type]['price']:,}")
+        else:
+            risk = random.randint(1, 100) <= BREEDING_RISK_CHANCE
+            if risk:
+                lost_pet = random.choice([p1, p2])
+                self.pets = [p for p in self.pets if p["pet_id"] != lost_pet["pet_id"]]
+                pets_col.update_one({"_id": user_id}, {"$set": {"pets": self.pets}})
+                embed = discord.Embed(title="💔 Breeding Failed", description=f"The breeding failed and your **{lost_pet['type'].capitalize()}** ran away in the confusion...", color=0xFF0000)
+            else:
+                embed = discord.Embed(title="💨 Breeding Failed", description="The pets didn't bond. You lost the coins but kept your pets.", color=0x95A5A6)
+
+        await interaction.message.edit(embed=embed, view=None)

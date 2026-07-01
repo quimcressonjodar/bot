@@ -5,7 +5,7 @@ def get_user_data(user_id: str) -> dict:
     user = eco_col.find_one({"_id": user_id})
 
     if not user:
-        user = {"_id": user_id, "wallet": 0, "bank": 0}
+        user = {"_id": user_id, "wallet": 0, "bank": 0, "credit_score": 0}
         eco_col.insert_one(user)
 
     if "balance" in user:
@@ -60,6 +60,14 @@ def update_loan(user_id: str, amount: int) -> None:
 def update_interest(user_id: str, amount: int) -> None:
     eco_col.update_one({"_id": user_id}, {"$inc": {"interest_accrued": amount}}, upsert=True)
 
+
+def get_prestige_level(net_worth: int) -> int:
+    from config import PRESTIGE_LEVELS
+    current_level = 0
+    for level, data in PRESTIGE_LEVELS.items():
+        if net_worth >= data["min_net_worth"]:
+            current_level = level
+    return current_level
 
 def apply_amortization(user_id: str, income: int) -> int:
     """

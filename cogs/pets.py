@@ -1,5 +1,7 @@
 import uuid
 import time
+import uuid
+import random
 
 import discord
 from discord import app_commands
@@ -85,10 +87,19 @@ class PetsCog(commands.Cog):
             item_key = pet_name.lower()
             balance = get_wallet(user_id)
 
+            from utils.economy import get_prestige_level, get_bank
+            from config import PRESTIGE_LEVELS
+            wallet_bal = get_wallet(user_id)
+            bank_bal = get_bank(user_id)
+            net_worth = wallet_bal + bank_bal
+            level = get_prestige_level(net_worth)
+            discount = PRESTIGE_LEVELS[level]["discount"] if level > 0 else 0.0
+
             if item_key in FOOD_ITEMS:
                 food_data = FOOD_ITEMS[item_key]
-                if balance < food_data["price"]:
-                    return await self._send_response(target, content=f"❌ You need 🪙 {food_data['price']:,}")
+                price = int(food_data["price"] * (1 - discount))
+                if balance < price:
+                    return await self._send_response(target, content=f"❌ You need 🪙 {price:,}")
                 
                 from database import eco_col
                 item = {
@@ -100,7 +111,7 @@ class PetsCog(commands.Cog):
                     "key": item_key
                 }
                 eco_col.update_one({"_id": user_id}, {"$push": {"inventory": item}}, upsert=True)
-                update_wallet(user_id, -food_data["price"])
+                update_wallet(user_id, -price)
                 embed = discord.Embed(
                     title="🍱 Food Purchased",
                     description=f"You bought {food_data['emoji']} **{food_data['name']}**!",
@@ -110,8 +121,9 @@ class PetsCog(commands.Cog):
 
             if item_key in PET_SHOP:
                 pet_data = PET_SHOP[item_key]
-                if balance < pet_data["price"]:
-                    return await self._send_response(target, content=f"❌ You need 🪙 {pet_data['price']:,}")
+                price = int(pet_data["price"] * (1 - discount))
+                if balance < price:
+                    return await self._send_response(target, content=f"❌ You need 🪙 {price:,}")
                 pet_instance = {
                     "pet_id": str(uuid.uuid4()),
                     "type": item_key,
@@ -121,7 +133,7 @@ class PetsCog(commands.Cog):
                     "last_fed": time.time(),
                 }
                 pets_col.update_one({"_id": user_id}, {"$push": {"pets": pet_instance}}, upsert=True)
-                update_wallet(user_id, -pet_data["price"])
+                update_wallet(user_id, -price)
                 embed = discord.Embed(
                     title="🎉 Pet Purchased",
                     description=f"You bought a {pet_data['emoji']} **{item_key.capitalize()}**!",
@@ -131,20 +143,21 @@ class PetsCog(commands.Cog):
 
             if item_key in ROLE_SHOP:
                 role_data = ROLE_SHOP[item_key]
-                if balance < role_data["price"]:
-                    return await self._send_response(target, content=f"❌ You need 🪙 {role_data['price']:,}")
+                price = int(role_data["price"] * (1 - discount))
+                if balance < price:
+                    return await self._send_response(target, content=f"❌ You need 🪙 {price:,}")
                 role = guild.get_role(int(role_data["role_id"]))
                 if not role:
                     return await self._send_response(target, content=f"❌ Role ID {role_data['role_id']} not found.")
                 if role in author.roles:
                     return await self._send_response(target, content="❌ You already own this role.")
-                update_wallet(user_id, -role_data["price"])
+                update_wallet(user_id, -price)
                 await author.add_roles(role)
                 embed = discord.Embed(
                     title="💎 Role Purchased",
                     description=(
                         f"You bought **{role.name}**\n\n"
-                        f"Cost: 🪙 {role_data['price']:,}\n"
+                        f"Cost: 🪙 {price:,}\n"
                         f"Claim: 🪙 {role_data['claim']:,}/hour"
                     ),
                     color=0xF1C40F,
@@ -258,6 +271,21 @@ class PetsCog(commands.Cog):
         
         embed = discord.Embed(title="💰 Sell Pet", description="Choose a pet to sell back to the shop.", color=0xE67E22)
         await ctx.send(embed=embed, view=SellPetView(ctx, user_pets_data["pets"]))
+
+    @commands.hybrid_command(name="breed", description="Breed two pets to create a stronger one!")
+    async def breed(self, ctx: commands.Context):
+        user_id = str(ctx.author.id)
+        user_pets_data = pets_col.find_one({"_id": user_id})
+        if not user_pets_data or len(user_pets_data.get("pets", [])) < 2:
+            return await ctx.send("❌ You need at least 2 pets to breed.")
+        
+        from views.pet_views import BreedView
+        embed = discord.Embed(
+            title="🐾 Pet Breeding", 
+            description="Select two pets to breed. This will cost 25% of their combined value.", 
+            color=0xFF69B4
+        )
+        await ctx.send(embed=embed, view=BreedView(ctx, user_pets_data["pets"]))
 
 
 async def setup(bot: commands.Bot):

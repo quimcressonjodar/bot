@@ -337,3 +337,19 @@ ADVENTURE_EVENTS = {
         "unlocked the secrets of the infinite multiverse",
     ],
 }
+
+# PRESTIGE SYSTEM (Wealth Milestones)
+PRESTIGE_LEVELS = {
+    1: {"name": "Bronze", "min_net_worth": 100_000, "discount": 0.02},
+    2: {"name": "Silver", "min_net_worth": 500_000, "discount": 0.05},
+    3: {"name": "Gold", "min_net_worth": 2_000_000, "discount": 0.08},
+    4: {"name": "Platinum", "min_net_worth": 10_000_000, "discount": 0.12},
+    5: {"name": "Emerald", "min_net_worth": 50_000_000, "discount": 0.15},
+    6: {"name": "Diamond", "min_net_worth": 200_000_000, "discount": 0.20},
+    7: {"name": "Master", "min_net_worth": 1_000_000_000, "discount": 0.25},
+}
+
+# BREEDING SYSTEM
+BREEDING_COST_RATIO = 0.25  # 25% of parents value
+BREEDING_SUCCESS_CHANCE = 70  # 70% success
+BREEDING_RISK_CHANCE = 5  # 5% chance of losing a pet on failure

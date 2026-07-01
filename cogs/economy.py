@@ -36,8 +36,14 @@ class EconomyCog(commands.Cog):
         total = wallet + bank
         embed = discord.Embed(title=f"💳 {target.display_name}'s Economy", color=0x2B2D31)
         embed.add_field(name="💵 Wallet", value=f"🪙 {wallet:,}", inline=True)
+        from utils.economy import get_prestige_level
+        from config import PRESTIGE_LEVELS
+        level = get_prestige_level(total)
+        p_name = PRESTIGE_LEVELS[level]["name"] if level > 0 else "None"
+
         embed.add_field(name="🏦 Bank", value=f"🪙 {bank:,}", inline=True)
         embed.add_field(name="📈 Total Net Worth", value=f"🪙 {total:,}", inline=False)
+        embed.add_field(name="🏆 Prestige", value=f"**{p_name}**", inline=True)
         embed.set_thumbnail(url=target.display_avatar.url)
         await ctx.send(embed=embed)
 
@@ -575,11 +581,39 @@ class EconomyCog(commands.Cog):
         embed.add_field(name="💵 Principal", value=f"🪙 {loan:,}", inline=True)
         embed.add_field(name="📈 Interest", value=f"🪙 {interest:,}", inline=True)
         embed.add_field(name="💰 Total Owed", value=f"🪙 {total:,}", inline=False)
+        embed.add_field(name="📈 Interest Rate", value="2% daily", inline=True)
         embed.add_field(name="⏳ Next Interest", value=f"<t:{next_calc}:R>", inline=False)
         embed.set_footer(text="30% of your earnings are automatically deducted to pay this debt.")
         
         await ctx.send(embed=embed)
 
+
+    @commands.hybrid_command(name="prestige", description="Check your wealth prestige milestones")
+    async def prestige(self, ctx: commands.Context):
+        user_id = str(ctx.author.id)
+        wallet = get_wallet(user_id)
+        bank = get_bank(user_id)
+        net_worth = wallet + bank
+        
+        from utils.economy import get_prestige_level
+        from config import PRESTIGE_LEVELS
+        
+        current_level = get_prestige_level(net_worth)
+        
+        embed = discord.Embed(title="🏆 Wealth Prestige Milestones", color=0xFFD700)
+        embed.description = f"Your Net Worth: **🪙 {net_worth:,}**\n\n"
+        
+        for level, data in PRESTIGE_LEVELS.items():
+            indicator = "✅" if level <= current_level else "🔒"
+            text = (
+                f"{indicator} **{data['name']}**\n"
+                f"• Required: 🪙 {data['min_net_worth']:,}\n"
+                f"• Shop Discount: {data['discount']*100}%\n"
+            )
+            embed.add_field(name="\u200b", value=text, inline=False)
+            
+        embed.set_footer(text="Reach higher wealth to unlock permanent discounts!")
+        await ctx.send(embed=embed)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(EconomyCog(bot))

@@ -96,7 +96,10 @@ class UtilityCog(commands.Cog):
             "**`/rob`** - Rob another player.\n"
             "**`/blackjack`** - Play blackjack.\n"
             "**`/roulette`** - Play roulette.\n"
-            "**`/claimdrop`** - Claim global drops."
+            "**`/claimdrop`** - Claim global drops.\n"
+            "**`/loan`** - Request a loan.\n"
+            "**`/repay`** - Repay your loan.\n"
+            "**`/debt`** - Check your debt status."
         )
         embed.add_field(name="💰 Economy Commands", value=eco_cmds, inline=False)
 

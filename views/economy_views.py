@@ -46,17 +46,22 @@ class SellSelect(discord.ui.Select):
         user_data = get_user_data(user_id)
         inventory = user_data.get("inventory", [])
 
+        from utils.economy import apply_amortization
         if self.values[0] == "all":
             if not inventory:
                 return await interaction.response.send_message("❌ Your inventory is empty.", ephemeral=True)
                 
             total_value = sum(item["value"] for item in inventory)
+            actual_value = apply_amortization(user_id, total_value)
             eco_col.update_one(
                 {"_id": user_id},
-                {"$inc": {"wallet": total_value}, "$set": {"inventory": []}},
+                {"$inc": {"wallet": actual_value}, "$set": {"inventory": []}},
             )
             embed = discord.Embed(title="💰 All Items Sold", color=0x2ECC71)
-            embed.description = f"Sold **{len(inventory)}** items\n\nTotal Received: 🪙 **{total_value:,}**"
+            desc = f"Sold **{len(inventory)}** items\n\nTotal Earned: 🪙 **{total_value:,}**"
+            if actual_value < total_value:
+                desc += f"\n📉 🪙 {total_value - actual_value:,} used to pay debt."
+            embed.description = desc
             return await interaction.response.edit_message(content=None, embed=embed, view=None)
 
         selected_index = int(self.values[0])
@@ -65,14 +70,20 @@ class SellSelect(discord.ui.Select):
 
         item = inventory[selected_index]
         inventory.pop(selected_index)
+        
+        total_value = item["value"]
+        actual_value = apply_amortization(user_id, total_value)
 
         eco_col.update_one(
             {"_id": user_id},
-            {"$inc": {"wallet": item["value"]}, "$set": {"inventory": inventory}},
+            {"$inc": {"wallet": actual_value}, "$set": {"inventory": inventory}},
         )
 
         embed = discord.Embed(title="💰 Item Sold", color=0x2ECC71)
-        embed.description = f"Sold {item['name']}\n\nReceived: 🪙 **{item['value']:,}**"
+        desc = f"Sold {item['name']}\n\nEarned: 🪙 **{total_value:,}**"
+        if actual_value < total_value:
+            desc += f"\n📉 🪙 {total_value - actual_value:,} used to pay debt."
+        embed.description = desc
         await interaction.response.edit_message(content=None, embed=embed, view=None)
 
 

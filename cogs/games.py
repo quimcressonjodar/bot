@@ -9,7 +9,7 @@ from discord.ext import commands
 
 from config import ROULETTE_RED, VALID_BETS
 from database import eco_col
-from utils.economy import get_user_data, get_wallet, update_wallet, parse_economy_amount
+from utils.economy import get_user_data, get_wallet, update_wallet, parse_economy_amount, apply_amortization
 from views.game_views import BlackjackView, RPSView
 
 
@@ -117,8 +117,16 @@ class GamesCog(commands.Cog):
         if win:
             winnings = bet * multiplier
             profit = winnings - bet
-            update_wallet(user_id, profit)
-            embed.add_field(name="🎉 Outcome", value=f"**WIN!** (x{multiplier} multiplier)\nYou won 🪙 **{winnings:,}**!", inline=False)
+            
+            # Apply amortization to profit
+            actual_profit = apply_amortization(user_id, profit)
+            update_wallet(user_id, actual_profit)
+            
+            outcome_text = f"**WIN!** (x{multiplier} multiplier)\nYou won 🪙 **{winnings:,}**!"
+            if actual_profit < profit:
+                outcome_text += f"\n📉 🪙 {profit - actual_profit:,} coins were automatically used to pay your debt."
+            
+            embed.add_field(name="🎉 Outcome", value=outcome_text, inline=False)
         else:
             update_wallet(user_id, -bet)
             embed.add_field(name="💀 Outcome", value=f"**LOSS!**\nYou lost 🪙 **{bet:,}**.", inline=False)
@@ -154,9 +162,13 @@ class GamesCog(commands.Cog):
                 result_text = "Both have Blackjack! It's a draw!"
                 win_amount = 0
             else:
-                result_text = "Blackjack! You win!"
                 win_amount = int(bet * 1.5)
-                update_wallet(user_id, win_amount)
+                actual_win = apply_amortization(user_id, win_amount)
+                update_wallet(user_id, actual_win)
+                
+                result_text = "Blackjack! You win!"
+                if actual_win < win_amount:
+                    result_text += f"\n📉 🪙 {win_amount - actual_win:,} coins used to pay debt."
                 
             embed = view.create_embed(result_text)
             if isinstance(msg, discord.Interaction):
@@ -218,9 +230,13 @@ class GamesCog(commands.Cog):
                     multiplier = 2
                     bonus_text = " **(DOUBLE! x2 MULTIPLIER)**"
             
-            winnings = bet * multiplier
+            base_winnings = bet * multiplier
+            winnings = apply_amortization(user_id, base_winnings)
             eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": winnings}, "$set": {"last_dice": now}}, upsert=True)
-            result = f"you **won** **{winnings:,}** 🪙{bonus_text}"
+            
+            result = f"you **won** **{base_winnings:,}** 🪙{bonus_text}"
+            if winnings < base_winnings:
+                result += f"\n📉 🪙 {base_winnings - winnings:,} coins used to pay debt."
         elif p_total < h_total:
             eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": -bet}, "$set": {"last_dice": now}}, upsert=True)
             result = f"you **lost** **{bet:,}** 🪙"

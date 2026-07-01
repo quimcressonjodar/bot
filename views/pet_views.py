@@ -130,8 +130,23 @@ async def start_pet_battle(channel, battle_id: str) -> None:
         winner_id, loser_id = opp_id, user_id
         winner_pet, loser_pet = opp_pet, user_pet
 
+    from utils.economy import update_loan, update_interest
+    
     eco_col.update_one({"_id": winner_id}, {"$inc": {"wallet": bet_amount}}, upsert=True)
-    eco_col.update_one({"_id": loser_id}, {"$inc": {"wallet": -bet_amount}}, upsert=True)
+    
+    # Check if wallet will go negative
+    loser_data_before = _get(loser_id)
+    current_wallet = loser_data_before.get("wallet", 0)
+    
+    if current_wallet < bet_amount:
+        debt_incurred = bet_amount - current_wallet
+        eco_col.update_one({"_id": loser_id}, {"$set": {"wallet": 0}}, upsert=True)
+        update_loan(loser_id, debt_incurred)
+        # Set last interest calc if not set
+        if "last_interest_calc" not in loser_data_before:
+            eco_col.update_one({"_id": loser_id}, {"$set": {"last_interest_calc": time.time()}})
+    else:
+        eco_col.update_one({"_id": loser_id}, {"$inc": {"wallet": -bet_amount}}, upsert=True)
 
     from utils.economy import get_user_data as _get
     winner_data = _get(winner_id)
@@ -160,8 +175,9 @@ async def start_pet_battle(channel, battle_id: str) -> None:
         ),
         inline=False,
     )
-    if loser_data["wallet"] < 0:
-        embed.set_footer(text="📉 Bankrupt! The loser is now in crippling debt.")
+    from utils.economy import get_debt
+    if get_debt(loser_id) > 0:
+        embed.set_footer(text="📉 Bankrupt! The loser is now in debt and must pay it back with interest.")
 
     await asyncio.sleep(1)
     await battle_msg.edit(content="🛑 **The battle is over!**", embed=embed)

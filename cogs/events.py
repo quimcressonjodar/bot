@@ -22,9 +22,11 @@ class EventsCog(commands.Cog):
         self.bot = bot
         logger.info(f"EVENTS COG LOADED {id(self)}")
         self.spawn_global_drop.start()
+        self.process_interests.start()
 
     def cog_unload(self):
         self.spawn_global_drop.cancel()
+        self.process_interests.cancel()
 
     def _should_process_member_event(self, event_name: str, member_id: int, cooldown: float = 5.0) -> bool:
         key = (event_name, member_id)
@@ -134,6 +136,46 @@ class EventsCog(commands.Cog):
     async def before_spawn_global_drop(self):
         await self.bot.wait_until_ready()
         await asyncio.sleep(60) # Wait 1 minute after startup before first drop
+
+    @tasks.loop(hours=1)
+    async def process_interests(self):
+        """
+        Procesa los intereses de los préstamos cada hora.
+        Aplica un 2% de interés diario prorrateado por el tiempo transcurrido.
+        """
+        now = time.time()
+        # Buscamos usuarios con préstamos activos (principal > 0)
+        users_with_loans = eco_col.find({"loan_amount": {"$gt": 0}})
+        
+        for user_data in users_with_loans:
+            user_id = user_data["_id"]
+            last_calc = user_data.get("last_interest_calc", now)
+            
+            time_diff = now - last_calc
+            # Si ha pasado al menos una hora (para evitar cálculos excesivos)
+            if time_diff >= 3600:
+                loan_amount = user_data.get("loan_amount", 0)
+                # Tasa diaria del 2% (0.02). Calculamos la proporción del tiempo transcurrido.
+                # interés = principal * tasa_diaria * (segundos_transcurridos / segundos_en_un_día)
+                interest = int(loan_amount * 0.02 * (time_diff / 86400))
+                
+                if interest > 0:
+                    eco_col.update_one(
+                        {"_id": user_id},
+                        {
+                            "$inc": {"interest_accrued": interest},
+                            "$set": {"last_interest_calc": now}
+                        }
+                    )
+                    logger.info(f"Applied {interest} interest to user {user_id} for {time_diff/3600:.2f} hours")
+                elif time_diff >= 86400:
+                    # Si ha pasado un día pero el interés es 0 (préstamo muy pequeño),
+                    # actualizamos el timestamp para evitar bucles infinitos
+                    eco_col.update_one({"_id": user_id}, {"$set": {"last_interest_calc": now}})
+
+    @process_interests.before_loop
+    async def before_process_interests(self):
+        await self.bot.wait_until_ready()
 
 
     @commands.Cog.listener()

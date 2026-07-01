@@ -16,6 +16,10 @@ from utils.economy import (
     update_wallet,
     update_bank,
     parse_economy_amount,
+    get_debt,
+    update_loan,
+    update_interest,
+    apply_amortization,
 )
 from views.economy_views import SellView
 
@@ -99,13 +103,18 @@ class EconomyCog(commands.Cog):
                 ephemeral=True,
             )
 
-        amount = 1000
+        base_amount = 1000
+        amount = apply_amortization(user_id, base_amount)
         eco_col.update_one(
             {"_id": user_id},
             {"$inc": {"wallet": amount}, "$set": {"last_daily": today_str}},
             upsert=True,
         )
-        await ctx.send(f"📆 You claimed your daily reward of 🪙 {amount:,} coins!")
+        
+        msg = f"📆 You claimed your daily reward of 🪙 {base_amount:,} coins!"
+        if amount < base_amount:
+            msg += f"\n📉 🪙 {base_amount - amount:,} coins were automatically used to pay your debt."
+        await ctx.send(msg)
 
     @commands.hybrid_command(name="weekly", description="Claim your massive weekly reward")
     async def weekly(self, ctx: commands.Context):
@@ -134,13 +143,17 @@ class EconomyCog(commands.Cog):
                 ephemeral=True,
             )
 
-        amount = 25000
+        base_amount = 25000
+        amount = apply_amortization(user_id, base_amount)
         eco_col.update_one(
             {"_id": user_id},
             {"$inc": {"wallet": amount}, "$set": {"last_weekly": week_str}},
             upsert=True,
         )
-        await ctx.send(f"✨ You claimed your weekly reward of 🪙 {amount:,} coins!")
+        msg = f"✨ You claimed your weekly reward of 🪙 {base_amount:,} coins!"
+        if amount < base_amount:
+            msg += f"\n📉 🪙 {base_amount - amount:,} coins used to pay debt."
+        await ctx.send(msg)
 
     @commands.hybrid_command(name="claim", description="Claim rewards from your roles")
     async def claim(self, ctx: commands.Context):
@@ -177,18 +190,25 @@ class EconomyCog(commands.Cog):
         if total == 0:
             return await ctx.send("❌ You don't own any claim roles.")
 
+        actual_total = apply_amortization(user_id, total)
         eco_col.update_one(
             {"_id": user_id},
-            {"$inc": {"wallet": total}, "$set": {"last_claim": now.isoformat()}},
+            {"$inc": {"wallet": actual_total}, "$set": {"last_claim": now.isoformat()}},
             upsert=True,
         )
         next_claim_ts = int(now.timestamp() + 3600)
+        
+        desc = "\n".join(breakdown)
+        if actual_total < total:
+            desc += f"\n\n📉 🪙 {total - actual_total:,} coins used to pay debt."
+        desc += f"\n\nCome back <t:{next_claim_ts}:R> for more rewards."
+        
         embed = discord.Embed(
             title="💰 Claim Rewards", 
-            description="\n".join(breakdown) + f"\n\nCome back <t:{next_claim_ts}:R> for more rewards.", 
+            description=desc, 
             color=0x00FF99
         )
-        embed.add_field(name="Total Claimed", value=f"🪙 {total:,}", inline=False)
+        embed.add_field(name="Total Received", value=f"🪙 {actual_total:,}", inline=False)
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="pay", description="Send coins to another member")
@@ -247,7 +267,9 @@ class EconomyCog(commands.Cog):
             next_work_ts = int(last_work + cooldown)
             return await ctx.send(f"⏳ You are too tired! Come back to work <t:{next_work_ts}:R>.", ephemeral=True)
 
-        earnings = random.randint(250, 800)
+        base_earnings = random.randint(250, 800)
+        earnings = apply_amortization(user_id, base_earnings)
+        
         jobs = [
             "developed a futuristic Discord bot for a billionaire", "won a late-night poker tournament",
             "repaired a military drone for a secret agency", "hacked into an abandoned crypto vault",
@@ -267,9 +289,15 @@ class EconomyCog(commands.Cog):
         reason = random.choice(jobs)
         next_work_ts = int(now + cooldown)
         eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": earnings}, "$set": {"last_work": now}}, upsert=True)
+        
+        desc = f"You {reason} and earned 🪙 **{earnings:,}** coins."
+        if earnings < base_earnings:
+            desc += f"\n📉 🪙 {base_earnings - earnings:,} coins were automatically used to pay your debt."
+        desc += f"\n\nCome back <t:{next_work_ts}:R> for another shift."
+        
         embed = discord.Embed(
             title="💼 Work Complete",
-            description=f"You {reason} and earned 🪙 **{earnings:,}** coins.\n\nCome back <t:{next_work_ts}:R> for another shift.",
+            description=desc,
             color=0x00FF99,
         )
         await ctx.send(embed=embed)
@@ -293,14 +321,20 @@ class EconomyCog(commands.Cog):
 
         success = random.choice([True, False])
         if success:
-            earnings = random.randint(2000, 6500)
+            base_earnings = random.randint(2000, 6500)
+            earnings = apply_amortization(user_id, base_earnings)
             eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": earnings}, "$set": {"last_crime": now}}, upsert=True)
             msg = random.choice([
                 "robbed an underground casino", "hacked a billionaire's bank account",
                 "stole a cybernetic sports car", "smuggled rare alien artifacts",
                 "sold counterfeit Kirka skins on the black market",
             ])
-            embed = discord.Embed(title="🦹 Crime Successful", description=f"You {msg} and got away with 🪙 **{earnings:,}** coins!", color=0x2ECC71)
+            
+            desc = f"You {msg} and got away with 🪙 **{base_earnings:,}** coins!"
+            if earnings < base_earnings:
+                desc += f"\n📉 🪙 {base_earnings - earnings:,} coins used to pay debt."
+                
+            embed = discord.Embed(title="🦹 Crime Successful", description=desc, color=0x2ECC71)
         else:
             fine = random.randint(1000, min(3500, wallet))
             eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": -fine}, "$set": {"last_crime": now}}, upsert=True)
@@ -331,9 +365,10 @@ class EconomyCog(commands.Cog):
 
         success = random.choice([True, False])
         if success:
-            stolen = random.randint(150, int(target_data.get("wallet", 0) * 0.30))
+            base_stolen = random.randint(150, int(target_data.get("wallet", 0) * 0.30))
+            stolen = apply_amortization(thief_id, base_stolen)
             eco_col.update_one({"_id": thief_id}, {"$inc": {"wallet": stolen}, "$set": {"last_rob": now}}, upsert=True)
-            eco_col.update_one({"_id": target_id}, {"$inc": {"wallet": -stolen}}, upsert=True)
+            eco_col.update_one({"_id": target_id}, {"$inc": {"wallet": -base_stolen}}, upsert=True)
             msg = random.choice([
                 "jumped through a window like a movie thief", "pickpocketed them during a crowded concert",
                 "used fake security credentials to access their vault", "escaped through the rooftops after the robbery",
@@ -342,7 +377,12 @@ class EconomyCog(commands.Cog):
                 "used a teleporter to snatch their wallet", "distracted them with a hologram and grabbed the cash",
                 "disguised yourself as a pizza delivery driver and looted the place",
             ])
-            embed = discord.Embed(title="🥷 Successful Robbery", description=f"You {msg}.\n\nYou stole 🪙 **{stolen:,}** from {member.mention}.", color=0x00FF00)
+            
+            desc = f"You {msg}.\n\nYou stole 🪙 **{base_stolen:,}** from {member.mention}."
+            if stolen < base_stolen:
+                desc += f"\n📉 🪙 {base_stolen - stolen:,} coins used to pay debt."
+                
+            embed = discord.Embed(title="🥷 Successful Robbery", description=desc, color=0x00FF00)
         else:
             fine = random.randint(150, 500)
             eco_col.update_one({"_id": thief_id}, {"$inc": {"wallet": -fine}, "$set": {"last_rob": now}}, upsert=True)
@@ -402,9 +442,14 @@ class EconomyCog(commands.Cog):
             return await ctx.send("❌ No active global drop.")
         user_id = str(ctx.author.id)
         if state.active_global_drop["type"] == "coins":
-            reward = state.active_global_drop["reward"]
+            base_reward = state.active_global_drop["reward"]
+            reward = apply_amortization(user_id, base_reward)
             eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": reward}}, upsert=True)
-            await ctx.send(f"🌠 {ctx.author.mention} claimed the drop and received 🪙 {reward:,}!")
+            
+            msg = f"🌠 {ctx.author.mention} claimed the drop and received 🪙 {reward:,}!"
+            if reward < base_reward:
+                msg += f"\n📉 🪙 {base_reward - reward:,} coins were automatically used to pay your debt."
+            await ctx.send(msg)
         else:
             item = state.active_global_drop["item"]
             eco_col.update_one({"_id": user_id}, {"$push": {"inventory": item}}, upsert=True)
@@ -412,6 +457,128 @@ class EconomyCog(commands.Cog):
                 f"🌠 {ctx.author.mention} claimed:\n\n{item['name']} • {item['rarity'].capitalize()}!"
             )
         state.active_global_drop = None
+
+    @commands.hybrid_command(name="loan", description="Request a loan from the clan bank")
+    @app_commands.describe(amount="Amount to borrow (max 20% of net worth)")
+    async def loan(self, ctx: commands.Context, amount: int):
+        user_id = str(ctx.author.id)
+        
+        # Validación de entrada
+        if amount <= 0:
+            return await ctx.send("❌ Please specify a positive amount.", ephemeral=True)
+        if amount > 1000000000000: # Límite técnico para evitar desbordamientos
+            return await ctx.send("❌ That amount is too high even for our bank!", ephemeral=True)
+
+        current_debt = get_debt(user_id)
+        if current_debt > 0:
+            return await ctx.send(f"❌ You already have an active debt of 🪙 {current_debt:,}. Pay it back first!", ephemeral=True)
+            
+        user_data = get_user_data(user_id)
+        wallet = user_data.get("wallet", 0)
+        bank = user_data.get("bank", 0)
+        net_worth = max(0, wallet + bank)
+        
+        # Limit loan to 20% of net worth or 50,000, whichever is higher (for new players)
+        limit = max(50000, int(net_worth * 0.2))
+        
+        if amount > limit:
+            return await ctx.send(f"❌ Your credit limit is 🪙 {limit:,} based on your net worth.", ephemeral=True)
+            
+        # Operación atómica para evitar duplicación
+        now = time.time()
+        result = eco_col.update_one(
+            {"_id": user_id, "$or": [{"loan_amount": {"$exists": False}}, {"loan_amount": 0}]},
+            {
+                "$inc": {"loan_amount": amount, "wallet": amount},
+                "$set": {"last_interest_calc": now, "loan_start_time": now}
+            }
+        )
+        
+        if result.modified_count == 0:
+            return await ctx.send("❌ Could not process loan. You might already have one or an error occurred.", ephemeral=True)
+        
+        embed = discord.Embed(
+            title="🏦 Loan Approved",
+            description=f"You borrowed 🪙 **{amount:,}** coins.\n\n⚠️ **Note:** A 2% interest will be applied every 24 hours. 30% of your future earnings will be automatically used to repay this loan.",
+            color=0xF1C40F
+        )
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(name="repay", description="Repay your active loan")
+    @app_commands.describe(amount="Amount to repay ('all', 'half', or number)")
+    async def repay(self, ctx: commands.Context, amount: str):
+        user_id = str(ctx.author.id)
+        debt = get_debt(user_id)
+        
+        if debt <= 0:
+            return await ctx.send("✅ You don't have any active loans to repay.", ephemeral=True)
+            
+        wallet = get_wallet(user_id)
+        parsed_amount = parse_economy_amount(amount, min(wallet, debt))
+        
+        if parsed_amount <= 0:
+            return await ctx.send("❌ Invalid amount. Please specify a positive number, 'all', or 'half'.", ephemeral=True)
+            
+        if wallet < parsed_amount:
+            return await ctx.send(f"❌ You don't have enough coins in your wallet. You need 🪙 {parsed_amount:,}.", ephemeral=True)
+            
+        user_data = get_user_data(user_id)
+        interest = user_data.get("interest_accrued", 0)
+        
+        # Pay interest first, then principal, all in one atomic update
+        if parsed_amount <= interest:
+            eco_col.update_one(
+                {"_id": user_id},
+                {
+                    "$inc": {
+                        "interest_accrued": -parsed_amount,
+                        "wallet": -parsed_amount
+                    }
+                }
+            )
+        else:
+            remaining = parsed_amount - interest
+            eco_col.update_one(
+                {"_id": user_id},
+                {
+                    "$inc": {
+                        "interest_accrued": -interest,
+                        "loan_amount": -remaining,
+                        "wallet": -parsed_amount
+                    }
+                }
+            )
+        
+        new_debt = get_debt(user_id)
+        embed = discord.Embed(
+            title="🏦 Loan Repayment",
+            description=f"You repaid 🪙 **{parsed_amount:,}** coins.\n\n**Remaining Debt:** 🪙 {new_debt:,}",
+            color=0x2ECC71
+        )
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(name="debt", description="Check your current debt status")
+    async def debt(self, ctx: commands.Context):
+        user_id = str(ctx.author.id)
+        user_data = get_user_data(user_id)
+        loan = user_data.get("loan_amount", 0)
+        interest = user_data.get("interest_accrued", 0)
+        total = loan + interest
+        
+        if total <= 0:
+            return await ctx.send("✅ You are debt-free! Congratulations.")
+            
+        last_calc = user_data.get("last_interest_calc", 0)
+        next_calc = int(last_calc + 86400)
+        
+        embed = discord.Embed(title="📉 Debt Status", color=0xE74C3C)
+        embed.add_field(name="💵 Principal", value=f"🪙 {loan:,}", inline=True)
+        embed.add_field(name="📈 Interest", value=f"🪙 {interest:,}", inline=True)
+        embed.add_field(name="💰 Total Owed", value=f"🪙 {total:,}", inline=False)
+        embed.add_field(name="⏳ Next Interest", value=f"<t:{next_calc}:R>", inline=False)
+        embed.set_footer(text="30% of your earnings are automatically deducted to pay this debt.")
+        
+        await ctx.send(embed=embed)
 
 
 async def setup(bot: commands.Bot):

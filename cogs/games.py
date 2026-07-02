@@ -170,6 +170,10 @@ class GamesCog(commands.Cog):
                 actual_win = apply_amortization(user_id, win_amount)
                 update_wallet(user_id, actual_win)
                 
+                # Bounty Tracking
+                from utils.bounties import track_bounty_progress
+                await track_bounty_progress(self.bot, user_id, "GAMBLER", win_amount)
+                
                 result_text = "Blackjack! You win!"
                 if actual_win < win_amount:
                     result_text += f"\n📉 🪙 {win_amount - actual_win:,} coins used to pay debt."

@@ -93,8 +93,24 @@ class BlackjackView(discord.ui.View):
         self.finished = True
         self.hit_button.disabled = True
         self.stand_button.disabled = True
-        if win_amount != 0:
-            update_wallet(str(self.ctx.author.id), win_amount)
+        user_id = str(self.ctx.author.id)
+        
+        if win_amount > 0:
+            from utils.economy import apply_amortization
+            actual_win = apply_amortization(user_id, win_amount)
+            update_wallet(user_id, actual_win)
+            
+            # Bounty Tracking
+            from utils.bounties import track_bounty_progress
+            # For GAMBLER bounty, we track the profit (win_amount - bet is not correct here as win_amount is already the profit/payout)
+            # In Blackjack, win_amount is the profit (bet*1 or bet*1.5)
+            await track_bounty_progress(self.ctx.bot, user_id, "GAMBLER", win_amount)
+            
+            if actual_win < win_amount:
+                result_text += f"\n📉 🪙 {win_amount - actual_win:,} used to pay debt."
+        elif win_amount < 0:
+            update_wallet(user_id, win_amount)
+            
         embed = self.create_embed(result_text)
         await interaction.response.edit_message(embed=embed, view=self)
 

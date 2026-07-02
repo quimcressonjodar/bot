@@ -542,7 +542,7 @@ class EconomyCog(commands.Cog):
         # Operación atómica para evitar duplicación
         now = time.time()
         result = eco_col.update_one(
-            {"_id": user_id, "$or": [{"loan_amount": {"$exists": False}}, {"loan_amount": 0}]},
+            {"_id": user_id, "$or": [{"loan_amount": {"$exists": False}}, {"loan_amount": {"$lte": 0}}]},
             {
                 "$inc": {"loan_amount": parsed_amount, "wallet": parsed_amount},
                 "$set": {"last_interest_calc": now, "loan_start_time": now}

@@ -160,6 +160,11 @@ class EconomyCog(commands.Cog):
             {"$inc": {"wallet": amount}, "$set": {"last_weekly": week_str}},
             upsert=True,
         )
+        
+        # Bounty Tracking
+        from utils.bounties import track_bounty_progress
+        await track_bounty_progress(self.bot, user_id, "DAILY_CLAIMER", 1)
+        
         msg = f"✨ You claimed your weekly reward of 🪙 {base_amount:,} coins!"
         if amount < base_amount:
             msg += f"\n📉 🪙 {base_amount - amount:,} coins used to pay debt."
@@ -348,6 +353,10 @@ class EconomyCog(commands.Cog):
             if earnings < base_earnings:
                 desc += f"\n📉 🪙 {base_earnings - earnings:,} coins used to pay debt."
                 
+            # Bounty Tracking
+            from utils.bounties import track_bounty_progress
+            await track_bounty_progress(self.bot, user_id, "GAMBLER", base_earnings)
+                
             embed = discord.Embed(title="🦹 Crime Successful", description=desc, color=0x2ECC71)
         else:
             fine = random.randint(1000, min(3500, wallet))
@@ -395,6 +404,11 @@ class EconomyCog(commands.Cog):
             desc = f"You {msg}.\n\nYou stole 🪙 **{base_stolen:,}** from {member.mention}."
             if stolen < base_stolen:
                 desc += f"\n📉 🪙 {base_stolen - stolen:,} coins used to pay debt."
+                
+            # Bounty Tracking
+            from utils.bounties import track_bounty_progress
+            await track_bounty_progress(self.bot, thief_id, "ROBBER", 1)
+            await track_bounty_progress(self.bot, thief_id, "GAMBLER", base_stolen)
                 
             embed = discord.Embed(title="🥷 Successful Robbery", description=desc, color=0x00FF00)
         else:
@@ -591,6 +605,11 @@ class EconomyCog(commands.Cog):
             )
         
         new_debt = get_debt(user_id)
+        
+        # Bounty Tracking
+        from utils.bounties import track_bounty_progress
+        await track_bounty_progress(self.bot, user_id, "LOAN_PAYER", parsed_amount)
+        
         embed = discord.Embed(
             title="🏦 Loan Repayment",
             description=f"You repaid 🪙 **{parsed_amount:,}** coins.\n\n**Remaining Debt:** 🪙 {new_debt:,}",

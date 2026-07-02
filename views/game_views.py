@@ -105,6 +105,7 @@ class BlackjackView(discord.ui.View):
             # For GAMBLER bounty, we track the profit (win_amount - bet is not correct here as win_amount is already the profit/payout)
             # In Blackjack, win_amount is the profit (bet*1 or bet*1.5)
             await track_bounty_progress(self.ctx.bot, user_id, "GAMBLER", win_amount)
+            await track_bounty_progress(self.ctx.bot, user_id, "STREAK_GAMBLER", 1)
             
             if actual_win < win_amount:
                 result_text += f"\n📉 🪙 {win_amount - actual_win:,} used to pay debt."

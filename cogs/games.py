@@ -125,6 +125,7 @@ class GamesCog(commands.Cog):
             # Bounty Tracking
             from utils.bounties import track_bounty_progress
             await track_bounty_progress(self.bot, user_id, "GAMBLER", profit)
+            await track_bounty_progress(self.bot, user_id, "STREAK_GAMBLER", 1)
             
             outcome_text = f"**WIN!** (x{multiplier} multiplier)\nYou won 🪙 **{winnings:,}**!"
             if actual_profit < profit:
@@ -173,6 +174,7 @@ class GamesCog(commands.Cog):
                 # Bounty Tracking
                 from utils.bounties import track_bounty_progress
                 await track_bounty_progress(self.bot, user_id, "GAMBLER", win_amount)
+                await track_bounty_progress(self.bot, user_id, "STREAK_GAMBLER", 1)
                 
                 result_text = "Blackjack! You win!"
                 if actual_win < win_amount:
@@ -246,6 +248,7 @@ class GamesCog(commands.Cog):
             # Bounty Tracking
             from utils.bounties import track_bounty_progress
             await track_bounty_progress(self.bot, user_id, "GAMBLER", profit)
+            await track_bounty_progress(self.bot, user_id, "STREAK_GAMBLER", 1)
             
             result = f"you **won** **{base_winnings:,}** 🪙{bonus_text}"
             if winnings < base_winnings:

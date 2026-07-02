@@ -137,31 +137,66 @@ class Stocks(commands.Cog):
                 break
 
     @commands.hybrid_command(name="sbuy", description="Buy stocks from the market")
-    @app_commands.describe(symbol="Stock symbol (e.g. VRTX)", quantity="Amount of shares to buy")
-    async def sbuy(self, ctx: commands.Context, symbol: str, quantity: int):
+    @app_commands.describe(symbol="Stock symbol (e.g. VRTX)", quantity="Amount to buy ('all', 'max', or number)")
+    async def sbuy(self, ctx: commands.Context, symbol: str, quantity: str):
         symbol = symbol.upper()
         if symbol not in STOCKS:
             return await ctx.send(f"❌ Stock symbol **{symbol}** not found.", ephemeral=True)
-        if quantity <= 0:
+        
+        user_id = str(ctx.author.id)
+        wallet = get_wallet(user_id)
+        price = get_current_price(symbol)
+        
+        # Calculate max possible shares
+        from utils.economy import get_prestige_level
+        from config import STOCK_FEE
+        level = get_prestige_level(wallet + get_bank(user_id))
+        fee_multiplier = 1.0 + (STOCK_FEE * (1 - (level / 7.0)))
+        cost_per_share = price * fee_multiplier
+        
+        if quantity.lower() in ["all", "max"]:
+            if cost_per_share > wallet:
+                return await ctx.send(f"❌ You can't afford any shares of {symbol}. You need at least 🪙 {int(cost_per_share):,}.", ephemeral=True)
+            parsed_quantity = int(wallet // cost_per_share)
+        else:
+            try:
+                parsed_quantity = int(quantity.replace(",", ""))
+            except ValueError:
+                return await ctx.send("❌ Invalid quantity. Use a number or 'all'.", ephemeral=True)
+
+        if parsed_quantity <= 0:
             return await ctx.send("❌ Quantity must be positive.", ephemeral=True)
         
-        # Call the view's internal logic or a utility
-        # For simplicity, we can use the same logic as the button
         view = StockView(ctx, symbol)
-        # Mock interaction-like behavior or just call logic
-        await view.process_trade_direct(ctx, quantity, "buy")
+        await view.process_trade_direct(ctx, parsed_quantity, "buy")
 
     @commands.hybrid_command(name="ssell", description="Sell stocks to the market")
-    @app_commands.describe(symbol="Stock symbol (e.g. VRTX)", quantity="Amount of shares to sell")
-    async def ssell(self, ctx: commands.Context, symbol: str, quantity: int):
+    @app_commands.describe(symbol="Stock symbol (e.g. VRTX)", quantity="Amount to sell ('all', 'max', or number)")
+    async def ssell(self, ctx: commands.Context, symbol: str, quantity: str):
         symbol = symbol.upper()
         if symbol not in STOCKS:
             return await ctx.send(f"❌ Stock symbol **{symbol}** not found.", ephemeral=True)
-        if quantity <= 0:
+        
+        user_id = str(ctx.author.id)
+        portfolio = get_user_portfolio(user_id)
+        user_shares = portfolio.get(symbol, {}).get("quantity", 0)
+        
+        if quantity.lower() in ["all", "max"]:
+            parsed_quantity = user_shares
+        else:
+            try:
+                parsed_quantity = int(quantity.replace(",", ""))
+            except ValueError:
+                return await ctx.send("❌ Invalid quantity. Use a number or 'all'.", ephemeral=True)
+
+        if parsed_quantity <= 0:
             return await ctx.send("❌ Quantity must be positive.", ephemeral=True)
         
+        if parsed_quantity > user_shares:
+            return await ctx.send(f"❌ You only have {user_shares} shares of {symbol}.", ephemeral=True)
+            
         view = StockView(ctx, symbol)
-        await view.process_trade_direct(ctx, quantity, "sell")
+        await view.process_trade_direct(ctx, parsed_quantity, "sell")
 
     @commands.hybrid_command(name="stocks", description="View the stock market")
     async def stocks(self, ctx: commands.Context, symbol: str = None):

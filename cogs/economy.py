@@ -474,18 +474,21 @@ class EconomyCog(commands.Cog):
         bank = user_data.get("bank", 0)
         net_worth = max(0, wallet + bank)
         
-        # Limit loan based on Prestige or Net Worth
-        from config import PRESTIGE_LEVELS
         from utils.economy import get_prestige_level
         level = get_prestige_level(net_worth)
         
-        # Default ratio is 20%, but increases with prestige
-        ratio = 0.2
-        if level > 0:
-            # Bronze: 20%, Silver: 30%, Gold: 50%, Platinum+: 100%
-            ratios = {1: 0.2, 2: 0.3, 3: 0.5, 4: 1.0, 5: 1.0, 6: 1.0, 7: 1.0}
-            ratio = ratios.get(level, 0.2)
-            
+        # Credit limit based on prestige and net worth (ULTRA AGGRESSIVE)
+        ratios = {
+            0: 1.0,   # None: 100%
+            1: 1.0,   # Bronze: 100%
+            2: 2.0,   # Silver: 200%
+            3: 5.0,   # Gold: 500%
+            4: 10.0,  # Platinum: 1,000%
+            5: 20.0,  # Emerald: 2,000%
+            6: 50.0,  # Diamond: 5,000%
+            7: 100.0  # Master: 10,000%
+        }
+        ratio = ratios.get(level, 1.0)
         limit = int(net_worth * ratio)
 
         # Parse amount
@@ -493,7 +496,7 @@ class EconomyCog(commands.Cog):
             parsed_amount = limit
         else:
             try:
-                parsed_amount = int(amount)
+                parsed_amount = int(amount.replace(",", ""))
             except ValueError:
                 return await ctx.send("❌ Invalid amount. Please use a number or 'max'.", ephemeral=True)
 
@@ -503,32 +506,13 @@ class EconomyCog(commands.Cog):
                 return await ctx.send("❌ Your credit limit is 0 because you have no net worth.", ephemeral=True)
             return await ctx.send("❌ Please specify a positive amount.", ephemeral=True)
             
-        if parsed_amount > 1000000000000: # Límite técnico para evitar desbordamientos
+        if parsed_amount > 1000000000000: # Technical limit
             return await ctx.send("❌ That amount is too high even for our bank!", ephemeral=True)
 
         current_debt = get_debt(user_id)
         if current_debt > 0:
             return await ctx.send(f"❌ You already have an active debt of 🪙 {current_debt:,}. Pay it back first!", ephemeral=True)
             
-        user_data = get_user_data(user_id)
-        wallet = user_data.get("wallet", 0)
-        bank = user_data.get("bank", 0)
-        net_worth = max(0, wallet + bank)
-        
-        # Limit loan based on Prestige or Net Worth
-        from config import PRESTIGE_LEVELS
-        from utils.economy import get_prestige_level
-        level = get_prestige_level(net_worth)
-        
-        # Default ratio is 20%, but increases with prestige
-        ratio = 0.2
-        if level > 0:
-            # Bronze: 20%, Silver: 30%, Gold: 50%, Platinum+: 100%
-            ratios = {1: 0.2, 2: 0.3, 3: 0.5, 4: 1.0, 5: 1.0, 6: 1.0, 7: 1.0}
-            ratio = ratios.get(level, 0.2)
-            
-        limit = int(net_worth * ratio)
-        
         if parsed_amount > limit:
             return await ctx.send(f"❌ Your credit limit is 🪙 {limit:,} based on your net worth and prestige.", ephemeral=True)
             

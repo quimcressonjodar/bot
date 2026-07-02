@@ -199,16 +199,18 @@ class AdventurePetSelect(discord.ui.Select):
         self.pets = pets
 
         options = []
-        for pet in pets:
+        for index, pet in enumerate(pets):
             pet_type = pet["type"]
             emoji = PET_SHOP[pet_type]["emoji"]
             rarity = PET_RARITIES.get(pet_type, "basic").capitalize()
+            # Use the index as value to avoid duplicates when the user has
+            # multiple pets of the same type (Discord rejects repeated values).
             options.append(
                 discord.SelectOption(
-                    label=pet_type.capitalize(),
+                    label=f"{pet_type.capitalize()} (#{index + 1})",
                     description=f"{rarity} Pet",
                     emoji=emoji,
-                    value=pet_type,
+                    value=str(index),
                 )
             )
 
@@ -220,8 +222,8 @@ class AdventurePetSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        selected_pet_type = self.values[0]
-        selected_pet = next(p for p in self.pets if p["type"] == selected_pet_type.lower())
+        selected_index = int(self.values[0])
+        selected_pet = self.pets[selected_index]
         
         hunger = get_current_hunger(selected_pet)
         if hunger < 30:
@@ -244,14 +246,16 @@ class PetBattleSelect(discord.ui.Select):
         self.role = role
 
         options = []
-        for pet in pets:
+        for index, pet in enumerate(pets):
             pet_type = pet["type"]
             emoji = PET_SHOP[pet_type]["emoji"]
+            # Use the index as value to avoid duplicates when the user has
+            # multiple pets of the same type (Discord rejects repeated values).
             options.append(
                 discord.SelectOption(
-                    label=pet_type.capitalize(),
+                    label=f"{pet_type.capitalize()} (#{index + 1})",
                     emoji=emoji,
-                    value=pet_type,
+                    value=str(index),
                 )
             )
 
@@ -268,7 +272,7 @@ class PetBattleSelect(discord.ui.Select):
                 "❌ This selection isn't for you.", ephemeral=True
             )
 
-        selected_pet = next(p for p in self.pets if p["type"] == self.values[0])
+        selected_pet = self.pets[int(self.values[0])]
         
         hunger = get_current_hunger(selected_pet)
         if hunger < 30:

@@ -16,76 +16,89 @@ async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dic
     # Defer immediately to prevent interaction timeout
     await interaction.response.defer()
     
-    user_id = str(ctx.author.id)
-    user_data = get_user_data(user_id)
-    cooldown = 1800
-    now = time.time()
-    last_adventure = user_data.get("last_adventure", 0)
+    try:
+        user_id = str(ctx.author.id)
+        user_data = get_user_data(user_id)
+        cooldown = 1800
+        now = time.time()
+        last_adventure = user_data.get("last_adventure", 0)
 
-    if now - last_adventure < cooldown:
-        next_adv_ts = int(last_adventure + cooldown)
-        return await interaction.followup.send(
-            f"⏳ Your pets are resting. Try again <t:{next_adv_ts}:R>.", ephemeral=True
+        if now - last_adventure < cooldown:
+            next_adv_ts = int(last_adventure + cooldown)
+            return await interaction.followup.send(
+                f"⏳ Your pets are resting. Try again <t:{next_adv_ts}:R>.", ephemeral=True
+            )
+
+        # Normalize pet type for lookups
+        pet_type = selected_pet["type"].lower()
+        rarity = PET_RARITIES.get(pet_type, "basic")
+        chances = PET_LOOT_PROBABILITIES.get(
+            pet_type, {"common": 80, "rare": 15, "epic": 4, "legendary": 1}
         )
 
-    pet_type = selected_pet["type"]
-    rarity = PET_RARITIES.get(pet_type, "basic")
-    chances = PET_LOOT_PROBABILITIES.get(
-        pet_type.lower(), {"common": 80, "rare": 15, "epic": 4, "legendary": 1}
-    )
+        roll = random.randint(1, 100)
+        cumulative = 0
+        loot_rarity = "common"
+        for r, chance in chances.items():
+            cumulative += chance
+            if roll <= cumulative:
+                loot_rarity = r
+                break
 
-    roll = random.randint(1, 100)
-    cumulative = 0
-    loot_rarity = "common"
-    for r, chance in chances.items():
-        cumulative += chance
-        if roll <= cumulative:
-            loot_rarity = r
-            break
+        item_name, item_value = random.choice(ADVENTURE_LOOT[loot_rarity])
 
-    item_name, item_value = random.choice(ADVENTURE_LOOT[loot_rarity])
+        bonus_multiplier = {"basic": 1, "rare": 1.5, "epic": 2, "legendary": 4}
+        final_value = int(item_value * bonus_multiplier[rarity])
+        
+        _, penalties = get_pet_state(selected_pet)
+        if penalties.get("xp_penalty"):
+            final_value = int(final_value * (1 - penalties["xp_penalty"]))
 
-    bonus_multiplier = {"basic": 1, "rare": 1.5, "epic": 2, "legendary": 4}
-    final_value = int(item_value * bonus_multiplier[rarity])
-    
-    _, penalties = get_pet_state(selected_pet)
-    if penalties.get("xp_penalty"):
-        final_value = int(final_value * (1 - penalties["xp_penalty"]))
+        # ADVENTURE_EVENTS is a list of dicts
+        event = random.choice(ADVENTURE_EVENTS)
+        event_text = event["text"]
+        
+        rarity_colors = {
+            "common": 0x95A5A6,
+            "rare": 0x3498DB,
+            "epic": 0x9B59B6,
+            "legendary": 0xF1C40F,
+            "godly": 0xFF00FF,
+        }
+        
+        pet_emoji = PET_SHOP.get(pet_type, {}).get("emoji", "🐾")
+        next_adv_ts = int(now + cooldown)
 
-    eco_col.update_one(
-        {"_id": user_id},
-        {
-            "$push": {"inventory": {"name": item_name, "value": final_value, "rarity": loot_rarity}},
-            "$set": {"last_adventure": now},
-        },
-        upsert=True,
-    )
+        embed = discord.Embed(title="🌍 Pet Adventure", color=rarity_colors.get(loot_rarity, 0x95A5A6))
+        embed.description = (
+            f"{pet_emoji} Your **{pet_type.capitalize()}** {event_text}...\n\n"
+            f"🎁 It discovered:\n"
+            f"## {item_name}\n\n"
+            f"💰 Sold for: 🪙 **{final_value:,}**\n\n"
+            f"🌍 Your pet can adventure again <t:{next_adv_ts}:R>."
+        )
+        embed.add_field(name="✨ Loot Rarity", value=loot_rarity.capitalize())
+        embed.add_field(name="🐾 Pet Rarity", value=rarity.capitalize())
 
-    # ADVENTURE_EVENTS is a list of dicts, not a dict of lists
-    event = random.choice(ADVENTURE_EVENTS)
-    event_text = event["text"]
-    rarity_colors = {
-        "common": 0x95A5A6,
-        "rare": 0x3498DB,
-        "epic": 0x9B59B6,
-        "legendary": 0xF1C40F,
-        "godly": 0xFF00FF,
-    }
-    pet_emoji = PET_SHOP[pet_type]["emoji"]
-    next_adv_ts = int(now + cooldown)
+        # Update DB only after successful generation
+        eco_col.update_one(
+            {"_id": user_id},
+            {
+                "$push": {"inventory": {"name": item_name, "value": final_value, "rarity": loot_rarity}},
+                "$set": {"last_adventure": now},
+            },
+            upsert=True,
+        )
 
-    embed = discord.Embed(title="🌍 Pet Adventure", color=rarity_colors[loot_rarity])
-    embed.description = (
-        f"{pet_emoji} Your **{pet_type}** {event_text}...\n\n"
-        f"🎁 It discovered:\n"
-        f"## {item_name}\n\n"
-        f"💰 Sold for: 🪙 **{final_value:,}**\n\n"
-        f"🌍 Your pet can adventure again <t:{next_adv_ts}:R>."
-    )
-    embed.add_field(name="✨ Loot Rarity", value=loot_rarity.capitalize())
-    embed.add_field(name="🐾 Pet Rarity", value=rarity.capitalize())
-
-    await interaction.edit_original_response(content=None, embed=embed, view=None)
+        await interaction.edit_original_response(content=None, embed=embed, view=None)
+        
+    except Exception as e:
+        import logging
+        logging.getLogger("weekly-xp-bot").error(f"ADVENTURE ERROR: {e}", exc_info=True)
+        try:
+            await interaction.followup.send(f"❌ An error occurred during the adventure: {str(e)}", ephemeral=True)
+        except:
+            pass
 
 
 async def start_pet_battle(channel, battle_id: str) -> None:

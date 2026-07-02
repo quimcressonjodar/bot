@@ -2,11 +2,13 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import time
+import random
 from config import STOCKS, STOCK_UPDATE_INTERVAL, STOCK_FEE
 from utils.stocks import (
     update_stock_prices, generate_stock_chart, get_current_price,
-    get_user_portfolio, buy_stock, sell_stock
+    get_user_portfolio, buy_stock, sell_stock, process_dividends
 )
+from utils.stock_news import get_random_news
 from utils.economy import get_wallet, update_wallet, get_bank, get_prestige_level
 
 class StockView(discord.ui.View):
@@ -78,16 +80,50 @@ class Stocks(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.update_stocks.start()
+        self.distribute_dividends.start()
 
     def cog_unload(self):
         self.update_stocks.cancel()
+        self.distribute_dividends.cancel()
 
     @tasks.loop(minutes=STOCK_UPDATE_INTERVAL)
     async def update_stocks(self):
         try:
-            update_stock_prices()
+            # 20% chance of a news event during update
+            news_impact = {}
+            if random.random() < 0.20:
+                symbol, message, multiplier = get_random_news()
+                news_impact[symbol] = multiplier
+                
+                # Announce news in a channel
+                from config import WELCOME_CHANNEL_ID
+                channel = self.bot.get_channel(WELCOME_CHANNEL_ID)
+                if channel:
+                    embed = discord.Embed(title="🗞️ Market News Alert", description=message, color=0xF1C40F)
+                    if symbol != "ALL":
+                        embed.set_footer(text=f"Impact: {symbol}")
+                    await channel.send(embed=embed)
+
+            update_stock_prices(news_impact)
         except Exception as e:
             print(f"STOCK UPDATE ERROR: {e}")
+
+    @tasks.loop(hours=24)
+    async def distribute_dividends(self):
+        try:
+            users, total = process_dividends()
+            if users > 0:
+                from config import WELCOME_CHANNEL_ID
+                channel = self.bot.get_channel(WELCOME_CHANNEL_ID)
+                if channel:
+                    embed = discord.Embed(
+                        title="💰 Daily Dividends Distributed",
+                        description=f"A total of 🪙 {total:,} coins were paid out to {users} shareholders!",
+                        color=0x2ECC71
+                    )
+                    await channel.send(embed=embed)
+        except Exception as e:
+            print(f"DIVIDEND ERROR: {e}")
 
     @update_stocks.before_loop
     async def before_update_stocks(self):

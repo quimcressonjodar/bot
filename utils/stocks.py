@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import io
 import discord
-from config import STOCKS, STOCK_HISTORY_LIMIT
+from config import STOCKS, STOCK_HISTORY_LIMIT, WELCOME_CHANNEL_ID
 from pymongo import MongoClient
+from utils.stock_news import get_random_news
 
 # MongoDB setup
 MONGO_URI = os.getenv("MONGO_URI")
@@ -26,9 +27,15 @@ def get_current_price(symbol):
         return STOCKS[symbol]["initial_price"]
     return history["prices"][-1]["price"]
 
-def update_stock_prices():
+def update_stock_prices(news_impact=None):
     """Update prices for all stocks using Geometric Brownian Motion logic."""
+    # news_impact is a dict {symbol: multiplier}
+    if news_impact is None:
+        news_impact = {}
+
     for symbol, config in STOCKS.items():
+        # Apply news multiplier if exists for this symbol or "ALL"
+        multiplier = news_impact.get(symbol, 1.0) * news_impact.get("ALL", 1.0)
         history = stocks_col.find_one({"symbol": symbol})
         if not history:
             prices = [{"price": config["initial_price"], "timestamp": time.time()}]
@@ -44,7 +51,7 @@ def update_stock_prices():
         drift = 0.001 
         volatility = config["volatility"]
         change = random.normalvariate(drift, volatility)
-        new_price = max(10, int(last_price * (1 + change))) # Minimum price 10
+        new_price = max(10, int(last_price * (1 + change) * multiplier)) # Minimum price 10
         
         new_entry = {"price": new_price, "timestamp": time.time()}
         current_prices.append(new_entry)
@@ -133,3 +140,30 @@ def sell_stock(user_id, symbol, quantity):
         
     user_stocks_col.update_one({"_id": user_id}, {"$set": {"stocks": stocks}})
     return True
+
+def process_dividends():
+    """Distribute dividends to all stock holders (0.5% of current value)."""
+    dividend_rate = 0.005
+    all_portfolios = user_stocks_col.find()
+    
+    total_distributed = 0
+    users_paid = 0
+    
+    from utils.economy import update_wallet
+    
+    for portfolio in all_portfolios:
+        user_id = portfolio["_id"]
+        stocks = portfolio.get("stocks", {})
+        user_total_dividend = 0
+        
+        for symbol, data in stocks.items():
+            current_price = get_current_price(symbol)
+            dividend = int(current_price * data["quantity"] * dividend_rate)
+            user_total_dividend += dividend
+            
+        if user_total_dividend > 0:
+            update_wallet(user_id, user_total_dividend)
+            total_distributed += user_total_dividend
+            users_paid += 1
+            
+    return users_paid, total_distributed

@@ -135,7 +135,10 @@ class EventsCog(commands.Cog):
     @spawn_global_drop.before_loop
     async def before_spawn_global_drop(self):
         await self.bot.wait_until_ready()
-        await asyncio.sleep(60) # Wait 1 minute after startup before first drop
+        # To avoid a drop every time the bot restarts, we wait for the first interval
+        # instead of spawning one immediately or shortly after startup.
+        # This means the first drop will happen 5 hours after the bot starts.
+        await asyncio.sleep(18000) # Wait 5 hours (5 * 3600 seconds) before the first drop
 
     @tasks.loop(hours=1)
     async def process_interests(self):

@@ -1,3 +1,5 @@
+import time
+import platform
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -6,6 +8,54 @@ from discord.ext import commands
 class UtilityCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.start_time = time.time()
+
+    @commands.hybrid_command(name="botstats", description="Show bot performance stats: ping, uptime and more")
+    async def botstats(self, ctx: commands.Context):
+        # Measure REST API latency
+        before = time.perf_counter()
+        msg = await ctx.send("📡 Measuring latency...")
+        after = time.perf_counter()
+        rest_ping = round((after - before) * 1000)
+        ws_ping = round(self.bot.latency * 1000)
+
+        # Uptime
+        uptime_seconds = int(time.time() - self.start_time)
+        days, rem = divmod(uptime_seconds, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes, seconds = divmod(rem, 60)
+        uptime_str = f"{days}d {hours}h {minutes}m {seconds}s"
+
+        # Counts
+        total_members = sum(g.member_count or 0 for g in self.bot.guilds)
+        total_commands = len([c for c in self.bot.commands if not c.hidden])
+
+        def ping_emoji(ms):
+            if ms < 80:
+                return "🟢"
+            elif ms < 200:
+                return "🟡"
+            else:
+                return "🔴"
+
+        embed = discord.Embed(title="🤖 Bot Stats", color=0x2B2D31)
+        embed.add_field(
+            name="📡 Latency",
+            value=(
+                f"{ping_emoji(ws_ping)} **WebSocket:** `{ws_ping} ms`\n"
+                f"{ping_emoji(rest_ping)} **REST API:** `{rest_ping} ms`"
+            ),
+            inline=False,
+        )
+        embed.add_field(name="⏱️ Uptime", value=f"`{uptime_str}`", inline=True)
+        embed.add_field(name="🏰 Servers", value=f"`{len(self.bot.guilds)}`", inline=True)
+        embed.add_field(name="👥 Members", value=f"`{total_members:,}`", inline=True)
+        embed.add_field(name="⚙️ Commands", value=f"`{total_commands}`", inline=True)
+        embed.add_field(name="🐍 Python", value=f"`{platform.python_version()}`", inline=True)
+        embed.add_field(name="📦 discord.py", value=f"`{discord.__version__}`", inline=True)
+        embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+
+        await msg.edit(content=None, embed=embed)
 
     @commands.hybrid_command(name="userinfo", description="Display detailed information about a member")
     @app_commands.describe(member="The member to view (Defaults to yourself)")
@@ -69,6 +119,7 @@ class UtilityCog(commands.Cog):
         )
 
         public_cmds = (
+            "**`/botstats`** - Bot ping, uptime & stats.\n"
             "**`/userinfo`** - View a member profile.\n"
             "**`/serverinfo`** - View server information.\n"
             "**`/avatar`** - View avatars.\n"

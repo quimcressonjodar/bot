@@ -50,7 +50,20 @@ def update_bank(user_id: str, amount: int) -> None:
 
 def get_debt(user_id: str) -> int:
     user_data = get_user_data(user_id)
-    return user_data.get("loan_amount", 0) + user_data.get("interest_accrued", 0)
+    loan = user_data.get("loan_amount", 0)
+    interest = user_data.get("interest_accrued", 0)
+    
+    # Calculate pending interest since last update (dynamic view)
+    if loan > 0:
+        import time
+        now = time.time()
+        last_calc = user_data.get("last_interest_calc", now)
+        time_diff = now - last_calc
+        if time_diff >= 3600:
+            pending = int(loan * 0.02 * (time_diff / 86400))
+            interest += pending
+            
+    return loan + interest
 
 
 def update_loan(user_id: str, amount: int) -> None:

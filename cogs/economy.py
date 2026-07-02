@@ -622,21 +622,24 @@ class EconomyCog(commands.Cog):
         user_id = str(ctx.author.id)
         user_data = get_user_data(user_id)
         loan = user_data.get("loan_amount", 0)
-        interest = user_data.get("interest_accrued", 0)
-        total = loan + interest
         
-        if total <= 0:
+        if loan <= 0 and user_data.get("interest_accrued", 0) <= 0:
             return await ctx.send("✅ You are debt-free! Congratulations.")
-            
-        last_calc = user_data.get("last_interest_calc", 0)
-        next_calc = int(last_calc + 86400)
+
+        # Use get_debt to get the dynamically calculated total including pending interest
+        total = get_debt(user_id)
+        interest = total - loan
+        
+        last_calc = user_data.get("last_interest_calc", time.time())
+        # Next calculation is in 1 hour (since process_interests runs hourly)
+        next_calc = int(last_calc + 3600)
         
         embed = discord.Embed(title="📉 Debt Status", color=0xE74C3C)
         embed.add_field(name="💵 Principal", value=f"🪙 {loan:,}", inline=True)
         embed.add_field(name="📈 Interest", value=f"🪙 {interest:,}", inline=True)
         embed.add_field(name="💰 Total Owed", value=f"🪙 {total:,}", inline=False)
         embed.add_field(name="📈 Interest Rate", value="2% daily", inline=True)
-        embed.add_field(name="⏳ Next Interest", value=f"<t:{next_calc}:R>", inline=False)
+        embed.add_field(name="⏳ Next Interest Update", value=f"<t:{next_calc}:R>", inline=False)
         embed.set_footer(text="30% of your earnings are automatically deducted to pay this debt.")
         
         await ctx.send(embed=embed)

@@ -287,7 +287,7 @@ class AdminCog(commands.Cog):
     @commands.hybrid_command(name="say", description="Make the bot say something (Admin only)")
     @app_commands.describe(message="The message you want the bot to repeat")
     @app_commands.default_permissions(administrator=True)
-    async def say(self, ctx: commands.Context, message: str):
+    async def say(self, ctx: commands.Context, *, message: str):
         if not is_admin(ctx):
             return await ctx.send("Admin only command.", ephemeral=True)
         if ctx.interaction is None:

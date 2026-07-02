@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 import time
 import random
-from config import STOCKS, STOCK_UPDATE_INTERVAL, STOCK_FEE
+from config import STOCKS, STOCK_UPDATE_INTERVAL, STOCK_BROKER_FEE as STOCK_FEE
 from utils.stocks import (
     update_stock_prices, generate_stock_chart, get_current_price,
     get_user_portfolio, buy_stock, sell_stock, process_dividends
@@ -160,7 +160,7 @@ class Stocks(commands.Cog):
         
         # Calculate max possible shares
         from utils.economy import get_prestige_level
-        from config import STOCK_FEE
+        from config import STOCK_BROKER_FEE as STOCK_FEE
         level = get_prestige_level(wallet + get_bank(user_id))
         fee_multiplier = 1.0 + (STOCK_FEE * (1 - (level / 7.0)))
         cost_per_share = price * fee_multiplier

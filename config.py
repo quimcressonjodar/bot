@@ -244,11 +244,11 @@ BREEDING_SUCCESS_CHANCE = 70
 BREEDING_RISK_CHANCE = 5
 
 STOCK_SYMBOLS = {
-    "VRTX": {"name": "Vertex Dynamics", "sector": "AI & Robotics", "volatility": 0.05},
-    "GLBL": {"name": "Global Energy", "sector": "Energy", "volatility": 0.02},
-    "AURA": {"name": "Aura Pharmaceuticals", "sector": "Biotech", "volatility": 0.04},
-    "ORBT": {"name": "Orbital Space", "sector": "Space Tourism", "volatility": 0.08},
-    "TITN": {"name": "Titan Heavy Industries", "sector": "Manufacturing", "volatility": 0.03},
+    "VRTX": {"name": "Vertex Dynamics", "sector": "AI & Robotics", "volatility": 0.05, "initial_price": 500, "description": "Cutting-edge AI and robotics solutions."},
+    "GLBL": {"name": "Global Energy", "sector": "Energy", "volatility": 0.02, "initial_price": 500, "description": "Sustainable energy and infrastructure."},
+    "AURA": {"name": "Aura Pharmaceuticals", "sector": "Biotech", "volatility": 0.04, "initial_price": 500, "description": "Next-gen medical research and biotech."},
+    "ORBT": {"name": "Orbital Space", "sector": "Space Tourism", "volatility": 0.08, "initial_price": 500, "description": "Commercial space travel and tourism."},
+    "TITN": {"name": "Titan Heavy Industries", "sector": "Manufacturing", "volatility": 0.03, "initial_price": 500, "description": "Heavy machinery and industrial production."},
 }
 
 STOCK_UPDATE_INTERVAL = 30
@@ -272,9 +272,9 @@ ADVENTURE_EVENTS = [
 ]
 
 STOCKS = {
-    "VRTX": {"name": "Vertex Dynamics", "sector": "AI & Robotics", "volatility": 0.05},
-    "GLBL": {"name": "Global Energy", "sector": "Energy", "volatility": 0.02},
-    "AURA": {"name": "Aura Pharmaceuticals", "sector": "Biotech", "volatility": 0.04},
-    "ORBT": {"name": "Orbital Space", "sector": "Space Tourism", "volatility": 0.08},
-    "TITN": {"name": "Titan Heavy Industries", "sector": "Manufacturing", "volatility": 0.03},
+    "VRTX": {"name": "Vertex Dynamics", "sector": "AI & Robotics", "volatility": 0.05, "initial_price": 500, "description": "Cutting-edge AI and robotics solutions."},
+    "GLBL": {"name": "Global Energy", "sector": "Energy", "volatility": 0.02, "initial_price": 500, "description": "Sustainable energy and infrastructure."},
+    "AURA": {"name": "Aura Pharmaceuticals", "sector": "Biotech", "volatility": 0.04, "initial_price": 500, "description": "Next-gen medical research and biotech."},
+    "ORBT": {"name": "Orbital Space", "sector": "Space Tourism", "volatility": 0.08, "initial_price": 500, "description": "Commercial space travel and tourism."},
+    "TITN": {"name": "Titan Heavy Industries", "sector": "Manufacturing", "volatility": 0.03, "initial_price": 500, "description": "Heavy machinery and industrial production."},
 }

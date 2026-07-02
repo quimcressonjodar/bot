@@ -84,9 +84,14 @@ def generate_stock_chart(symbol):
     plt.style.use('dark_background')
     fig, ax = plt.subplots(figsize=(10, 5))
     
-    color = '#2ecc71' if prices[-1] >= prices[0] else '#e74c3c'
-    ax.plot(df['timestamp'], df['price'], color=color, linewidth=2)
-    ax.fill_between(df['timestamp'], df['price'], alpha=0.1, color=color)
+    # Draw segments with dynamic colors (green if up, red if down)
+    for i in range(len(prices) - 1):
+        segment_color = '#2ecc71' if prices[i+1] >= prices[i] else '#e74c3c'
+        ax.plot(df['timestamp'][i:i+2], df['price'][i:i+2], color=segment_color, linewidth=2)
+    
+    # Fill under the curve using the overall trend color for aesthetic consistency
+    trend_color = '#2ecc71' if prices[-1] >= prices[0] else '#e74c3c'
+    ax.fill_between(df['timestamp'], df['price'], alpha=0.1, color=trend_color)
     
     # Customizing
     ax.set_title(f"{STOCKS[symbol]['name']} ({symbol})", fontsize=16, color='white', pad=20)

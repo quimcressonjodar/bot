@@ -209,7 +209,7 @@ class Stocks(commands.Cog):
         view = StockView(ctx, symbol)
         await view.process_trade_direct(ctx, parsed_quantity, "sell")
 
-    @commands.hybrid_command(name="stocks", description="View the stock market")
+    @commands.hybrid_command(name="stocks", aliases=["socks", "stock", "st"], description="View the stock market")
     async def stocks(self, ctx: commands.Context, symbol: str = None):
         await ctx.defer()
         
@@ -230,7 +230,6 @@ class Stocks(commands.Cog):
             return await ctx.send(f"❌ Stock symbol **{symbol}** not found.", ephemeral=True)
 
         try:
-            chart = generate_stock_chart(symbol)
             price = get_current_price(symbol)
             
             embed = discord.Embed(
@@ -239,15 +238,24 @@ class Stocks(commands.Cog):
                 color=0x3498DB
             )
             
+            # Try to generate chart, but don't fail the whole command if it fails
+            chart = None
+            try:
+                chart = generate_stock_chart(symbol)
+            except Exception as chart_err:
+                print(f"CHART GENERATION ERROR for {symbol}: {chart_err}")
+
             if chart:
                 embed.set_image(url=f"attachment://{symbol}_chart.png")
                 view = StockView(ctx, symbol)
                 await ctx.send(embed=embed, file=chart, view=view)
             else:
-                await ctx.send(embed=embed)
+                # If chart fails, still send the embed with price and trade buttons
+                view = StockView(ctx, symbol)
+                await ctx.send(embed=embed, view=view)
         except Exception as e:
             print(f"STOCKS COMMAND ERROR: {e}")
-            await ctx.send(f"❌ An error occurred while generating the chart for {symbol}. Please try again later.")
+            await ctx.send(f"❌ An error occurred while fetching data for {symbol}. Please try again later.")
 
     @commands.hybrid_command(name="portfolio", aliases=["pfol"], description="View your stock portfolio")
     async def portfolio(self, ctx: commands.Context):

@@ -153,6 +153,11 @@ async def start_pet_battle(channel, battle_id: str) -> None:
     winner_data = _get(winner_id)
     loser_data = _get(loser_id)
 
+    # Bounty Tracking
+    from utils.bounties import track_bounty_progress
+    bot = channel.guild.me._state._get_client() # Hack to get bot instance
+    await track_bounty_progress(bot, winner_id, "PET_MASTER", 1)
+
     embed = discord.Embed(
         title="🏆 BATTLE RESULTS",
         description="The dust settles, and a victor emerges...",
@@ -586,7 +591,11 @@ class FeedView(discord.ui.View):
                 break
 
         eco_col.update_one({"_id": user_id}, {"$set": {"inventory": inventory}})
-
+        
+        # Bounty Tracking
+        from utils.bounties import track_bounty_progress
+        await track_bounty_progress(self.ctx.bot, user_id, "PET_LOVER", 1)
+        
         embed = discord.Embed(
             title="🍖 Pet Fed",
             description=(
@@ -669,6 +678,10 @@ class BreedView(discord.ui.View):
 
             # Atomic wallet update
             update_wallet(user_id, -cost)
+            
+            # Bounty Tracking
+            from utils.bounties import track_bounty_progress
+            await track_bounty_progress(self.ctx.bot, user_id, "BREEDER", 1)
             
             # Breeding logic: Find a pet in PET_SHOP that is more expensive than combined_value
             available_pets = sorted(PET_SHOP.items(), key=lambda x: x[1]['price'])

@@ -117,6 +117,10 @@ class EconomyCog(commands.Cog):
             upsert=True,
         )
         
+        # Bounty Tracking
+        from utils.bounties import track_bounty_progress
+        await track_bounty_progress(self.bot, user_id, "DAILY_CLAIMER", 1)
+        
         msg = f"📆 You claimed your daily reward of 🪙 {base_amount:,} coins!"
         if amount < base_amount:
             msg += f"\n📉 🪙 {base_amount - amount:,} coins were automatically used to pay your debt."
@@ -295,6 +299,10 @@ class EconomyCog(commands.Cog):
         reason = random.choice(jobs)
         next_work_ts = int(now + cooldown)
         eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": earnings}, "$set": {"last_work": now}}, upsert=True)
+        
+        # Bounty Tracking
+        from utils.bounties import track_bounty_progress
+        await track_bounty_progress(self.bot, user_id, "WORKER", 1)
         
         desc = f"You {reason} and earned 🪙 **{earnings:,}** coins."
         if earnings < base_earnings:

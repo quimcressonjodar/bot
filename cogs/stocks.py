@@ -68,8 +68,19 @@ class StockView(discord.ui.View):
             return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
         else:
             total_gain = int(price * quantity * (1 - current_fee))
+            portfolio = get_user_portfolio(user_id)
+            avg_price = portfolio.get(self.symbol, {}).get("avg_price", 0)
+            profit = int((price - avg_price) * quantity)
+            
             if sell_stock(user_id, self.symbol, quantity):
                 update_wallet(user_id, total_gain)
+                
+                # Bounty Tracking
+                if profit > 0:
+                    from utils.bounties import track_bounty_progress
+                    bot = self.ctx.bot if hasattr(self.ctx, "bot") else self.ctx
+                    await track_bounty_progress(bot, user_id, "TRADER", profit)
+                
                 msg = f"✅ Sold {quantity} shares of **{self.symbol}** for 🪙 {total_gain:,}!"
                 return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
             else:

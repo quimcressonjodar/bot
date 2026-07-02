@@ -122,6 +122,10 @@ class GamesCog(commands.Cog):
             actual_profit = apply_amortization(user_id, profit)
             update_wallet(user_id, actual_profit)
             
+            # Bounty Tracking
+            from utils.bounties import track_bounty_progress
+            await track_bounty_progress(self.bot, user_id, "GAMBLER", profit)
+            
             outcome_text = f"**WIN!** (x{multiplier} multiplier)\nYou won 🪙 **{winnings:,}**!"
             if actual_profit < profit:
                 outcome_text += f"\n📉 🪙 {profit - actual_profit:,} coins were automatically used to pay your debt."
@@ -231,8 +235,13 @@ class GamesCog(commands.Cog):
                     bonus_text = " **(DOUBLE! x2 MULTIPLIER)**"
             
             base_winnings = bet * multiplier
+            profit = base_winnings - bet
             winnings = apply_amortization(user_id, base_winnings)
             eco_col.update_one({"_id": user_id}, {"$inc": {"wallet": winnings}, "$set": {"last_dice": now}}, upsert=True)
+            
+            # Bounty Tracking
+            from utils.bounties import track_bounty_progress
+            await track_bounty_progress(self.bot, user_id, "GAMBLER", profit)
             
             result = f"you **won** **{base_winnings:,}** 🪙{bonus_text}"
             if winnings < base_winnings:

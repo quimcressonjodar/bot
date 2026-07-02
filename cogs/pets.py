@@ -112,6 +112,11 @@ class PetsCog(commands.Cog):
                 }
                 eco_col.update_one({"_id": user_id}, {"$push": {"inventory": item}}, upsert=True)
                 update_wallet(user_id, -price)
+                
+                # Bounty Tracking
+                from utils.bounties import track_bounty_progress
+                await track_bounty_progress(self.bot, user_id, "BIG_SPENDER", price)
+                
                 embed = discord.Embed(
                     title="🍱 Food Purchased",
                     description=f"You bought {food_data['emoji']} **{food_data['name']}**!",
@@ -134,6 +139,11 @@ class PetsCog(commands.Cog):
                 }
                 pets_col.update_one({"_id": user_id}, {"$push": {"pets": pet_instance}}, upsert=True)
                 update_wallet(user_id, -price)
+                
+                # Bounty Tracking
+                from utils.bounties import track_bounty_progress
+                await track_bounty_progress(self.bot, user_id, "BIG_SPENDER", price)
+                
                 embed = discord.Embed(
                     title="🎉 Pet Purchased",
                     description=f"You bought a {pet_data['emoji']} **{item_key.capitalize()}**!",
@@ -153,6 +163,11 @@ class PetsCog(commands.Cog):
                     return await self._send_response(target, content="❌ You already own this role.")
                 update_wallet(user_id, -price)
                 await author.add_roles(role)
+                
+                # Bounty Tracking
+                from utils.bounties import track_bounty_progress
+                await track_bounty_progress(self.bot, user_id, "BIG_SPENDER", price)
+                
                 embed = discord.Embed(
                     title="💎 Role Purchased",
                     description=(

@@ -48,6 +48,7 @@ COGS = [
     "cogs.fake_admin_ai",
     "cogs.starboard",
     "cogs.stocks",
+    "cogs.bounties",
 ]
 
 

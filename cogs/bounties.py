@@ -14,14 +14,22 @@ class Bounties(commands.Cog):
 
     @tasks.loop(hours=12)
     async def bounty_spawner(self):
-        """Spawns a new bounty every 12 hours if there are fewer than 3 active."""
+        """Ensures there are always 3 active bounties on the board."""
         active = get_active_bounties()
-        if len(active) < 3:
+        needed = 3 - len(active)
+        
+        if needed <= 0:
+            return
+
+        STOCK_NEWS_CHANNEL_ID = 1206197908399980575
+        channel = self.bot.get_channel(STOCK_NEWS_CHANNEL_ID)
+        
+        for _ in range(needed):
             new_b = spawn_new_bounty()
-            
-            # Announce new bounty
-            STOCK_NEWS_CHANNEL_ID = 1206197908399980575
-            channel = self.bot.get_channel(STOCK_NEWS_CHANNEL_ID)
+            if not new_b:
+                continue
+                
+            # Announce each new bounty
             if channel:
                 embed = discord.Embed(
                     title="🎯 NEW BOUNTY POSTED",

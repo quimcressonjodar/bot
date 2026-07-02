@@ -270,3 +270,11 @@ ADVENTURE_EVENTS = [
     {"text": "Your pet performed tricks for a crowd.", "min_gain": 120, "max_gain": 350},
     {"text": "Your pet found a rare gem and sold it.", "min_gain": 1000, "max_gain": 3000},
 ]
+
+STOCKS = {
+    "VRTX": {"name": "Vertex Dynamics", "sector": "AI & Robotics", "volatility": 0.05},
+    "GLBL": {"name": "Global Energy", "sector": "Energy", "volatility": 0.02},
+    "AURA": {"name": "Aura Pharmaceuticals", "sector": "Biotech", "volatility": 0.04},
+    "ORBT": {"name": "Orbital Space", "sector": "Space Tourism", "volatility": 0.08},
+    "TITN": {"name": "Titan Heavy Industries", "sector": "Manufacturing", "volatility": 0.03},
+}

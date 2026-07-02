@@ -661,7 +661,7 @@ class EconomyCog(commands.Cog):
             indicator = "✅" if level <= current_level else "🔒"
             text = (
                 f"{indicator} **{data['name']}**\n"
-                f"• Required: 🪙 {data['min_net_worth']:,}\n"
+                f"• Required: 🪙 {data['threshold']:,}\n"
                 f"• Shop Discount: {data['discount']*100}%\n"
             )
             embed.add_field(name="\u200b", value=text, inline=False)

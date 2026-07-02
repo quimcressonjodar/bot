@@ -65,7 +65,7 @@ def get_prestige_level(net_worth: int) -> int:
     from config import PRESTIGE_LEVELS
     current_level = 0
     for level, data in PRESTIGE_LEVELS.items():
-        if net_worth >= data["min_net_worth"]:
+        if net_worth >= data["threshold"]:
             current_level = level
     return current_level
 

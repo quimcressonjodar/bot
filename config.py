@@ -35,7 +35,6 @@ MONDAY_SNAPSHOT_PATH = "xp_monday.json"
 SUNDAY_SNAPSHOT_PATH = "sunday_snapshot"
 
 PET_LOOT_PROBABILITIES = {
-    # BASIC
     "slime":    {"common": 90, "rare": 8, "epic": 1.5, "legendary": 0.5},
     "rabbit":   {"common": 90, "rare": 8, "epic": 1.5, "legendary": 0.5},
     "mouse":    {"common": 92, "rare": 6, "epic": 1.5, "legendary": 0.5},
@@ -51,8 +50,6 @@ PET_LOOT_PROBABILITIES = {
     "cat":      {"common": 80, "rare": 17, "epic": 2.5, "legendary": 0.5},
     "owl":      {"common": 78, "rare": 18, "epic": 3.5, "legendary": 0.5},
     "fox":      {"common": 75, "rare": 20, "epic": 4.5, "legendary": 0.5},
-
-    # RARE
     "wolf":     {"common": 70, "rare": 24, "epic": 5,   "legendary": 1},
     "tiger":    {"common": 65, "rare": 28, "epic": 6,   "legendary": 1},
     "bear":     {"common": 63, "rare": 30, "epic": 6,   "legendary": 1},
@@ -67,8 +64,6 @@ PET_LOOT_PROBABILITIES = {
     "hyena":    {"common": 62, "rare": 30, "epic": 7,   "legendary": 1},
     "cheetah":  {"common": 60, "rare": 31, "epic": 8,   "legendary": 1},
     "gorilla":  {"common": 60, "rare": 31, "epic": 8,   "legendary": 1},
-
-    # EPIC
     "dragon":      {"common": 55, "rare": 30, "epic": 13,  "legendary": 2},
     "golem":       {"common": 52, "rare": 32, "epic": 14,  "legendary": 2},
     "hydra":       {"common": 50, "rare": 32, "epic": 15,  "legendary": 3},
@@ -83,8 +78,6 @@ PET_LOOT_PROBABILITIES = {
     "ent":         {"common": 48, "rare": 33, "epic": 16,  "legendary": 3},
     "minotaur":    {"common": 45, "rare": 35, "epic": 16,  "legendary": 4},
     "golem_core":  {"common": 45, "rare": 35, "epic": 16,  "legendary": 4},
-
-    # LEGENDARY
     "phoenix":      {"common": 35, "rare": 35, "epic": 25, "legendary": 4.5, "godly": 0.5},
     "chimera":      {"common": 33, "rare": 34, "epic": 27, "legendary": 5.5, "godly": 0.5},
     "kraken":       {"common": 30, "rare": 33, "epic": 30, "legendary": 6,   "godly": 1},
@@ -210,7 +203,6 @@ ADVENTURE_LOOT = {
         ("🔪 Dull Knife", 13), ("🧵 Frayed String", 7), ("🔮 Chipped Marble", 8),
         ("🔥 Burnt Match", 2), ("🪵 Twig", 3), ("🪨 Gravel", 4), ("🔩 Nut", 5),
     ],
-
     "rare": [
         ("💍 Silver Ring", 200), ("🪙 Gold Coin", 300), ("💎 Sapphire", 480),
         ("🔮 Magic Orb", 600), ("📿 Ancient Necklace", 720), ("⚔️ Knight Dagger", 880),
@@ -220,148 +212,48 @@ ADVENTURE_LOOT = {
         ("🧿 Mystic Eye", 2800), ("🐚 Pearl Shell", 3000), ("💎 Ruby Crystal", 3200),
         ("⚡ Charged Core", 3400), ("🔑 Ancient Key", 3600), ("🪨 Polished Pebble", 180),
         ("🪙 Silver Coin", 240), ("🗝️ Iron Key", 340), ("🥉 Bronze Medal", 280),
-        ("🧣 Silk Handkerchief", 440), ("🪈 Ornate Flute", 540), ("🪢 Sturdy Rope", 360),
-        ("🍄 Glowing Mushroom", 620), ("🪮 Ivory Comb", 720), ("💎 Jade Fragment", 840),
-        ("🧭 Steel Compass", 960), ("🔍 Magnifying Glass", 1080), ("🎒 Leather Satchel", 1280),
-        ("🧪 Crystal Vial", 1440), ("✨ Gold Nugget", 1800), ("🏹 Hunting Bow", 1520),
-    ],
-
-    "epic": [
-        ("👑 Royal Crown", 3000), ("💜 Amethyst Crystal", 3750), ("🐉 Dragon Scale", 4500),
-        ("🔥 Phoenix Feather", 5500), ("⚡ Energy Core", 6500), ("🌌 Cosmic Fragment", 7500),
-        ("💠 Mythic Gem", 8750), ("🗿 Titan Relic", 10000), ("🧬 Ancient DNA", 11250),
-        ("🪐 Void Stone", 12500), ("📖 Forbidden Tome", 13750), ("🩸 Blood Ruby", 15000),
-        ("🧊 Frozen Heart", 17500), ("☄️ Meteor Fragment", 20000), ("👁️ Cursed Eye", 22500),
-        ("🦷 Dragon Tooth", 3500), ("🧭 Enchanted Compass", 4375), ("🪙 Ancient Coin", 5000),
-        ("💍 Ruby Ring", 6250), ("🧥 Shadow Cloak", 8000), ("🌙 Moonstone", 9500),
-        ("☀️ Solar Flare", 11250), ("🗺️ Star Map", 13000), ("🧪 Elixir of Life", 15000),
-        ("⛏️ Mithril Ingot", 18750), ("🪶 Phoenix Down", 21250), ("🦾 Titan's Grip", 23750),
-        ("🌀 Void Essence", 27500), ("🧸 Cursed Doll", 32500), ("🐑 Golden Fleece", 37500),
-    ],
-
-    "legendary": [
-        ("🌟 Celestial Artifact", 6000), ("👁️ Eye of Eternity", 7500),
-        ("💫 Divine Crystal", 10000), ("🐲 Ancient Dragon Egg", 15000),
-        ("🌌 Universe Shard", 25000), ("👑 Crown of Gods", 37500),
-        ("⚔️ Blade of Chaos", 50000), ("🪐 Core of the Void", 75000),
-        ("🌠 Fallen Star", 100000), ("🧿 Orb of Infinity", 250000),
-        ("🗡️ Excalibur", 125000), ("🎁 Pandora's Box", 200000),
-        ("💎 Philosopher's Stone", 325000), ("☀️ Eye of Ra", 450000),
-        ("🔱 Spear of Destiny", 600000), ("🏆 Holy Grail", 1000000),
-        ("🛡️ Aegis Shield", 1750000), ("🔨 Mjolnir", 2500000),
-        ("📖 Necronomicon", 3750000), ("⛲ Fountain of Youth", 5000000),
-        ("⌛ Chronos' Hourglass", 7500000), ("🌟 Star of Bethlehem", 12500000),
-        ("🌍 Atlas' Globe", 20000000), ("🔥 Prometheus' Flame", 30000000),
-        ("🪽 Icarus' Wings", 50000000),
-    ],
-
-    "godly": [
-        ("🌌 Heart of the Multiverse", 50000000),
-        ("⚡ Zeus' Master Bolt", 120000000),
-        ("🔱 Poseidon's Trident", 150000000),
-        ("🔥 Hades' Helm of Darkness", 180000000),
-        ("👁️ All-Seeing Eye of Odin", 250000000),
-        ("🗡️ Godslayer Blade", 500000000),
-        ("🛡️ Shield of the First God", 800000000),
-        ("💍 One Ring to Rule Them All", 1500000000),
-        ("🌌 Infinite Gauntlet", 3000000000),
-        ("✨ Essence of Creation", 10000000000),
-    ],
-}
-
-ADVENTURE_EVENTS = {
-    "common": [
-        "searched through trash piles",
-        "explored an abandoned alley",
-        "wandered through old ruins",
-        "dug near a broken wagon",
-        "searched a forgotten campsite",
-        "rummaged through a dusty attic",
-        "scavenged a local junkyard",
-        "checked under a loose floorboard",
-        "walked through a foggy meadow",
-        "poked around an old well",
-        "inspected a hollow log",
-        "sifted through river silt",
-    ],
-    "rare": [
-        "explored an ancient cave",
-        "snuck into a merchant caravan",
-        "searched a hidden temple",
-        "raided a bandit stash",
-        "explored underground tunnels",
-        "ventured into a deep ravine",
-        "scaled a crumbling watchtower",
-        "found a secret passage in the library",
-        "investigated a mysterious shipwreck",
-        "tracked a glowing trail in the woods",
-        "deciphered markings on a stone monolith",
-        "discovered a secluded mountain shrine",
     ],
     "epic": [
-        "explored volcanic ruins",
-        "crossed forbidden lands",
-        "searched a cursed fortress",
-        "flew above ancient kingdoms",
-        "ventured into magical forests",
-        "descended into the crystal depths",
-        "survived the shifting desert dunes",
-        "entered a floating sky island",
-        "braved the whispers of the shadow realm",
-        "climbed the peak of the world",
-        "unlocked a vault from the golden age",
-        "navigated a labyrinth of illusions",
+        ("👑 Golden Crown", 5000), ("💎 Large Diamond", 7500), ("🏺 Cursed Idol", 9000),
+        ("🔮 Dragon Eye", 12000), ("⚔️ Holy Excalibur", 15000), ("🧬 Alien Tech", 18000),
+        ("💠 Pure Essence", 20000), ("🧪 Elixir of Life", 25000), ("📜 Lost Prophecy", 30000),
+        ("📦 Celestial Crate", 40000), ("💍 Phoenix Ring", 50000), ("🛡️ Dragon Scale Shield", 60000),
     ],
     "legendary": [
-        "vanished into the void itself",
-        "crossed dimensions",
-        "explored celestial ruins",
-        "entered a forgotten realm",
-        "traveled beyond mortal lands",
-        "reached the source of all magic",
-        "battled through the heart of a supernova",
-        "stood before the throne of eternity",
-        "walked the path of the stars",
-        "unraveled the fabric of reality",
-        "witnessed the birth of a new galaxy",
-        "spoke with the ancients of the beyond",
+        ("🌌 Void Core", 150000), ("⭐ Fallen Star", 250000), ("🏺 Pandora's Box", 500000),
+        ("🔮 Eye of Eternity", 750000), ("⚔️ God Slayer", 1000000), ("🧬 Genesis Code", 1500000),
     ],
     "godly": [
-        "ascended to the divine plane",
-        "confronted the creators of the universe",
-        "rewrote the laws of physics",
-        "harnessed the power of a trillion stars",
-        "transcended space and time",
-        "received a blessing from the primordial gods",
-        "survived the collapse of a parallel dimension",
-        "unlocked the secrets of the infinite multiverse",
-    ],
+        ("♾️ Infinity Stone", 10_000_000), ("🌌 Universe Fragment", 25_000_000), ("👑 Crown of Creation", 50_000_000),
+    ]
 }
 
-# PRESTIGE SYSTEM (Wealth Milestones)
 PRESTIGE_LEVELS = {
-    1: {"name": "Bronze", "min_net_worth": 100_000, "discount": 0.02},
-    2: {"name": "Silver", "min_net_worth": 500_000, "discount": 0.05},
-    3: {"name": "Gold", "min_net_worth": 2_000_000, "discount": 0.08},
-    4: {"name": "Platinum", "min_net_worth": 10_000_000, "discount": 0.12},
-    5: {"name": "Emerald", "min_net_worth": 50_000_000, "discount": 0.15},
-    6: {"name": "Diamond", "min_net_worth": 200_000_000, "discount": 0.20},
-    7: {"name": "Master", "min_net_worth": 1_000_000_000, "discount": 0.25},
+    0: {"name": "None", "threshold": 0, "discount": 0.0, "loan_mult": 1.0},
+    1: {"name": "Bronze", "threshold": 100_000, "discount": 0.02, "loan_mult": 1.0},
+    2: {"name": "Silver", "threshold": 500_000, "discount": 0.05, "loan_mult": 2.0},
+    3: {"name": "Gold", "threshold": 2_000_000, "discount": 0.08, "loan_mult": 5.0},
+    4: {"name": "Platinum", "threshold": 10_000_000, "discount": 0.12, "loan_mult": 10.0},
+    5: {"name": "Emerald", "threshold": 50_000_000, "discount": 0.15, "loan_mult": 20.0},
+    6: {"name": "Diamond", "threshold": 200_000_000, "discount": 0.20, "loan_mult": 50.0},
+    7: {"name": "Master", "threshold": 1_000_000_000, "discount": 0.25, "loan_mult": 100.0},
 }
 
-# BREEDING SYSTEM
-BREEDING_COST_RATIO = 0.25  # 25% of parents value
-BREEDING_SUCCESS_CHANCE = 70  # 70% success
-BREEDING_RISK_CHANCE = 5  # 5% chance of losing a pet on failure
+BREEDING_COST_RATIO = 0.25
+BREEDING_SUCCESS_CHANCE = 70
+BREEDING_RISK_CHANCE = 5
 
-# STOCK MARKET SYSTEM
-STOCKS = {
-    "VRTX": {"name": "Vertex Dynamics", "description": "High-tech AI and robotics corp.", "volatility": 0.05, "initial_price": 1000},
-    "GLBL": {"name": "Global Energy", "description": "Sustainable energy and infrastructure.", "volatility": 0.02, "initial_price": 500},
-    "AURA": {"name": "Aura Pharmaceuticals", "description": "Cutting-edge biotech and medicine.", "volatility": 0.04, "initial_price": 750},
-    "ORBT": {"name": "Orbital Space", "description": "Space tourism and satellite mining.", "volatility": 0.08, "initial_price": 2000},
-    "TITN": {"name": "Titan Heavy Industries", "description": "Manufacturing and heavy machinery.", "volatility": 0.03, "initial_price": 1200},
+STOCK_SYMBOLS = {
+    "VRTX": {"name": "Vertex Dynamics", "sector": "AI & Robotics", "volatility": 0.05},
+    "GLBL": {"name": "Global Energy", "sector": "Energy", "volatility": 0.02},
+    "AURA": {"name": "Aura Pharmaceuticals", "sector": "Biotech", "volatility": 0.04},
+    "ORBT": {"name": "Orbital Space", "sector": "Space Tourism", "volatility": 0.08},
+    "TITN": {"name": "Titan Heavy Industries", "sector": "Manufacturing", "volatility": 0.03},
 }
-STOCK_UPDATE_INTERVAL = 30  # Minutes
-STOCK_HISTORY_LIMIT = 48    # How many data points to keep (e.g., 24 hours if update is 30m)
-STOCK_FEE = 0.02           # 2% transaction fee
+
+STOCK_UPDATE_INTERVAL = 30
+STOCK_HISTORY_LIMIT = 48
+STOCK_BROKER_FEE = 0.02
+STOCK_DIVIDEND_RATE = 0.005
+STOCK_NEWS_PROBABILITY = 0.20
+STOCK_NEWS_CHANNEL_ID = 1206197908399980575

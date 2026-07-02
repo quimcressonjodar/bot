@@ -62,7 +62,7 @@ class WeeklyXPBot(commands.Bot):
             command_prefix="!",
             intents=intents,
             status=discord.Status.online,
-            activity=discord.Game(name="Kirka.io 🏆 !help"),
+            activity=discord.Game(name="Moderation & Economy | !help"),
             help_command=None,
         )
         self.clan_client = clan_client
@@ -83,7 +83,7 @@ class WeeklyXPBot(commands.Bot):
         logger.info(f"✅ Bot connected as {self.user}!")
         await self.change_presence(
             status=discord.Status.online,
-            activity=discord.Game(name="Kirka.io 🏆"),
+            activity=discord.Game(name="Moderation & Economy"),
         )
         print(f"READY: {self.user} | {id(self)}")
 

@@ -63,7 +63,7 @@ class UtilityCog(commands.Cog):
     @commands.hybrid_command(name="help", description="Show all available commands")
     async def help_command(self, ctx: commands.Context):
         embed = discord.Embed(
-            title="🏆 Kirka.io Bot | Command List",
+            title="🛡️ Moderation & Economy Bot | Command List",
             description="Complete list of all bot commands.",
             color=0x2B2D31,
         )
@@ -72,9 +72,6 @@ class UtilityCog(commands.Cog):
             "**`/userinfo`** - View a member profile.\n"
             "**`/serverinfo`** - View server information.\n"
             "**`/avatar`** - View avatars.\n"
-            "**`/top_clans`** - Global clan leaderboard.\n"
-            "**`/clan_info`** - Detailed clan statistics.\n"
-            "**`/item [name]`** - Search Kirka items.\n"
             "**`/8ball`** - Ask the magic 8ball.\n"
             "**`/flip`** - Flip a coin.\n"
             "**`/rps`** - Rock Paper Scissors.\n"

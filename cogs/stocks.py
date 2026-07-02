@@ -259,35 +259,44 @@ class Stocks(commands.Cog):
 
     @commands.hybrid_command(name="portfolio", aliases=["pfol"], description="View your stock portfolio")
     async def portfolio(self, ctx: commands.Context):
-        user_id = str(ctx.author.id)
-        stocks = get_user_portfolio(user_id)
-        
-        if not stocks:
-            return await ctx.send("💼 Your portfolio is empty. Start trading with `!stocks`!")
+        await ctx.defer()
+        try:
+            user_id = str(ctx.author.id)
+            stocks = get_user_portfolio(user_id)
+            
+            if not stocks:
+                return await ctx.send("💼 Your portfolio is empty. Start trading with `!stocks`!")
 
-        embed = discord.Embed(title=f"💼 {ctx.author.display_name}'s Portfolio", color=0x2ECC71)
-        total_value = 0
-        total_profit = 0
-        
-        for symbol, data in stocks.items():
-            current_price = get_current_price(symbol)
-            qty = data["quantity"]
-            avg = data["avg_price"]
+            embed = discord.Embed(title=f"💼 {ctx.author.display_name}'s Portfolio", color=0x2ECC71)
+            total_value = 0
+            total_profit = 0
             
-            value = qty * current_price
-            profit = (current_price - avg) * qty
-            total_value += value
-            total_profit += profit
-            
-            p_text = f"+🪙 {profit:,.0f}" if profit >= 0 else f"-🪙 {abs(profit):,.0f}"
-            embed.add_field(
-                name=f"{symbol} ({qty} shares)",
-                value=f"Value: 🪙 {value:,}\nProfit: **{p_text}**\nAvg Cost: 🪙 {avg:,.0f}",
-                inline=True
-            )
-            
-        embed.description = f"**Total Portfolio Value:** 🪙 {total_value:,}\n**Total Profit/Loss:** 🪙 {total_profit:,.0f}"
-        await ctx.send(embed=embed)
+            for symbol, data in stocks.items():
+                try:
+                    current_price = get_current_price(symbol)
+                    qty = data["quantity"]
+                    avg = data["avg_price"]
+                    
+                    value = qty * current_price
+                    profit = (current_price - avg) * qty
+                    total_value += value
+                    total_profit += profit
+                    
+                    p_text = f"+🪙 {profit:,.0f}" if profit >= 0 else f"-🪙 {abs(profit):,.0f}"
+                    embed.add_field(
+                        name=f"{symbol} ({qty} shares)",
+                        value=f"Value: 🪙 {value:,}\nProfit: **{p_text}**\nAvg Cost: 🪙 {avg:,.0f}",
+                        inline=True
+                    )
+                except Exception as e:
+                    print(f"ERROR processing stock {symbol} in portfolio: {e}")
+                    continue
+                
+            embed.description = f"**Total Portfolio Value:** 🪙 {total_value:,}\n**Total Profit/Loss:** 🪙 {total_profit:,.0f}"
+            await ctx.send(embed=embed)
+        except Exception as e:
+            print(f"PORTFOLIO COMMAND ERROR: {e}")
+            await ctx.send("❌ An error occurred while fetching your portfolio. Please try again later.")
 
 async def setup(bot):
     await bot.add_cog(Stocks(bot))

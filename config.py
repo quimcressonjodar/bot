@@ -257,3 +257,16 @@ STOCK_BROKER_FEE = 0.02
 STOCK_DIVIDEND_RATE = 0.005
 STOCK_NEWS_PROBABILITY = 0.20
 STOCK_NEWS_CHANNEL_ID = 1206197908399980575
+
+ADVENTURE_EVENTS = [
+    {"text": "Your pet found a small hidden stash!", "min_gain": 50, "max_gain": 200},
+    {"text": "Your pet helped a traveler and received a tip.", "min_gain": 30, "max_gain": 150},
+    {"text": "Your pet discovered a pile of shiny coins in a cave.", "min_gain": 100, "max_gain": 500},
+    {"text": "Your pet won a local race!", "min_gain": 200, "max_gain": 800},
+    {"text": "Your pet found some loose change on the street.", "min_gain": 10, "max_gain": 50},
+    {"text": "Your pet dug up a small treasure chest.", "min_gain": 500, "max_gain": 1500},
+    {"text": "Your pet found a lost wallet and kept the reward.", "min_gain": 150, "max_gain": 400},
+    {"text": "Your pet scavenged through some ruins.", "min_gain": 80, "max_gain": 300},
+    {"text": "Your pet performed tricks for a crowd.", "min_gain": 120, "max_gain": 350},
+    {"text": "Your pet found a rare gem and sold it.", "min_gain": 1000, "max_gain": 3000},
+]

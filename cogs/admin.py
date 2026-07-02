@@ -122,48 +122,6 @@ class AdminCog(commands.Cog):
         except Exception as e:
             await ctx.send(f"❌ Failed to purge messages: {e}", ephemeral=True)
 
-    @commands.hybrid_command(name="lock", description="Lock a text channel (Admin only)")
-    @app_commands.describe(channel="The channel to lock (Defaults to current)")
-    @app_commands.default_permissions(administrator=True)
-    async def lock(self, ctx: commands.Context, channel: discord.TextChannel = None):
-        if not is_admin(ctx):
-            return await ctx.send("Admin only command.", ephemeral=True)
-        target_channel = channel or ctx.channel
-        try:
-            await target_channel.set_permissions(ctx.guild.default_role, send_messages=False)
-            await ctx.send(f"🔒 **{target_channel.mention}** has been locked down.")
-        except Exception as e:
-            await ctx.send(f"❌ Failed to lock channel: {e}", ephemeral=True)
-
-    @commands.hybrid_command(name="unlock", description="Unlock a previously locked channel (Admin only)")
-    @app_commands.describe(channel="The channel to unlock (Defaults to current)")
-    @app_commands.default_permissions(administrator=True)
-    async def unlock(self, ctx: commands.Context, channel: discord.TextChannel = None):
-        if not is_admin(ctx):
-            return await ctx.send("Admin only command.", ephemeral=True)
-        target_channel = channel or ctx.channel
-        try:
-            await target_channel.set_permissions(ctx.guild.default_role, send_messages=None)
-            await ctx.send(f"🔓 **{target_channel.mention}** is now unlocked.")
-        except Exception as e:
-            await ctx.send(f"❌ Failed to unlock channel: {e}", ephemeral=True)
-
-    @commands.hybrid_command(name="slowmode", description="Set slowmode delay for a channel (Admin only)")
-    @app_commands.describe(seconds="Slowmode delay in seconds (0 to disable)", channel="The channel")
-    @app_commands.default_permissions(administrator=True)
-    async def slowmode(self, ctx: commands.Context, seconds: int, channel: discord.TextChannel = None):
-        if not is_admin(ctx):
-            return await ctx.send("Admin only command.", ephemeral=True)
-        target_channel = channel or ctx.channel
-        try:
-            await target_channel.edit(slowmode_delay=seconds)
-            if seconds == 0:
-                await ctx.send(f"⏱️ Slowmode has been disabled in {target_channel.mention}.")
-            else:
-                await ctx.send(f"⏱️ Slowmode set to **{seconds}** seconds in {target_channel.mention}.")
-        except Exception as e:
-            await ctx.send(f"❌ Failed to set slowmode: {e}", ephemeral=True)
-
     @commands.hybrid_command(name="warn", description="Issue a warning to a member (Admin only)")
     @app_commands.describe(member="The member to warn", reason="The reason for the warning")
     @app_commands.default_permissions(administrator=True)
@@ -247,42 +205,6 @@ class AdminCog(commands.Cog):
             del warns_data[user_id]
             save_warns(warns_data)
         await ctx.send(f"✅ Cleared all warnings for **{member.name}**.")
-
-    @commands.hybrid_command(name="setnick", description="Quickly change a member's nickname (Admin only)")
-    @app_commands.describe(member="The member", nickname="New nickname (Leave empty to reset)")
-    @app_commands.default_permissions(administrator=True)
-    async def setnick(self, ctx: commands.Context, member: discord.Member, nickname: str = None):
-        if not is_admin(ctx):
-            return await ctx.send("Admin only command.", ephemeral=True)
-        try:
-            await member.edit(nick=nickname)
-            await ctx.send(f"✅ Changed nickname for **{member.name}** to `{nickname or member.name}`.")
-        except Exception as e:
-            await ctx.send(f"❌ Failed to change nickname: {e}", ephemeral=True)
-
-    @commands.hybrid_command(name="role_add", description="Assign a role to a member (Admin only)")
-    @app_commands.describe(member="The member", role="The role to assign")
-    @app_commands.default_permissions(administrator=True)
-    async def role_add(self, ctx: commands.Context, member: discord.Member, role: discord.Role):
-        if not is_admin(ctx):
-            return await ctx.send("Admin only command.", ephemeral=True)
-        try:
-            await member.add_roles(role)
-            await ctx.send(f"✅ Assigned the role **{role.name}** to **{member.name}**.")
-        except Exception as e:
-            await ctx.send(f"❌ Failed to add role: {e}", ephemeral=True)
-
-    @commands.hybrid_command(name="role_remove", description="Remove a role from a member (Admin only)")
-    @app_commands.describe(member="The member", role="The role to remove")
-    @app_commands.default_permissions(administrator=True)
-    async def role_remove(self, ctx: commands.Context, member: discord.Member, role: discord.Role):
-        if not is_admin(ctx):
-            return await ctx.send("Admin only command.", ephemeral=True)
-        try:
-            await member.remove_roles(role)
-            await ctx.send(f"✅ Removed the role **{role.name}** from **{member.name}**.")
-        except Exception as e:
-            await ctx.send(f"❌ Failed to remove role: {e}", ephemeral=True)
 
     @commands.hybrid_command(name="say", description="Make the bot say something (Admin only)")
     @app_commands.describe(message="The message you want the bot to repeat")

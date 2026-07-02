@@ -57,59 +57,6 @@ class UtilityCog(commands.Cog):
 
         await msg.edit(content=None, embed=embed)
 
-    @commands.hybrid_command(name="userinfo", description="Display detailed information about a member")
-    @app_commands.describe(member="The member to view (Defaults to yourself)")
-    async def userinfo(self, ctx: commands.Context, member: discord.Member = None):
-        target = member or ctx.author
-        roles = [role.mention for role in target.roles[1:]]
-
-        embed = discord.Embed(title=f"👤 User Profile: {target.name}", color=0x2B2D31)
-        embed.set_thumbnail(url=target.display_avatar.url)
-        embed.add_field(name="User ID", value=f"`{target.id}`", inline=True)
-        embed.add_field(name="Server Nickname", value=target.nick or "None", inline=True)
-        embed.add_field(name="Account Created", value=target.created_at.strftime("%Y-%m-%d"), inline=True)
-        embed.add_field(
-            name="Joined Server",
-            value=target.joined_at.strftime("%Y-%m-%d") if target.joined_at else "Unknown",
-            inline=True,
-        )
-        embed.add_field(
-            name=f"Roles ({len(roles)})",
-            value=" ".join(roles) if roles else "No roles assigned",
-            inline=False,
-        )
-        await ctx.send(embed=embed)
-
-    @commands.hybrid_command(name="serverinfo", description="Display general information about this server")
-    async def serverinfo(self, ctx: commands.Context):
-        guild = ctx.guild
-        embed = discord.Embed(title=f"🏰 Server Information: {guild.name}", color=0x2B2D31)
-        if guild.icon:
-            embed.set_thumbnail(url=guild.icon.url)
-        embed.add_field(name="Owner", value=guild.owner.mention if guild.owner else "Unknown", inline=True)
-        embed.add_field(name="Total Members", value=f"👥 {guild.member_count}", inline=True)
-        embed.add_field(
-            name="Channels",
-            value=f"📝 {len(guild.text_channels)} Text | 🔊 {len(guild.voice_channels)} Voice",
-            inline=True,
-        )
-        embed.add_field(name="Created Date", value=guild.created_at.strftime("%Y-%m-%d"), inline=True)
-        embed.add_field(
-            name="Boost Status",
-            value=f"✨ Tier {guild.premium_tier} ({guild.premium_subscription_count} boosts)",
-            inline=True,
-        )
-        embed.set_footer(text=f"Server ID: {guild.id}")
-        await ctx.send(embed=embed)
-
-    @commands.hybrid_command(name="avatar", description="Get a member's avatar in high resolution")
-    @app_commands.describe(member="The member (Defaults to yourself)")
-    async def avatar(self, ctx: commands.Context, member: discord.Member = None):
-        target = member or ctx.author
-        embed = discord.Embed(title=f"🖼️ Avatar of {target.name}", color=0x2B2D31)
-        embed.set_image(url=target.display_avatar.url)
-        await ctx.send(embed=embed)
-
     @commands.hybrid_command(name="help", description="Show all available commands")
     async def help_command(self, ctx: commands.Context):
         embed = discord.Embed(
@@ -120,12 +67,7 @@ class UtilityCog(commands.Cog):
 
         public_cmds = (
             "**`/botstats`** - Bot ping, uptime & stats.\n"
-            "**`/userinfo`** - View a member profile.\n"
-            "**`/serverinfo`** - View server information.\n"
-            "**`/avatar`** - View avatars.\n"
             "**`/8ball`** - Ask the magic 8ball.\n"
-            "**`/flip`** - Flip a coin.\n"
-            "**`/rps`** - Rock Paper Scissors.\n"
             "**`/help`** - Show all commands."
         )
         embed.add_field(name="🌍 Public Commands", value=public_cmds, inline=False)
@@ -175,12 +117,6 @@ class UtilityCog(commands.Cog):
             "**`/delwarn`** - Delete warning.\n"
             "**`/clearwarns`** - Clear all warnings.\n"
             "**`/purge`** - Delete messages.\n"
-            "**`/lock`** - Lock channels.\n"
-            "**`/unlock`** - Unlock channels.\n"
-            "**`/slowmode`** - Set slowmode.\n"
-            "**`/setnick`** - Change nicknames.\n"
-            "**`/role_add`** - Add roles.\n"
-            "**`/role_remove`** - Remove roles.\n"
             "**`/say`** - Make bot say text.\n"
             "**`/sayembed`** - Send custom embeds.\n"
             "**`/add`** - Add coins to users.\n"

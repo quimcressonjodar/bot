@@ -10,19 +10,12 @@ from discord.ext import commands
 from config import ROULETTE_RED, VALID_BETS
 from database import eco_col
 from utils.economy import get_user_data, get_wallet, update_wallet, parse_economy_amount, apply_amortization
-from views.game_views import BlackjackView, RPSView
+from views.game_views import BlackjackView
 
 
 class GamesCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-
-    @commands.hybrid_command(name="flip", description="Flip a coin: Heads or Tails")
-    async def flip(self, ctx: commands.Context):
-        msg = await ctx.send("Flipping the coin...")
-        result = secrets.choice(["Heads", "Tails"])
-        await asyncio.sleep(1)
-        await msg.edit(content=f"Flipping the coin... 🪙 **{result}**")
 
     @commands.hybrid_command(name="roulette", aliases=["r"], description="Bet on the casino roulette wheel")
     @app_commands.describe(
@@ -280,11 +273,6 @@ class GamesCog(commands.Cog):
             f"💬 **Answer:** {random.choice(responses)}"
         )
         await ctx.send(embed=embed)
-
-    @commands.hybrid_command(name="rps", description="Play Rock, Paper, Scissors against the bot")
-    async def rps(self, ctx: commands.Context):
-        embed = discord.Embed(title="Rock, Paper, Scissors", description="Choose your weapon below! 👇", color=0x2B2D31)
-        await ctx.send(embed=embed, view=RPSView(ctx.author))
 
 
 async def setup(bot: commands.Bot):

@@ -89,9 +89,9 @@ class Stocks(commands.Cog):
     @tasks.loop(minutes=STOCK_UPDATE_INTERVAL)
     async def update_stocks(self):
         try:
-            # 50% chance of a news event during update
+            # 20% chance of a news event during update
             news_impact = {}
-            if random.random() < 0.50:
+            if random.random() < 0.20:
                 symbol, message, multiplier = get_random_news()
                 news_impact[symbol] = multiplier
                 

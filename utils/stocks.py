@@ -14,7 +14,8 @@ from pymongo import MongoClient
 # MongoDB setup
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-db = client.get_database()
+# Explicitly specify the database name from the URI or a default one
+db = client.get_database("test") # Use "test" or your actual DB name if not in URI
 stocks_col = db["stocks_history"]
 user_stocks_col = db["user_stocks"]
 

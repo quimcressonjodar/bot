@@ -77,7 +77,14 @@ class Stocks(commands.Cog):
 
     @tasks.loop(minutes=STOCK_UPDATE_INTERVAL)
     async def update_stocks(self):
-        update_stock_prices()
+        try:
+            update_stock_prices()
+        except Exception as e:
+            print(f"STOCK UPDATE ERROR: {e}")
+
+    @update_stocks.before_loop
+    async def before_update_stocks(self):
+        await self.bot.wait_until_ready()
 
     @commands.hybrid_command(name="stocks", description="View the stock market")
     async def stocks(self, ctx: commands.Context, symbol: str = None):

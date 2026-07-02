@@ -89,15 +89,15 @@ class Stocks(commands.Cog):
     @tasks.loop(minutes=STOCK_UPDATE_INTERVAL)
     async def update_stocks(self):
         try:
-            # 20% chance of a news event during update
+            # 50% chance of a news event during update
             news_impact = {}
-            if random.random() < 0.20:
+            if random.random() < 0.50:
                 symbol, message, multiplier = get_random_news()
                 news_impact[symbol] = multiplier
                 
                 # Announce news in a channel
-                from config import WELCOME_CHANNEL_ID
-                channel = self.bot.get_channel(WELCOME_CHANNEL_ID)
+                STOCK_NEWS_CHANNEL_ID = 1206197908399980575
+                channel = self.bot.get_channel(STOCK_NEWS_CHANNEL_ID)
                 if channel:
                     embed = discord.Embed(title="🗞️ Market News Alert", description=message, color=0xF1C40F)
                     if symbol != "ALL":
@@ -113,8 +113,8 @@ class Stocks(commands.Cog):
         try:
             users, total = process_dividends()
             if users > 0:
-                from config import WELCOME_CHANNEL_ID
-                channel = self.bot.get_channel(WELCOME_CHANNEL_ID)
+                STOCK_NEWS_CHANNEL_ID = 1206197908399980575
+                channel = self.bot.get_channel(STOCK_NEWS_CHANNEL_ID)
                 if channel:
                     embed = discord.Embed(
                         title="💰 Daily Dividends Distributed",

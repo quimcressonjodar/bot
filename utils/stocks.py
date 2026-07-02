@@ -48,10 +48,17 @@ def update_stock_prices(news_impact=None):
         # Simple GBM-like fluctuation
         # price_t = price_{t-1} * (1 + drift + volatility * random_normal)
         # Drift is slightly positive to encourage long-term growth
-        drift = 0.001 
+        # Increased drift and volatility scaling for more aggressive movements
+        drift = 0.005 
         volatility = config["volatility"]
+        
+        # News impact is amplified for more dramatic spikes/crashes
+        # If multiplier is 1.0 (no news), impact is neutral.
+        # If multiplier is 1.2, it becomes 1.4, etc.
+        amplified_multiplier = 1.0 + (multiplier - 1.0) * 1.5
+        
         change = random.normalvariate(drift, volatility)
-        new_price = max(10, int(last_price * (1 + change) * multiplier)) # Minimum price 10
+        new_price = max(50, int(last_price * (1 + change) * amplified_multiplier)) # Minimum price 50 for stability
         
         new_entry = {"price": new_price, "timestamp": time.time()}
         current_prices.append(new_entry)

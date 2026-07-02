@@ -1,10 +1,12 @@
 import random
 import time
 import os
+from zoneinfo import ZoneInfo
 import matplotlib
 # Use Agg backend for headless environments like Render
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pandas as pd
 import io
 import discord
@@ -76,7 +78,11 @@ def generate_stock_chart(symbol):
         return None
         
     prices = [p["price"] for p in history["prices"]]
-    timestamps = [pd.to_datetime(p["timestamp"], unit='s') for p in history["prices"]]
+    spain_tz = ZoneInfo("Europe/Madrid")
+    timestamps = [
+        pd.to_datetime(p["timestamp"], unit='s', utc=True).tz_convert(spain_tz)
+        for p in history["prices"]
+    ]
     
     df = pd.DataFrame({"timestamp": timestamps, "price": prices})
     
@@ -98,8 +104,9 @@ def generate_stock_chart(symbol):
     ax.set_ylabel("Price (Coins)", color='white')
     ax.grid(True, alpha=0.2)
     
-    # Format x-axis
-    fig.autofmt_xdate()
+    # Format x-axis — hora de España (HH:MM)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M', tz=ZoneInfo("Europe/Madrid")))
+    fig.autofmt_xdate(rotation=45)
     
     # Save to buffer
     buf = io.BytesIO()

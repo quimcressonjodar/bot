@@ -13,6 +13,9 @@ from utils.pets import get_current_hunger, get_pet_state
 
 
 async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dict) -> None:
+    # Defer immediately to prevent interaction timeout
+    await interaction.response.defer()
+    
     user_id = str(ctx.author.id)
     user_data = get_user_data(user_id)
     cooldown = 1800
@@ -21,7 +24,7 @@ async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dic
 
     if now - last_adventure < cooldown:
         next_adv_ts = int(last_adventure + cooldown)
-        return await interaction.response.send_message(
+        return await interaction.followup.send(
             f"⏳ Your pets are resting. Try again <t:{next_adv_ts}:R>.", ephemeral=True
         )
 
@@ -80,7 +83,7 @@ async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dic
     embed.add_field(name="✨ Loot Rarity", value=loot_rarity.capitalize())
     embed.add_field(name="🐾 Pet Rarity", value=rarity.capitalize())
 
-    await interaction.response.edit_message(content=None, embed=embed, view=None)
+    await interaction.edit_original_response(content=None, embed=embed, view=None)
 
 
 async def start_pet_battle(channel, battle_id: str) -> None:

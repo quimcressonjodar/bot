@@ -489,7 +489,8 @@ class EconomyCog(commands.Cog):
             7: 100.0  # Master: 10,000%
         }
         ratio = ratios.get(level, 1.0)
-        limit = int(net_worth * ratio)
+        # Minimum limit of 50,000 for new/poor players, otherwise use the aggressive ratio
+        limit = max(50000, int(net_worth * ratio))
 
         # Parse amount
         if amount.lower() in ["max", "all"]:

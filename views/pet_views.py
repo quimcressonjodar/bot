@@ -61,7 +61,9 @@ async def run_adventure(interaction: discord.Interaction, ctx, selected_pet: dic
         upsert=True,
     )
 
-    event_text = random.choice(ADVENTURE_EVENTS[loot_rarity])
+    # ADVENTURE_EVENTS is a list of dicts, not a dict of lists
+    event = random.choice(ADVENTURE_EVENTS)
+    event_text = event["text"]
     rarity_colors = {
         "common": 0x95A5A6,
         "rare": 0x3498DB,

@@ -634,13 +634,22 @@ class EconomyCog(commands.Cog):
         # Next calculation is in 1 hour (since process_interests runs hourly)
         next_calc = int(last_calc + 3600)
         
-        embed = discord.Embed(title="📉 Debt Status", color=0xE74C3C)
-        embed.add_field(name="💵 Principal", value=f"🪙 {loan:,}", inline=True)
-        embed.add_field(name="📈 Interest", value=f"🪙 {interest:,}", inline=True)
-        embed.add_field(name="💰 Total Owed", value=f"🪙 {total:,}", inline=False)
-        embed.add_field(name="📈 Interest Rate", value="2% daily", inline=True)
-        embed.add_field(name="⏳ Next Interest Update", value=f"<t:{next_calc}:R>", inline=False)
-        embed.set_footer(text="30% of your earnings are automatically deducted to pay this debt.")
+        embed = discord.Embed(title="📉 Financial Debt Report", color=0xFF2A2A)
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
+        
+        desc = (
+            f"### 🏦 Outstanding Balance\n"
+            f"> **Total Owed:** 🪙 `{total:,}`\n\n"
+            f"**Details:**\n"
+            f"💵 **Principal:** 🪙 `{loan:,}`\n"
+            f"📈 **Accrued Interest:** 🪙 `{interest:,}`\n\n"
+            f"--- \n"
+            f"📊 **Interest Rate:** `2% daily` (Calculated hourly)\n"
+            f"⏳ **Next Update:** <t:{next_calc}:R>\n"
+            f"📉 **Auto-Payment:** `30%` of all future earnings"
+        )
+        embed.description = desc
+        embed.set_footer(text="Pay back your loan with !repay to avoid further interest.")
         
         await ctx.send(embed=embed)
 

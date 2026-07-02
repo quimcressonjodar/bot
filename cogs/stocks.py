@@ -36,36 +36,43 @@ class StockView(discord.ui.View):
         await self.process_trade(interaction, quantity, "sell")
 
     async def process_trade(self, interaction, quantity, side):
-        user_id = str(interaction.user.id)
-        if user_id != str(self.ctx.author.id):
+        if str(interaction.user.id) != str(self.ctx.author.id):
             return await interaction.response.send_message("❌ This is not your menu.", ephemeral=True)
+        await self.process_trade_direct(interaction, quantity, side)
 
-        price = get_current_price(self.symbol)
+    async def process_trade_direct(self, target, quantity, side):
+        # target can be an interaction or a context
+        is_interaction = isinstance(target, discord.Interaction)
+        user = target.user if is_interaction else target.author
+        user_id = str(user.id)
         
-        # Calculate fee with prestige discount
+        price = get_current_price(self.symbol)
         wallet = get_wallet(user_id)
         bank = get_bank(user_id)
         level = get_prestige_level(wallet + bank)
         
-        # Fee discount: Master gets 0% fee, others get reduced fees
-        fee_multiplier = max(0, 1 - (level * 0.15)) # Simple scaling for fee reduction
+        fee_multiplier = max(0, 1 - (level * 0.15))
         current_fee = STOCK_FEE * fee_multiplier
         
         if side == "buy":
             total_cost = int(price * quantity * (1 + current_fee))
             if wallet < total_cost:
-                return await interaction.response.send_message(f"❌ You need 🪙 {total_cost:,} to buy {quantity} shares (including fees).", ephemeral=True)
+                msg = f"❌ You need 🪙 {total_cost:,} to buy {quantity} shares (including fees)."
+                return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
             
             update_wallet(user_id, -total_cost)
             buy_stock(user_id, self.symbol, quantity, price)
-            await interaction.response.send_message(f"✅ Bought {quantity} shares of **{self.symbol}** for 🪙 {total_cost:,}!", ephemeral=True)
+            msg = f"✅ Bought {quantity} shares of **{self.symbol}** for 🪙 {total_cost:,}!"
+            return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
         else:
             total_gain = int(price * quantity * (1 - current_fee))
             if sell_stock(user_id, self.symbol, quantity):
                 update_wallet(user_id, total_gain)
-                await interaction.response.send_message(f"✅ Sold {quantity} shares of **{self.symbol}** for 🪙 {total_gain:,}!", ephemeral=True)
+                msg = f"✅ Sold {quantity} shares of **{self.symbol}** for 🪙 {total_gain:,}!"
+                return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
             else:
-                await interaction.response.send_message("❌ You don't have enough shares to sell.", ephemeral=True)
+                msg = "❌ You don't have enough shares to sell."
+                return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
 
 class Stocks(commands.Cog):
     def __init__(self, bot):
@@ -85,6 +92,40 @@ class Stocks(commands.Cog):
     @update_stocks.before_loop
     async def before_update_stocks(self):
         await self.bot.wait_until_ready()
+        # Ensure at least two data points for charts on first run
+        from utils.stocks import stocks_col
+        for symbol in STOCKS:
+            history = stocks_col.find_one({"symbol": symbol})
+            if not history or len(history.get("prices", [])) < 2:
+                update_stock_prices()
+                break
+
+    @commands.hybrid_command(name="sbuy", description="Buy stocks from the market")
+    @app_commands.describe(symbol="Stock symbol (e.g. VRTX)", quantity="Amount of shares to buy")
+    async def sbuy(self, ctx: commands.Context, symbol: str, quantity: int):
+        symbol = symbol.upper()
+        if symbol not in STOCKS:
+            return await ctx.send(f"❌ Stock symbol **{symbol}** not found.", ephemeral=True)
+        if quantity <= 0:
+            return await ctx.send("❌ Quantity must be positive.", ephemeral=True)
+        
+        # Call the view's internal logic or a utility
+        # For simplicity, we can use the same logic as the button
+        view = StockView(ctx, symbol)
+        # Mock interaction-like behavior or just call logic
+        await view.process_trade_direct(ctx, quantity, "buy")
+
+    @commands.hybrid_command(name="ssell", description="Sell stocks to the market")
+    @app_commands.describe(symbol="Stock symbol (e.g. VRTX)", quantity="Amount of shares to sell")
+    async def ssell(self, ctx: commands.Context, symbol: str, quantity: int):
+        symbol = symbol.upper()
+        if symbol not in STOCKS:
+            return await ctx.send(f"❌ Stock symbol **{symbol}** not found.", ephemeral=True)
+        if quantity <= 0:
+            return await ctx.send("❌ Quantity must be positive.", ephemeral=True)
+        
+        view = StockView(ctx, symbol)
+        await view.process_trade_direct(ctx, quantity, "sell")
 
     @commands.hybrid_command(name="stocks", description="View the stock market")
     async def stocks(self, ctx: commands.Context, symbol: str = None):
@@ -118,7 +159,7 @@ class Stocks(commands.Cog):
         else:
             await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name="portfolio", description="View your stock portfolio")
+    @commands.hybrid_command(name="portfolio", aliases=["pfol"], description="View your stock portfolio")
     async def portfolio(self, ctx: commands.Context):
         user_id = str(ctx.author.id)
         stocks = get_user_portfolio(user_id)

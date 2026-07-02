@@ -211,12 +211,17 @@ class Stocks(commands.Cog):
 
     @commands.hybrid_command(name="stocks", description="View the stock market")
     async def stocks(self, ctx: commands.Context, symbol: str = None):
+        await ctx.defer()
+        
         if not symbol:
             embed = discord.Embed(title="📈 Global Stock Market", color=0x2B2D31)
             description = "Use `!stocks <symbol>` to see detailed charts and trade.\n\n"
             for s, config in STOCKS.items():
-                price = get_current_price(s)
-                description += f"**{s}** - {config['name']}\nPrice: 🪙 {price:,}\n\n"
+                try:
+                    price = get_current_price(s)
+                    description += f"**{s}** - {config['name']}\nPrice: 🪙 {price:,}\n\n"
+                except Exception:
+                    description += f"**{s}** - {config['name']}\nPrice: *Calculating...*\n\n"
             embed.description = description
             return await ctx.send(embed=embed)
 
@@ -224,22 +229,25 @@ class Stocks(commands.Cog):
         if symbol not in STOCKS:
             return await ctx.send(f"❌ Stock symbol **{symbol}** not found.", ephemeral=True)
 
-        await ctx.defer()
-        chart = generate_stock_chart(symbol)
-        price = get_current_price(symbol)
-        
-        embed = discord.Embed(
-            title=f"📊 {STOCKS[symbol]['name']} ({symbol})",
-            description=f"{STOCKS[symbol]['description']}\n\n**Current Price:** 🪙 {price:,}",
-            color=0x3498DB
-        )
-        
-        if chart:
-            embed.set_image(url=f"attachment://{symbol}_chart.png")
-            view = StockView(ctx, symbol)
-            await ctx.send(embed=embed, file=chart, view=view)
-        else:
-            await ctx.send(embed=embed)
+        try:
+            chart = generate_stock_chart(symbol)
+            price = get_current_price(symbol)
+            
+            embed = discord.Embed(
+                title=f"📊 {STOCKS[symbol]['name']} ({symbol})",
+                description=f"{STOCKS[symbol]['description']}\n\n**Current Price:** 🪙 {price:,}",
+                color=0x3498DB
+            )
+            
+            if chart:
+                embed.set_image(url=f"attachment://{symbol}_chart.png")
+                view = StockView(ctx, symbol)
+                await ctx.send(embed=embed, file=chart, view=view)
+            else:
+                await ctx.send(embed=embed)
+        except Exception as e:
+            print(f"STOCKS COMMAND ERROR: {e}")
+            await ctx.send(f"❌ An error occurred while generating the chart for {symbol}. Please try again later.")
 
     @commands.hybrid_command(name="portfolio", aliases=["pfol"], description="View your stock portfolio")
     async def portfolio(self, ctx: commands.Context):

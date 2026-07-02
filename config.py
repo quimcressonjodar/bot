@@ -353,3 +353,15 @@ PRESTIGE_LEVELS = {
 BREEDING_COST_RATIO = 0.25  # 25% of parents value
 BREEDING_SUCCESS_CHANCE = 70  # 70% success
 BREEDING_RISK_CHANCE = 5  # 5% chance of losing a pet on failure
+
+# STOCK MARKET SYSTEM
+STOCKS = {
+    "VRTX": {"name": "Vertex Dynamics", "description": "High-tech AI and robotics corp.", "volatility": 0.05, "initial_price": 1000},
+    "GLBL": {"name": "Global Energy", "description": "Sustainable energy and infrastructure.", "volatility": 0.02, "initial_price": 500},
+    "AURA": {"name": "Aura Pharmaceuticals", "description": "Cutting-edge biotech and medicine.", "volatility": 0.04, "initial_price": 750},
+    "ORBT": {"name": "Orbital Space", "description": "Space tourism and satellite mining.", "volatility": 0.08, "initial_price": 2000},
+    "TITN": {"name": "Titan Heavy Industries", "description": "Manufacturing and heavy machinery.", "volatility": 0.03, "initial_price": 1200},
+}
+STOCK_UPDATE_INTERVAL = 30  # Minutes
+STOCK_HISTORY_LIMIT = 48    # How many data points to keep (e.g., 24 hours if update is 30m)
+STOCK_FEE = 0.02           # 2% transaction fee

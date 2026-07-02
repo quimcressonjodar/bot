@@ -6,3 +6,5 @@ tabulate
 pymongo[srv]
 pillow
 openai
+matplotlib
+pandas

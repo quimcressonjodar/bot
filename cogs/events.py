@@ -74,9 +74,15 @@ class EventsCog(commands.Cog):
         )
         await channel.send(embed=embed)
 
-    @tasks.loop(hours=5)
+    @tasks.loop(minutes=30) # Check more frequently but only spawn every 5 hours
     async def spawn_global_drop(self):
+        # Check if 5 hours have passed since the last drop
+        last_drop_time = state.last_global_drop_time if hasattr(state, 'last_global_drop_time') else 0
+        if time.time() - last_drop_time < 18000: # 5 hours in seconds
+            return
+
         channel = self.bot.get_channel(GLOBAL_DROP_CHANNEL_ID)
+        state.last_global_drop_time = time.time()
 
         drop_type = random.choice(["coins", "coins", "coins", "item", "item"])
 
@@ -135,10 +141,9 @@ class EventsCog(commands.Cog):
     @spawn_global_drop.before_loop
     async def before_spawn_global_drop(self):
         await self.bot.wait_until_ready()
-        # To avoid a drop every time the bot restarts, we wait for the first interval
-        # instead of spawning one immediately or shortly after startup.
-        # This means the first drop will happen 5 hours after the bot starts.
-        await asyncio.sleep(18000) # Wait 5 hours (5 * 3600 seconds) before the first drop
+        # Initialize last_drop_time if it doesn't exist
+        if not hasattr(state, 'last_global_drop_time'):
+            state.last_global_drop_time = time.time()
 
     @tasks.loop(hours=1)
     async def process_interests(self):

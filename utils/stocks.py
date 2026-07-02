@@ -1,13 +1,18 @@
 import random
 import time
+import os
+import matplotlib
+# Use Agg backend for headless environments like Render
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import io
 import discord
-from config import STOCKS, STOCK_HISTORY_LIMIT, MONGO_URI
+from config import STOCKS, STOCK_HISTORY_LIMIT
 from pymongo import MongoClient
 
 # MongoDB setup
+MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client.get_database()
 stocks_col = db["stocks_history"]

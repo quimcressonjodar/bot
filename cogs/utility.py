@@ -84,6 +84,7 @@ class UtilityCog(commands.Cog):
             "**`/work`** - Work for coins.\n"
             "**`/crime`** - Risk stealing coins.\n"
             "**`/rob`** - Rob another player.\n"
+            "**`/catch`** - Catch a wanted criminal.\n"
             "**`/blackjack`** - Play blackjack.\n"
             "**`/roulette`** - Play roulette.\n"
             "**`/claimdrop`** - Claim global drops.\n"

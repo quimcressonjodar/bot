@@ -313,17 +313,17 @@ async def check_price_alerts(bot):
         try:
             user = await bot.fetch_user(int(alert["user_id"]))
             arrow = "📈" if alert["direction"] == "above" else "📉"
-            verb = "alcanzado" if alert["direction"] == "above" else "bajado a"
+            verb = "reached" if alert["direction"] == "above" else "dropped to"
             color = 0x2ECC71 if alert["direction"] == "above" else 0xE74C3C
             embed = discord.Embed(
-                title="🔔 ¡Alerta de precio activada!",
+                title="🔔 Price alert triggered!",
                 description=(
-                    f"{arrow} **{symbol}** ha {verb} tu objetivo de 🪙 **{alert['target_price']:,}**\n\n"
-                    f"💹 Precio actual: 🪙 **{current_price:,}**"
+                    f"{arrow} **{symbol}** has {verb} your target of 🪙 **{alert['target_price']:,}**\n\n"
+                    f"💹 Current price: 🪙 **{current_price:,}**"
                 ),
                 color=color,
             )
-            embed.set_footer(text="La alerta ha sido eliminada automáticamente.")
+            embed.set_footer(text="This alert has been automatically removed.")
             await user.send(embed=embed)
         except Exception:
             pass  # DMs closed or user not found

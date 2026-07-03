@@ -85,34 +85,34 @@ class StockView(discord.ui.View):
                     await track_bounty_progress(bot, user_id, "TRADER", profit)
 
                 if profit > 0:
-                    result_line = f"📈 **+🪙 {profit:,}** de ganancia"
+                    result_line = f"📈 **+🪙 {profit:,}** profit"
                     color = 0x2ECC71
-                    title = "✅ Venta completada — Ganancia"
+                    title = "✅ Sale completed — Profit"
                 elif profit < 0:
-                    result_line = f"📉 **-🪙 {abs(profit):,}** de pérdida"
+                    result_line = f"📉 **-🪙 {abs(profit):,}** loss"
                     color = 0xE74C3C
-                    title = "✅ Venta completada — Pérdida"
+                    title = "✅ Sale completed — Loss"
                 else:
-                    result_line = "➡️ Sin cambios (precio igual al de compra)"
+                    result_line = "➡️ Break even (sold at avg cost)"
                     color = 0x95A5A6
-                    title = "✅ Venta completada"
+                    title = "✅ Sale completed"
 
                 fee_paid = int(price * quantity * current_fee)
                 embed = discord.Embed(title=title, color=color)
-                embed.add_field(name="📦 Acciones vendidas", value=f"**{quantity}x {self.symbol}**", inline=True)
-                embed.add_field(name="💰 Recibido", value=f"🪙 {total_gain:,}", inline=True)
+                embed.add_field(name="📦 Shares sold", value=f"**{quantity}x {self.symbol}**", inline=True)
+                embed.add_field(name="💰 Received", value=f"🪙 {total_gain:,}", inline=True)
                 embed.add_field(
-                    name="📊 Precio venta vs compra",
+                    name="📊 Sale vs avg buy price",
                     value=f"🪙 {price:,} → avg 🪙 {int(avg_price):,}",
                     inline=False,
                 )
-                embed.add_field(name="📈 Resultado", value=result_line, inline=False)
+                embed.add_field(name="📈 Result", value=result_line, inline=False)
                 if fee_paid > 0:
-                    embed.set_footer(text=f"Comisión aplicada: 🪙 {fee_paid:,}")
+                    embed.set_footer(text=f"Fee applied: 🪙 {fee_paid:,}")
 
                 return await target.response.send_message(embed=embed, ephemeral=True) if is_interaction else await target.send(embed=embed)
             else:
-                msg = "❌ No tienes suficientes acciones para vender."
+                msg = "❌ You don't have enough shares to sell."
                 return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
 
 
@@ -350,19 +350,19 @@ class Stocks(commands.Cog):
                 f"❌ Stock **{symbol}** not found. Check `!stocks` for available symbols.", ephemeral=True
             )
         if price <= 0:
-            return await ctx.send("❌ El precio objetivo debe ser mayor que 0.", ephemeral=True)
+            return await ctx.send("❌ Target price must be greater than 0.", ephemeral=True)
 
         current_price = get_current_price(symbol)
         if current_price == price:
             return await ctx.send(
-                "❌ El precio objetivo es igual al precio actual. Elige un valor diferente.", ephemeral=True
+                "❌ Target price equals the current price. Choose a different value.", ephemeral=True
             )
 
         user_id = str(ctx.author.id)
         existing = get_user_alerts(user_id)
         if len(existing) >= 5:
             return await ctx.send(
-                "❌ Ya tienes 5 alertas activas (máximo). Cancela alguna con `!cancelalert` antes de añadir otra.",
+                "❌ You already have 5 active alerts (max). Cancel one with `!cancelalert` before adding another.",
                 ephemeral=True,
             )
 
@@ -370,17 +370,17 @@ class Stocks(commands.Cog):
         alert_id = add_price_alert(user_id, symbol, price)
 
         arrow = "📈" if direction == "above" else "📉"
-        verb = "suba a" if direction == "above" else "baje a"
+        verb = "rises to" if direction == "above" else "drops to"
 
         embed = discord.Embed(
-            title="🔔 Alerta de precio creada",
+            title="🔔 Price alert set",
             description=(
-                f"{arrow} Te avisaré por DM cuando **{symbol}** {verb} 🪙 **{price:,}**\n\n"
-                f"💹 Precio actual: 🪙 **{current_price:,}**"
+                f"{arrow} I'll DM you when **{symbol}** {verb} 🪙 **{price:,}**\n\n"
+                f"💹 Current price: 🪙 **{current_price:,}**"
             ),
             color=0x3498DB,
         )
-        embed.set_footer(text=f"ID: {alert_id} • Cancela con: !cancelalert {alert_id}")
+        embed.set_footer(text=f"ID: {alert_id} • Cancel with: !cancelalert {alert_id}")
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="myalerts", description="View your active price alerts")
@@ -390,10 +390,10 @@ class Stocks(commands.Cog):
 
         if not alerts:
             return await ctx.send(
-                "📭 No tienes alertas activas. Crea una con `!alert <símbolo> <precio>`."
+                "📭 You have no active alerts. Create one with `!alert <symbol> <price>`."
             )
 
-        embed = discord.Embed(title="🔔 Tus alertas de precio activas", color=0x3498DB)
+        embed = discord.Embed(title="🔔 Your active price alerts", color=0x3498DB)
         for a in alerts:
             symbol = a["symbol"]
             target = a["target_price"]
@@ -402,16 +402,16 @@ class Stocks(commands.Cog):
             verb = "≥" if direction == "above" else "≤"
             try:
                 current = get_current_price(symbol)
-                current_text = f"Precio actual: 🪙 {current:,}"
+                current_text = f"Current price: 🪙 {current:,}"
             except Exception:
-                current_text = "Precio actual: desconocido"
+                current_text = "Current price: unknown"
             embed.add_field(
                 name=f"{arrow} {symbol} {verb} 🪙 {target:,}",
                 value=f"{current_text}\n`!cancelalert {a['_id']}`",
                 inline=False,
             )
 
-        embed.set_footer(text="Usa !cancelalert <id> para eliminar una alerta")
+        embed.set_footer(text="Use !cancelalert <id> to remove an alert")
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="cancelalert", description="Cancel an active price alert")
@@ -422,82 +422,82 @@ class Stocks(commands.Cog):
         try:
             oid = ObjectId(alert_id)
         except Exception:
-            return await ctx.send("❌ ID de alerta inválido.", ephemeral=True)
+            return await ctx.send("❌ Invalid alert ID.", ephemeral=True)
 
         alert = stock_alerts_col.find_one({"_id": oid, "user_id": user_id})
         if not alert:
-            return await ctx.send("❌ Alerta no encontrada o no te pertenece.", ephemeral=True)
+            return await ctx.send("❌ Alert not found or doesn't belong to you.", ephemeral=True)
 
         remove_alert_by_id(alert_id)
         embed = discord.Embed(
-            title="✅ Alerta cancelada",
-            description=f"La alerta de **{alert['symbol']}** a 🪙 {alert['target_price']:,} ha sido eliminada.",
+            title="✅ Alert cancelled",
+            description=f"The alert for **{alert['symbol']}** at 🪙 {alert['target_price']:,} has been removed.",
             color=0x2ECC71,
         )
         await ctx.send(embed=embed)
 
     # ------------------------------------------------------------------
-    # IPO command (admin only)
+    # IPO command (admin only — fully automatic)
     # ------------------------------------------------------------------
+
+    # Pool of candidate companies for automatic IPOs.
+    # The bot picks one at random that isn't already listed.
+    IPO_POOL = {
+        "NOVA": {"name": "Nova Systems",          "sector": "Technology",      "volatility": 0.12, "initial_price": 480,  "description": "Next-gen microchip and neural interface hardware."},
+        "QNTM": {"name": "Quantum Leap Computing","sector": "Technology",      "volatility": 0.18, "initial_price": 620,  "description": "Pioneer in stable quantum computing and encryption."},
+        "NXUS": {"name": "Nexus Networks",        "sector": "Telecom",         "volatility": 0.11, "initial_price": 450,  "description": "Global 7G infrastructure and satellite internet provider."},
+        "ZRTH": {"name": "Zeroth AI",             "sector": "AI",              "volatility": 0.16, "initial_price": 550,  "description": "Cutting-edge large language models and autonomous systems."},
+        "SOLX": {"name": "SolarX",                "sector": "Energy",          "volatility": 0.13, "initial_price": 390,  "description": "Record-efficiency solar panels and floating solar farms."},
+        "HYDR": {"name": "HydroGen Power",        "sector": "Energy",          "volatility": 0.14, "initial_price": 420,  "description": "Green hydrogen production and freight supply chains."},
+        "CARB": {"name": "CarbonZero",            "sector": "Environment",     "volatility": 0.12, "initial_price": 360,  "description": "Direct-air carbon capture and global credit trading."},
+        "BRVK": {"name": "BraveBank",             "sector": "Finance",         "volatility": 0.14, "initial_price": 500,  "description": "Zero-fee digital bank with AI financial advisors."},
+        "PYDE": {"name": "PyDex Exchange",        "sector": "Crypto/DeFi",     "volatility": 0.20, "initial_price": 340,  "description": "Regulated decentralised exchange and CBDC pilot partner."},
+        "GNTX": {"name": "Genetix Corp",          "sector": "Biotech",         "volatility": 0.17, "initial_price": 580,  "description": "CRISPR gene therapy and genome sequencing at scale."},
+        "MNDR": {"name": "MindRise",              "sector": "Neurotech",       "volatility": 0.19, "initial_price": 610,  "description": "Non-invasive brain implants and neuro-enhancement tech."},
+        "DRFT": {"name": "Drift Motors",          "sector": "Automotive",      "volatility": 0.13, "initial_price": 470,  "description": "High-performance electric vehicles and autonomous driving."},
+        "SKYW": {"name": "SkyWay Airlines",       "sector": "Aviation",        "volatility": 0.11, "initial_price": 410,  "description": "Global airline pioneering hydrogen-powered aircraft."},
+        "XPRS": {"name": "Xpress Logistics",      "sector": "Logistics",       "volatility": 0.10, "initial_price": 380,  "description": "Autonomous drone delivery and robotic warehouse networks."},
+        "VRTL": {"name": "VirtualWorld",          "sector": "Gaming/Metaverse","volatility": 0.15, "initial_price": 520,  "description": "Immersive VR metaverse and top-tier esports publisher."},
+        "PLSR": {"name": "Pulsar Entertainment", "sector": "Entertainment",    "volatility": 0.12, "initial_price": 460,  "description": "Box-office studio, streaming platform and music label."},
+        "NUTX": {"name": "NutriX",               "sector": "Food & Consumer",  "volatility": 0.10, "initial_price": 350,  "description": "Lab-grown meat and personalised nutrition subscriptions."},
+        "ARMX": {"name": "ArmX Defense",         "sector": "Defense",          "volatility": 0.14, "initial_price": 540,  "description": "Autonomous combat drones and NATO cyber warfare systems."},
+        "BRKR": {"name": "BrickRock Properties", "sector": "Real Estate",      "volatility": 0.09, "initial_price": 430,  "description": "Luxury developments and smart-home residential communities."},
+    }
 
     @commands.hybrid_command(
         name="ipo",
-        description="List a new company on the stock market, removing the worst performer (Admin only)",
-    )
-    @app_commands.describe(
-        symbol="Ticker symbol for the new company (e.g. NOVA)",
-        name="Full company name",
-        volatility="Price volatility 0.01–0.50 (default 0.10)",
-        initial_price="Starting price in coins (default 500)",
-        description="Short company description",
+        description="Randomly list a new company on the market, removing the worst performer (Admin only)",
     )
     @app_commands.default_permissions(administrator=True)
-    async def ipo(
-        self,
-        ctx: commands.Context,
-        symbol: str,
-        name: str,
-        volatility: float = 0.10,
-        initial_price: int = 500,
-        *,
-        description: str = "A new company entering the market.",
-    ):
+    async def ipo(self, ctx: commands.Context):
         if not is_admin(ctx):
             return await ctx.send("❌ Admin only.", ephemeral=True)
 
-        symbol = symbol.upper()
+        # Pick a random candidate not already listed
+        available = [s for s in self.IPO_POOL if s not in STOCKS]
+        if not available:
+            return await ctx.send(
+                "❌ All IPO candidates are already listed on the market.", ephemeral=True
+            )
 
-        if symbol in STOCKS:
-            return await ctx.send(f"❌ **{symbol}** ya existe en el mercado.", ephemeral=True)
-
-        if not (2 <= len(symbol) <= 6) or not symbol.isalpha():
-            return await ctx.send("❌ El símbolo debe tener entre 2 y 6 letras.", ephemeral=True)
-
-        volatility = max(0.01, min(0.50, volatility))
-        initial_price = max(50, initial_price)
-
-        data = {
-            "name": name,
-            "sector": "IPO",
-            "volatility": volatility,
-            "initial_price": initial_price,
-            "description": description,
-        }
+        symbol = random.choice(available)
+        data = self.IPO_POOL[symbol]
 
         removed = add_ipo_stock(symbol, data)
 
-        embed = discord.Embed(title="🏦 ¡Nueva empresa en el mercado!", color=0xF1C40F)
-        embed.add_field(name="🆕 Nueva empresa", value=f"**{symbol}** — {name}", inline=False)
-        embed.add_field(name="💹 Precio inicial", value=f"🪙 {initial_price:,}", inline=True)
-        embed.add_field(name="📊 Volatilidad", value=f"{volatility:.0%}", inline=True)
-        embed.add_field(name="📝 Descripción", value=description, inline=False)
+        embed = discord.Embed(title="🏦 New company listed on the market!", color=0xF1C40F)
+        embed.add_field(name="🆕 New listing", value=f"**{symbol}** — {data['name']}", inline=False)
+        embed.add_field(name="🏭 Sector", value=data["sector"], inline=True)
+        embed.add_field(name="💹 Starting price", value=f"🪙 {data['initial_price']:,}", inline=True)
+        embed.add_field(name="📊 Volatility", value=f"{data['volatility']:.0%}", inline=True)
+        embed.add_field(name="📝 About", value=data["description"], inline=False)
         if removed:
             embed.add_field(
-                name="📉 Empresa retirada (peor rendimiento)",
-                value=f"**{removed}** ha salido del mercado.",
+                name="📉 Delisted (worst performer)",
+                value=f"**{removed}** has been removed from the market.",
                 inline=False,
             )
-        embed.set_footer(text="Las noticias del mercado ya pueden afectar a la nueva empresa.")
+        embed.set_footer(text="Market news can already affect this company.")
 
         STOCK_NEWS_CHANNEL_ID = 1206197908399980575
         channel = self.bot.get_channel(STOCK_NEWS_CHANNEL_ID)

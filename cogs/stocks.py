@@ -71,20 +71,58 @@ class StockView(discord.ui.View):
             portfolio = get_user_portfolio(user_id)
             avg_price = portfolio.get(self.symbol, {}).get("avg_price", 0)
             profit = int((price - avg_price) * quantity)
-            
+
             if sell_stock(user_id, self.symbol, quantity):
                 update_wallet(user_id, total_gain)
-                
+
                 # Bounty Tracking
                 if profit > 0:
                     from utils.bounties import track_bounty_progress
                     bot = self.ctx.bot if hasattr(self.ctx, "bot") else self.ctx
                     await track_bounty_progress(bot, user_id, "TRADER", profit)
-                
-                msg = f"✅ Sold {quantity} shares of **{self.symbol}** for 🪙 {total_gain:,}!"
-                return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
+
+                # Build profit/loss embed
+                if profit > 0:
+                    result_line = f"📈 **+🪙 {profit:,}** de ganancia"
+                    color = 0x2ECC71
+                    title = "✅ Venta completada — Ganancia"
+                elif profit < 0:
+                    result_line = f"📉 **-🪙 {abs(profit):,}** de pérdida"
+                    color = 0xE74C3C
+                    title = "✅ Venta completada — Pérdida"
+                else:
+                    result_line = "➡️ Sin cambios (precio igual al de compra)"
+                    color = 0x95A5A6
+                    title = "✅ Venta completada"
+
+                fee_paid = int(price * quantity * current_fee)
+                embed = discord.Embed(title=title, color=color)
+                embed.add_field(
+                    name="📦 Acciones vendidas",
+                    value=f"**{quantity}x {self.symbol}**",
+                    inline=True
+                )
+                embed.add_field(
+                    name="💰 Recibido",
+                    value=f"🪙 {total_gain:,}",
+                    inline=True
+                )
+                embed.add_field(
+                    name="📊 Precio venta vs compra",
+                    value=f"🪙 {price:,} → avg 🪙 {int(avg_price):,}",
+                    inline=False
+                )
+                embed.add_field(
+                    name="📈 Resultado",
+                    value=result_line,
+                    inline=False
+                )
+                if fee_paid > 0:
+                    embed.set_footer(text=f"Comisión aplicada: 🪙 {fee_paid:,}")
+
+                return await target.response.send_message(embed=embed, ephemeral=True) if is_interaction else await target.send(embed=embed)
             else:
-                msg = "❌ You don't have enough shares to sell."
+                msg = "❌ No tienes suficientes acciones para vender."
                 return await target.response.send_message(msg, ephemeral=True) if is_interaction else await target.send(msg)
 
 class Stocks(commands.Cog):

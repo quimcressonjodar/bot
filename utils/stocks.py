@@ -47,14 +47,17 @@ def add_ipo_stock(symbol: str, data: dict) -> str | None:
     Returns the symbol of the removed company (or None if market was empty).
     """
     worst_symbol = None
-    worst_price = float("inf")
+    worst_performance = float("inf")
     for s in list(STOCKS.keys()):
         try:
             price = get_current_price(s)
         except Exception:
             price = STOCKS[s]["initial_price"]
-        if price < worst_price:
-            worst_price = price
+        initial = STOCKS[s].get("initial_price", 500)
+        # Performance = % change from initial price (lower = worse)
+        performance = (price - initial) / initial if initial else 0
+        if performance < worst_performance:
+            worst_performance = performance
             worst_symbol = s
 
     # Remove worst from live dict, price history, and IPO registry

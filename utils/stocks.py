@@ -10,17 +10,85 @@ import matplotlib.dates as mdates
 import pandas as pd
 import io
 import discord
-from config import STOCKS, STOCK_HISTORY_LIMIT, WELCOME_CHANNEL_ID
+from config import STOCKS, STOCK_HISTORY_LIMIT
 from pymongo import MongoClient
-from utils.stock_news import get_random_news
 
 # MongoDB setup
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-# Explicitly specify the database name from the URI or a default one
-db = client.get_database("test") # Use "test" or your actual DB name if not in URI
+db = client.get_database("kirka_bot")
 stocks_col = db["stocks_history"]
 user_stocks_col = db["user_stocks"]
+stock_alerts_col = db["stock_alerts"]
+ipo_col = db["ipo_stocks"]
+
+
+# ---------------------------------------------------------------------------
+# IPO – load persisted custom stocks into the live STOCKS dict on startup
+# ---------------------------------------------------------------------------
+
+def load_ipo_stocks():
+    """Load custom IPO stocks from MongoDB and inject them into STOCKS."""
+    for doc in ipo_col.find():
+        symbol = doc["symbol"]
+        if symbol not in STOCKS:
+            STOCKS[symbol] = {
+                "name": doc["name"],
+                "sector": doc.get("sector", "IPO"),
+                "volatility": doc.get("volatility", 0.10),
+                "initial_price": doc.get("initial_price", 500),
+                "description": doc.get("description", "A new company on the market."),
+            }
+
+
+def add_ipo_stock(symbol: str, data: dict) -> str | None:
+    """
+    Add a new IPO stock to the market and remove the worst performer.
+    Returns the symbol of the removed company (or None if market was empty).
+    """
+    worst_symbol = None
+    worst_price = float("inf")
+    for s in list(STOCKS.keys()):
+        try:
+            price = get_current_price(s)
+        except Exception:
+            price = STOCKS[s]["initial_price"]
+        if price < worst_price:
+            worst_price = price
+            worst_symbol = s
+
+    # Remove worst from live dict, price history, and IPO registry
+    if worst_symbol:
+        STOCKS.pop(worst_symbol, None)
+        stocks_col.delete_one({"symbol": worst_symbol})
+        ipo_col.delete_one({"symbol": worst_symbol})
+
+    # Add new stock to live dict
+    STOCKS[symbol] = data
+
+    # Persist in IPO collection so it survives bot restarts
+    ipo_col.update_one(
+        {"symbol": symbol},
+        {"$set": {"symbol": symbol, **data}},
+        upsert=True,
+    )
+
+    # Seed price history with two identical points (chart needs >= 2)
+    stocks_col.delete_one({"symbol": symbol})
+    stocks_col.insert_one({
+        "symbol": symbol,
+        "prices": [
+            {"price": data["initial_price"], "timestamp": time.time() - 60},
+            {"price": data["initial_price"], "timestamp": time.time()},
+        ],
+    })
+
+    return worst_symbol
+
+
+# ---------------------------------------------------------------------------
+# Price helpers
+# ---------------------------------------------------------------------------
 
 def get_current_price(symbol):
     """Get the latest price for a stock symbol."""
@@ -29,165 +97,235 @@ def get_current_price(symbol):
         return STOCKS[symbol]["initial_price"]
     return history["prices"][-1]["price"]
 
+
 def update_stock_prices(news_impact=None):
     """Update prices for all stocks using Geometric Brownian Motion logic."""
-    # news_impact is a dict {symbol: multiplier}
     if news_impact is None:
         news_impact = {}
 
     for symbol, config in STOCKS.items():
-        # Apply news multiplier if exists for this symbol or "ALL"
         multiplier = news_impact.get(symbol, 1.0) * news_impact.get("ALL", 1.0)
         history = stocks_col.find_one({"symbol": symbol})
         if not history:
             prices = [{"price": config["initial_price"], "timestamp": time.time()}]
             stocks_col.insert_one({"symbol": symbol, "prices": prices})
             continue
-        
+
         current_prices = history.get("prices", [])
         last_price = current_prices[-1]["price"]
-        
-        # Simple GBM-like fluctuation
-        # price_t = price_{t-1} * (1 + drift + volatility * random_normal)
-        # Drift is slightly positive to encourage long-term growth
-        # Increased drift and volatility scaling for more aggressive movements
-        drift = 0.005 
+
+        drift = 0.005
         volatility = config["volatility"]
-        
-        # News impact is amplified for more dramatic spikes/crashes
-        # If multiplier is 1.0 (no news), impact is neutral.
-        # If multiplier is 1.2, it becomes 1.4, etc.
         amplified_multiplier = 1.0 + (multiplier - 1.0) * 1.5
-        
+
         change = random.normalvariate(drift, volatility)
-        new_price = max(50, int(last_price * (1 + change) * amplified_multiplier)) # Minimum price 50 for stability
-        
+        new_price = max(50, int(last_price * (1 + change) * amplified_multiplier))
+
         new_entry = {"price": new_price, "timestamp": time.time()}
         current_prices.append(new_entry)
-        
-        # Keep only the last N points
+
         if len(current_prices) > STOCK_HISTORY_LIMIT:
             current_prices = current_prices[-STOCK_HISTORY_LIMIT:]
-            
+
         stocks_col.update_one({"symbol": symbol}, {"$set": {"prices": current_prices}})
+
+
+# ---------------------------------------------------------------------------
+# Chart generation
+# ---------------------------------------------------------------------------
 
 def generate_stock_chart(symbol):
     """Generate a PNG chart for a stock symbol and return as discord.File."""
     history = stocks_col.find_one({"symbol": symbol})
     if not history or len(history.get("prices", [])) < 2:
         return None
-        
+
     prices = [p["price"] for p in history["prices"]]
     spain_tz = ZoneInfo("Europe/Madrid")
     timestamps = [
         pd.to_datetime(p["timestamp"], unit='s', utc=True).tz_convert(spain_tz)
         for p in history["prices"]
     ]
-    
+
     df = pd.DataFrame({"timestamp": timestamps, "price": prices})
-    
-    # Plotting
+
     plt.style.use('dark_background')
     fig, ax = plt.subplots(figsize=(10, 5))
-    
-    # Draw segments with dynamic colors (green if up, red if down)
+
     for i in range(len(prices) - 1):
-        segment_color = '#2ecc71' if prices[i+1] >= prices[i] else '#e74c3c'
-        ax.plot(df['timestamp'][i:i+2], df['price'][i:i+2], color=segment_color, linewidth=2)
-    
-    # Fill under the curve using the overall trend color for aesthetic consistency
+        segment_color = '#2ecc71' if prices[i + 1] >= prices[i] else '#e74c3c'
+        ax.plot(df['timestamp'][i:i + 2], df['price'][i:i + 2], color=segment_color, linewidth=2)
+
     trend_color = '#2ecc71' if prices[-1] >= prices[0] else '#e74c3c'
     ax.fill_between(df['timestamp'], df['price'], alpha=0.1, color=trend_color)
-    
-    # Customizing
+
     ax.set_title(f"{STOCKS[symbol]['name']} ({symbol})", fontsize=16, color='white', pad=20)
     ax.set_ylabel("Price (Coins)", color='white')
     ax.grid(True, alpha=0.2)
-    
-    # Format x-axis — show date+time if range > 24h, otherwise just HH:MM
-    spain_tz = ZoneInfo("Europe/Madrid")
+
     time_range = (df['timestamp'].iloc[-1] - df['timestamp'].iloc[0]).total_seconds()
     if time_range > 86400:
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M', tz=spain_tz))
     else:
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M', tz=spain_tz))
     fig.autofmt_xdate(rotation=45)
-    
-    # Save to buffer
+
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)
     buf.seek(0)
     plt.close(fig)
-    
+
     return discord.File(fp=buf, filename=f"{symbol}_chart.png")
 
+
+# ---------------------------------------------------------------------------
+# Portfolio helpers
+# ---------------------------------------------------------------------------
+
 def get_user_portfolio(user_id):
-    """Get a user's stock portfolio."""
     portfolio = user_stocks_col.find_one({"_id": user_id})
     return portfolio.get("stocks", {}) if portfolio else {}
 
+
 def buy_stock(user_id, symbol, quantity, price):
-    """Record a stock purchase for a user."""
     portfolio = user_stocks_col.find_one({"_id": user_id})
     if not portfolio:
         user_stocks_col.insert_one({"_id": user_id, "stocks": {}})
         portfolio = {"stocks": {}}
-        
+
     stocks = portfolio.get("stocks", {})
     if symbol not in stocks:
         stocks[symbol] = {"quantity": 0, "avg_price": 0}
-        
+
     current = stocks[symbol]
     new_total_cost = (current["quantity"] * current["avg_price"]) + (quantity * price)
     new_quantity = current["quantity"] + quantity
-    
+
     stocks[symbol] = {
         "quantity": new_quantity,
-        "avg_price": new_total_cost / new_quantity
+        "avg_price": new_total_cost / new_quantity,
     }
-    
+
     user_stocks_col.update_one({"_id": user_id}, {"$set": {"stocks": stocks}})
 
+
 def sell_stock(user_id, symbol, quantity):
-    """Record a stock sale for a user."""
     portfolio = user_stocks_col.find_one({"_id": user_id})
     if not portfolio or symbol not in portfolio.get("stocks", {}):
         return False
-        
+
     stocks = portfolio["stocks"]
     if stocks[symbol]["quantity"] < quantity:
         return False
-        
+
     stocks[symbol]["quantity"] -= quantity
     if stocks[symbol]["quantity"] == 0:
         del stocks[symbol]
-        
+
     user_stocks_col.update_one({"_id": user_id}, {"$set": {"stocks": stocks}})
     return True
 
+
 def process_dividends():
-    """Distribute dividends to all stock holders (0.5% of current value)."""
     dividend_rate = 0.005
     all_portfolios = user_stocks_col.find()
-    
     total_distributed = 0
     users_paid = 0
-    
+
     from utils.economy import update_wallet
-    
+
     for portfolio in all_portfolios:
         user_id = portfolio["_id"]
-        stocks = portfolio.get("stocks", {})
+        stocks_data = portfolio.get("stocks", {})
         user_total_dividend = 0
-        
-        for symbol, data in stocks.items():
+
+        for symbol, data in stocks_data.items():
+            if symbol not in STOCKS:
+                continue
             current_price = get_current_price(symbol)
             dividend = int(current_price * data["quantity"] * dividend_rate)
             user_total_dividend += dividend
-            
+
         if user_total_dividend > 0:
             update_wallet(user_id, user_total_dividend)
             total_distributed += user_total_dividend
             users_paid += 1
-            
+
     return users_paid, total_distributed
+
+
+# ---------------------------------------------------------------------------
+# Price Alert System
+# ---------------------------------------------------------------------------
+
+def add_price_alert(user_id: str, symbol: str, target_price: int) -> str:
+    """
+    Save a price alert. Direction is inferred from current vs target price.
+    Returns the inserted alert _id as string.
+    """
+    current_price = get_current_price(symbol)
+    direction = "above" if target_price > current_price else "below"
+    result = stock_alerts_col.insert_one({
+        "user_id": user_id,
+        "symbol": symbol,
+        "target_price": target_price,
+        "direction": direction,
+        "created_at": time.time(),
+    })
+    return str(result.inserted_id)
+
+
+def get_user_alerts(user_id: str) -> list:
+    return list(stock_alerts_col.find({"user_id": user_id}))
+
+
+def remove_alert_by_id(alert_id: str) -> bool:
+    from bson import ObjectId
+    try:
+        result = stock_alerts_col.delete_one({"_id": ObjectId(alert_id)})
+        return result.deleted_count > 0
+    except Exception:
+        return False
+
+
+async def check_price_alerts(bot):
+    """
+    Called after every stock price update.
+    Sends a DM to users whose price alert has triggered, then deletes it.
+    """
+    alerts = list(stock_alerts_col.find())
+    for alert in alerts:
+        symbol = alert["symbol"]
+        if symbol not in STOCKS:
+            continue
+        try:
+            current_price = get_current_price(symbol)
+        except Exception:
+            continue
+
+        triggered = (
+            (alert["direction"] == "above" and current_price >= alert["target_price"]) or
+            (alert["direction"] == "below" and current_price <= alert["target_price"])
+        )
+        if not triggered:
+            continue
+
+        try:
+            user = await bot.fetch_user(int(alert["user_id"]))
+            arrow = "📈" if alert["direction"] == "above" else "📉"
+            verb = "alcanzado" if alert["direction"] == "above" else "bajado a"
+            color = 0x2ECC71 if alert["direction"] == "above" else 0xE74C3C
+            embed = discord.Embed(
+                title="🔔 ¡Alerta de precio activada!",
+                description=(
+                    f"{arrow} **{symbol}** ha {verb} tu objetivo de 🪙 **{alert['target_price']:,}**\n\n"
+                    f"💹 Precio actual: 🪙 **{current_price:,}**"
+                ),
+                color=color,
+            )
+            embed.set_footer(text="La alerta ha sido eliminada automáticamente.")
+            await user.send(embed=embed)
+        except Exception:
+            pass  # DMs closed or user not found
+
+        stock_alerts_col.delete_one({"_id": alert["_id"]})

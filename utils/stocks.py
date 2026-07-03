@@ -104,8 +104,13 @@ def generate_stock_chart(symbol):
     ax.set_ylabel("Price (Coins)", color='white')
     ax.grid(True, alpha=0.2)
     
-    # Format x-axis — hora de España (HH:MM)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M', tz=ZoneInfo("Europe/Madrid")))
+    # Format x-axis — show date+time if range > 24h, otherwise just HH:MM
+    spain_tz = ZoneInfo("Europe/Madrid")
+    time_range = (df['timestamp'].iloc[-1] - df['timestamp'].iloc[0]).total_seconds()
+    if time_range > 86400:
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M', tz=spain_tz))
+    else:
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M', tz=spain_tz))
     fig.autofmt_xdate(rotation=45)
     
     # Save to buffer

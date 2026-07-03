@@ -273,7 +273,7 @@ ADVENTURE_EVENTS = [
 
 STOCKS = {
     "VRTX": {"name": "Vertex Dynamics", "sector": "AI & Robotics", "volatility": 0.12, "initial_price": 500, "description": "Cutting-edge AI and robotics solutions."},
-    "GLBL": {"name": "Global Energy", "sector": "Energy", "volatility": 0.06, "initial_price": 500, "description": "Sustainable energy and infrastructure."},
+    "CRPT": {"name": "CryptoVault Financial", "sector": "Finance", "volatility": 0.20, "initial_price": 450, "description": "Decentralized finance and digital asset management."},
     "AURA": {"name": "Aura Pharmaceuticals", "sector": "Biotech", "volatility": 0.10, "initial_price": 500, "description": "Next-gen medical research and biotech."},
     "ORBT": {"name": "Orbital Space", "sector": "Space Tourism", "volatility": 0.18, "initial_price": 500, "description": "Commercial space travel and tourism."},
     "TITN": {"name": "Titan Heavy Industries", "sector": "Manufacturing", "volatility": 0.08, "initial_price": 500, "description": "Heavy machinery and industrial production."},

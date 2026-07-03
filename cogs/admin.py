@@ -7,7 +7,9 @@ from discord.ext import commands
 
 from utils.helpers import is_admin, parse_duration, load_warns, save_warns
 from database import eco_col, pets_col
-from config import ROLE_SHOP
+from config import ROLE_SHOP, STOCKS
+from utils.stocks import stocks_col, user_stocks_col, stock_alerts_col, ipo_col
+from utils.bounties import bounties_col
 
 
 class AdminCog(commands.Cog):
@@ -294,7 +296,24 @@ class AdminCog(commands.Cog):
         # 2. Clear pets in pets_col for all users
         pets_col.update_many({}, {"$set": {"pets": []}})
 
-        # 3. Remove shop roles from all members in the guild
+        # 3. Clear all stock-related data
+        user_stocks_col.delete_many({})   # user portfolios
+        stocks_col.delete_many({})        # price history & charts
+        stock_alerts_col.delete_many({})  # price alerts
+        ipo_col.delete_many({})           # persisted IPO companies
+
+        # Also evict IPO stocks from the live STOCKS dict
+        # (base stocks defined in config.py are preserved on next restart)
+        from config import STOCKS as _base_stocks_check
+        base_symbols = set(_base_stocks_check.keys())
+        for sym in list(STOCKS.keys()):
+            if sym not in base_symbols:
+                STOCKS.pop(sym, None)
+
+        # 4. Clear bounties
+        bounties_col.delete_many({})
+
+        # 5. Remove shop roles from all members in the guild
         role_ids = [data["role_id"] for data in ROLE_SHOP.values() if "role_id" in data]
         roles_to_remove = []
         for rid in role_ids:
@@ -320,6 +339,11 @@ class AdminCog(commands.Cog):
                 "✅ All wallets and banks set to 🪙 0\n"
                 "✅ All inventories and cooldowns cleared\n"
                 "✅ All pets removed\n"
+                "✅ All stock portfolios wiped\n"
+                "✅ All stock price history cleared\n"
+                "✅ All price alerts deleted\n"
+                "✅ All IPO companies delisted\n"
+                "✅ All bounties cleared\n"
                 f"✅ Removed shop roles from **{removed_count}** members"
             ),
             color=0xFF0000,

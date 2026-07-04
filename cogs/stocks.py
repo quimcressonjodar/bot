@@ -157,16 +157,35 @@ class Stocks(commands.Cog):
     @tasks.loop(hours=24)
     async def distribute_dividends(self):
         try:
-            users, total = process_dividends()
+            users, total, rates = process_dividends()
             if users > 0:
                 STOCK_NEWS_CHANNEL_ID = 1206197908399980575
                 channel = self.bot.get_channel(STOCK_NEWS_CHANNEL_ID)
                 if channel:
+                    # Sort stocks by dividend rate to show best and worst payers
+                    sorted_rates = sorted(
+                        rates.items(), key=lambda x: x[1]["rate"], reverse=True
+                    )
+                    top = sorted_rates[:3]
+                    bottom = sorted_rates[-3:]
+
+                    def fmt(symbol, info):
+                        perf = info["performance"]
+                        arrow = "📈" if perf >= 0 else "📉"
+                        sign = "+" if perf >= 0 else ""
+                        return f"**{symbol}** {arrow} {sign}{perf:.1%} → {info['rate']:.2%} rate"
+
+                    top_lines = "\n".join(fmt(s, i) for s, i in top)
+                    bottom_lines = "\n".join(fmt(s, i) for s, i in bottom)
+
                     embed = discord.Embed(
                         title="💰 Daily Dividends Distributed",
-                        description=f"A total of 🪙 {total:,} coins were paid out to {users} shareholders!",
+                        description=f"🪙 **{total:,}** coins paid out to **{users}** shareholders!",
                         color=0x2ECC71,
                     )
+                    embed.add_field(name="🏆 Top payers", value=top_lines, inline=False)
+                    embed.add_field(name="📉 Lowest payers", value=bottom_lines, inline=False)
+                    embed.set_footer(text="Dividend rate = 0.3% base ± 24h performance. Range: 0.05% – 2%")
                     await channel.send(embed=embed)
         except Exception as e:
             print(f"DIVIDEND ERROR: {e}")

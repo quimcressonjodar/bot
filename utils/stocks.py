@@ -229,13 +229,59 @@ def sell_stock(user_id, symbol, quantity):
     return True
 
 
+def get_dividend_rate(symbol: str) -> tuple[float, float]:
+    """
+    Calculate a stock's dividend rate based on its 24-hour price performance.
+    Returns (rate, performance_pct) where rate is between 0.0005 and 0.02.
+
+    Formula: rate = clamp(0.003 + performance * 0.10, 0.0005, 0.02)
+    Examples:
+      +10% gain  → 0.003 + 0.10*0.10 = 1.3%
+      flat       → 0.3%
+      -10% loss  → clamped to 0.05% (minimum)
+    """
+    history = stocks_col.find_one({"symbol": symbol})
+    if not history or len(history.get("prices", [])) < 2:
+        return 0.003, 0.0  # default base rate if no history
+
+    prices = history["prices"]
+    current_price = prices[-1]["price"]
+    cutoff = time.time() - 86400  # 24 hours ago
+
+    # Find the oldest price within the last 24h; fall back to earliest available
+    price_24h_ago = None
+    for entry in prices:
+        if entry["timestamp"] >= cutoff:
+            price_24h_ago = entry["price"]
+            break
+    if price_24h_ago is None:
+        price_24h_ago = prices[0]["price"]
+
+    if price_24h_ago == 0:
+        return 0.003, 0.0
+
+    performance = (current_price - price_24h_ago) / price_24h_ago
+    rate = max(0.0005, min(0.02, 0.003 + performance * 0.10))
+    return rate, performance
+
+
 def process_dividends():
-    dividend_rate = 0.005
+    """
+    Pay proportional dividends to all shareholders.
+    Each stock's rate depends on its 24h performance (0.05% – 2%).
+    Returns (users_paid, total_distributed, rates_by_symbol).
+    """
+    from utils.economy import update_wallet
+
+    # Pre-compute rates for every listed stock
+    rates = {}
+    for symbol in STOCKS:
+        rate, perf = get_dividend_rate(symbol)
+        rates[symbol] = {"rate": rate, "performance": perf}
+
     all_portfolios = user_stocks_col.find()
     total_distributed = 0
     users_paid = 0
-
-    from utils.economy import update_wallet
 
     for portfolio in all_portfolios:
         user_id = portfolio["_id"]
@@ -246,7 +292,8 @@ def process_dividends():
             if symbol not in STOCKS:
                 continue
             current_price = get_current_price(symbol)
-            dividend = int(current_price * data["quantity"] * dividend_rate)
+            rate = rates[symbol]["rate"]
+            dividend = int(current_price * data["quantity"] * rate)
             user_total_dividend += dividend
 
         if user_total_dividend > 0:
@@ -254,7 +301,7 @@ def process_dividends():
             total_distributed += user_total_dividend
             users_paid += 1
 
-    return users_paid, total_distributed
+    return users_paid, total_distributed, rates
 
 
 # ---------------------------------------------------------------------------

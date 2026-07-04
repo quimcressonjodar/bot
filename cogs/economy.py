@@ -450,6 +450,7 @@ class EconomyCog(commands.Cog):
         target_id = str(member.id)
 
         if catcher_id == target_id:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send("❌ You can't catch yourself!", ephemeral=True)
 
         target_data = get_user_data(target_id)
@@ -457,6 +458,7 @@ class EconomyCog(commands.Cog):
         wanted_until = target_data.get("wanted_until", 0)
 
         if wanted_until < now:
+            ctx.command.reset_cooldown(ctx)
             return await ctx.send(f"❌ **{member.display_name}** is not wanted right now.", ephemeral=True)
 
         # 50% chance the criminal escapes

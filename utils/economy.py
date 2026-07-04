@@ -1,5 +1,11 @@
 import time
 from database import eco_col
+from discord.ext import commands
+
+
+class JailCheckError(commands.CheckFailure):
+    """Raised by the global jail check so it can be suppressed distinctly."""
+    pass
 
 
 def get_user_data(user_id: str) -> dict:

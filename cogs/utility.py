@@ -173,12 +173,11 @@ def get_tutorial_state(user_id: str) -> dict | None:
     return tutorial_col.find_one({"_id": user_id})
 
 
-def set_tutorial_step(user_id: str, step: int):
-    tutorial_col.update_one(
-        {"_id": user_id},
-        {"$set": {"step": step, "active": True}},
-        upsert=True,
-    )
+def set_tutorial_step(user_id: str, step: int, guild_id: int | None = None):
+    update: dict = {"step": step, "active": True}
+    if guild_id is not None:
+        update["guild_id"] = guild_id
+    tutorial_col.update_one({"_id": user_id}, {"$set": update}, upsert=True)
 
 
 def finish_tutorial(user_id: str):
@@ -207,8 +206,9 @@ class UtilityCog(commands.Cog):
     async def tutorial_command(self, ctx: commands.Context):
         user_id = str(ctx.author.id)
 
-        # Reset / start tutorial
-        set_tutorial_step(user_id, 0)
+        # Reset / start tutorial (bind to this guild)
+        guild_id = ctx.guild.id if ctx.guild else None
+        set_tutorial_step(user_id, 0, guild_id=guild_id)
 
         # Try to DM the user
         try:
@@ -267,12 +267,16 @@ class UtilityCog(commands.Cog):
         if ctx.command is None or ctx.command.name != expected_cmd:
             return
 
-        # Advance
+        # Guild guard — only advance from the same guild where tutorial started
+        bound_guild = state.get("guild_id")
+        if bound_guild and (ctx.guild is None or ctx.guild.id != bound_guild):
+            return
+
         next_idx = step_idx + 1
 
         try:
             if next_idx >= len(STEPS):
-                # Tutorial done
+                # Tutorial done — mark finished BEFORE sending DMs
                 finish_tutorial(user_id)
                 done = discord.Embed(
                     title="✅ Great job!",
@@ -282,8 +286,7 @@ class UtilityCog(commands.Cog):
                 await ctx.author.send(embed=done)
                 await ctx.author.send(embed=FINAL_EMBED)
             else:
-                # Send confirmation + next step
-                set_tutorial_step(user_id, next_idx)
+                # Send DMs first; only persist new step if they succeed
                 confirm = discord.Embed(
                     title=f"✅ Step {step_idx + 1} done!",
                     description=f"You used **`!{expected_cmd}`** — nice work! Here's what's next:",
@@ -291,8 +294,11 @@ class UtilityCog(commands.Cog):
                 )
                 await ctx.author.send(embed=confirm)
                 await ctx.author.send(embed=STEPS[next_idx]["embed"]())
+                # DMs delivered successfully — now persist
+                set_tutorial_step(user_id, next_idx)
         except discord.Forbidden:
-            pass  # User closed DMs mid-tutorial — silently stop
+            # User closed DMs mid-tutorial — deactivate so we stop tracking
+            finish_tutorial(user_id)
 
     # ── !botstats ────────────────────────────────────────────────────────────
 

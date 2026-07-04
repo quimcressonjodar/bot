@@ -81,14 +81,14 @@ class WeeklyXPBot(commands.Bot):
 
         # Global jail check — blocks all commands for jailed users
         async def jail_check(ctx: commands.Context) -> bool:
-            from utils.economy import is_jailed
+            from utils.economy import is_jailed, JailCheckError
             release = is_jailed(str(ctx.author.id))
             if release:
                 await ctx.send(
                     f"🔒 You are in jail and cannot use commands until <t:{release}:t> (<t:{release}:R>).",
                     ephemeral=True,
                 )
-                return False
+                raise JailCheckError("jailed")
             return True
 
         self.add_check(jail_check)

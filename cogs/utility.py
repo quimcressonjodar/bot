@@ -148,19 +148,87 @@ FINAL_EMBED = _e(
 
 # Reference-only embed (shown by !help without tutorial flow)
 REFERENCE_EMBED = _e(
-    "📖 Economy — Quick Reference",
-    "All the main commands at a glance. Use `!tutorial` to do the interactive walkthrough.",
+    "📖 Economy — Command Guide",
+    "Every command explained. Use `!tutorial` for the step-by-step interactive walkthrough.",
     0x2B2D31,
     [
-        ("💰 Daily income", "`!daily` · `!weekly` · `!claim`"),
-        ("🏦 Banking", "`!balance` · `!deposit` · `!withdraw` · `!pay @user`"),
-        ("💼 Work & crime", "`!work` · `!crime` · `!rob @user` · `!catch @user`"),
-        ("🎰 Casino", "`!blackjack` · `!roulette` · `!dice` · `!claimdrop`"),
-        ("🎯 Bounties", "`!bounties`"),
-        ("🐾 Pets", "`!shop` · `!buy` · `!pets` · `!feed` · `!breed` · `!battle` · `!adventures`"),
-        ("📈 Stocks", "`!stocks` · `!sbuy` · `!ssell` · `!portfolio` · `!alert`"),
-        ("🏦 Loans", "`!loan` · `!repay` · `!debt`"),
-        ("⭐ Other", "`!leaderboard` · `!inventory` · `!sell` · `!botstats`"),
+        (
+            "💰 Free Income",
+            "`!daily` — ~1,000 🪙 every 24 h\n"
+            "`!weekly` — ~25,000 🪙 once per week\n"
+            "`!claim` — hourly bonus if you own income roles from the shop",
+        ),
+        (
+            "🏦 Balance & Banking",
+            "`!balance` — wallet, bank, net worth and prestige level\n"
+            "`!deposit <amount|all>` — move coins from wallet → bank (safe from robbers)\n"
+            "`!withdraw <amount|all>` — take coins out of the bank\n"
+            "`!pay @user <amount>` — send coins directly to someone\n"
+            "`!leaderboard` — richest players ranked by net worth",
+        ),
+        (
+            "💼 Work & Crime",
+            "`!work` — random job, earns coins on a cooldown. 100% safe.\n"
+            "`!crime` — attempt a crime for 2k–6.5k 🪙. Fail → fine + WANTED 🚨\n"
+            "`!rob @user` — steal from someone's wallet. Fail → fine + WANTED 🚨\n"
+            "`!catch @user` — catch a WANTED player for a reward (15 min cooldown)\n"
+            "⚠️ WANTED = anyone can catch you and take a reward from your wallet. Deposit fast!",
+        ),
+        (
+            "🎰 Casino",
+            "`!blackjack <bet>` — beat the dealer to 21. Win = 2× your bet\n"
+            "`!roulette <bet> <red/black/even/odd/number/1st12/2nd12/3rd12>` — up to 36× payout\n"
+            "`!dice <bet>` — roll against the house\n"
+            "`!claimdrop` — grab a global coin/item drop before anyone else (admin-triggered)",
+        ),
+        (
+            "🎯 Bounties",
+            "`!bounties` — view active contracts and your progress on each\n"
+            "Progress is tracked automatically as you play. Examples: *work 10 times*, "
+            "*catch a criminal*, *win at blackjack*. Completing a contract pays a big reward.",
+        ),
+        (
+            "🐾 Pets",
+            "`!shop` — browse pets, food and roles for sale\n"
+            "`!buy <pet>` — purchase a pet (coins from wallet)\n"
+            "`!pets` — view all your pets: HP, damage, hunger, status\n"
+            "`!feed <pet> <food>` — restore hunger (hungry pets lose stats)\n"
+            "`!breed <pet1> <pet2>` — combine two pets into a stronger offspring\n"
+            "`!battle @user` — your strongest pet fights theirs. Winner earns coins\n"
+            "`!adventures <pet>` — send a pet to find coins, food or rare loot\n"
+            "`!sell_pet <pet>` — sell a pet for 50% of its shop price",
+        ),
+        (
+            "📈 Stocks",
+            "`!stocks` — all companies: price, daily % change\n"
+            "`!stocks <SYMBOL>` — detailed view of one stock\n"
+            "`!sbuy <SYMBOL> <amount|all>` — buy shares\n"
+            "`!ssell <SYMBOL> <amount|all>` — sell shares\n"
+            "`!portfolio` — your holdings, current value, total profit/loss\n"
+            "`!alert <SYMBOL> <price>` — DM alert when a stock hits your target\n"
+            "`!myalerts` — see your active alerts (shows ID 1, 2, 3…)\n"
+            "`!cancelalert <id>` — remove an alert by its short number\n"
+            "📅 Dividends paid daily: 0.05%–2% depending on company performance",
+        ),
+        (
+            "🏦 Loans",
+            "`!loan <amount>` — borrow coins instantly (interest accrues over time)\n"
+            "`!repay <amount>` — pay back part or all of your debt\n"
+            "`!debt` — check your outstanding balance and accrued interest\n"
+            "⚠️ Debt compounds — only borrow if you have a plan to repay.",
+        ),
+        (
+            "🎒 Inventory & Shop",
+            "`!inventory` — items you own: food, loot, resale value\n"
+            "`!sell` — sell an item from your inventory for coins",
+        ),
+        (
+            "⭐ Prestige & Stats",
+            "`!balance` — shows your prestige level (based on total net worth)\n"
+            "Higher prestige = lower stock trading fees (up to −90% at max rank)\n"
+            "`!botstats` — bot ping, uptime, server count\n"
+            "`!tutorial` — restart the interactive step-by-step walkthrough",
+        ),
     ],
 )
 

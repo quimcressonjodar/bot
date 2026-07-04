@@ -8,7 +8,7 @@ from utils.stocks import (
     update_stock_prices, generate_stock_chart, get_current_price,
     get_user_portfolio, buy_stock, sell_stock, process_dividends,
     load_ipo_stocks, add_ipo_stock,
-    add_price_alert, get_user_alerts, remove_alert_by_id, check_price_alerts,
+    add_price_alert, get_user_alerts, remove_alert_by_seq, check_price_alerts,
     stock_alerts_col,
 )
 from utils.stock_news import get_random_news
@@ -402,6 +402,7 @@ class Stocks(commands.Cog):
         embed.set_footer(text=f"ID: {alert_id} • Cancel with: !cancelalert {alert_id}")
         await ctx.send(embed=embed)
 
+
     @commands.hybrid_command(name="myalerts", description="View your active price alerts")
     async def myalerts(self, ctx: commands.Context):
         user_id = str(ctx.author.id)
@@ -426,7 +427,7 @@ class Stocks(commands.Cog):
                 current_text = "Current price: unknown"
             embed.add_field(
                 name=f"{arrow} {symbol} {verb} 🪙 {target:,}",
-                value=f"{current_text}\n`!cancelalert {a['_id']}`",
+                value=f"{current_text}\n`!cancelalert {a['seq']}`",
                 inline=False,
             )
 
@@ -434,20 +435,18 @@ class Stocks(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="cancelalert", description="Cancel an active price alert")
-    @app_commands.describe(alert_id="Alert ID shown in !myalerts")
+    @app_commands.describe(alert_id="Alert number shown in !myalerts (e.g. 1, 2, 3)")
     async def cancelalert(self, ctx: commands.Context, alert_id: str):
         user_id = str(ctx.author.id)
-        from bson import ObjectId
         try:
-            oid = ObjectId(alert_id)
-        except Exception:
-            return await ctx.send("❌ Invalid alert ID.", ephemeral=True)
+            seq = int(alert_id)
+        except ValueError:
+            return await ctx.send("❌ Invalid ID — use the number shown in `!myalerts` (e.g. `!cancelalert 1`).", ephemeral=True)
 
-        alert = stock_alerts_col.find_one({"_id": oid, "user_id": user_id})
+        alert = remove_alert_by_seq(user_id, seq)
         if not alert:
-            return await ctx.send("❌ Alert not found or doesn't belong to you.", ephemeral=True)
+            return await ctx.send("❌ Alert not found. Check your IDs with `!myalerts`.", ephemeral=True)
 
-        remove_alert_by_id(alert_id)
         embed = discord.Embed(
             title="✅ Alert cancelled",
             description=f"The alert for **{alert['symbol']}** at 🪙 {alert['target_price']:,} has been removed.",

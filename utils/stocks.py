@@ -308,34 +308,40 @@ def process_dividends():
 # Price Alert System
 # ---------------------------------------------------------------------------
 
-def add_price_alert(user_id: str, symbol: str, target_price: int) -> str:
+def add_price_alert(user_id: str, symbol: str, target_price: int) -> int:
     """
     Save a price alert. Direction is inferred from current vs target price.
-    Returns the inserted alert _id as string.
+    Returns the short sequential ID (1, 2, 3, ...) scoped to this user.
     """
     current_price = get_current_price(symbol)
     direction = "above" if target_price > current_price else "below"
-    result = stock_alerts_col.insert_one({
+    # Compute next short ID for this user
+    existing = list(stock_alerts_col.find({"user_id": user_id}, {"seq": 1}))
+    used_seqs = [a.get("seq", 0) for a in existing]
+    seq = 1
+    while seq in used_seqs:
+        seq += 1
+    stock_alerts_col.insert_one({
         "user_id": user_id,
+        "seq": seq,
         "symbol": symbol,
         "target_price": target_price,
         "direction": direction,
         "created_at": time.time(),
     })
-    return str(result.inserted_id)
+    return seq
 
 
 def get_user_alerts(user_id: str) -> list:
-    return list(stock_alerts_col.find({"user_id": user_id}))
+    return list(stock_alerts_col.find({"user_id": user_id}).sort("seq", 1))
 
 
-def remove_alert_by_id(alert_id: str) -> bool:
-    from bson import ObjectId
-    try:
-        result = stock_alerts_col.delete_one({"_id": ObjectId(alert_id)})
-        return result.deleted_count > 0
-    except Exception:
-        return False
+def remove_alert_by_seq(user_id: str, seq: int) -> dict | None:
+    """Delete alert by short ID. Returns the alert doc if found, else None."""
+    alert = stock_alerts_col.find_one({"user_id": user_id, "seq": seq})
+    if alert:
+        stock_alerts_col.delete_one({"_id": alert["_id"]})
+    return alert
 
 
 async def check_price_alerts(bot):

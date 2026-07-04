@@ -190,7 +190,9 @@ class EventsCog(commands.Cog):
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.CommandNotFound):
             return
-        
+        if isinstance(error, commands.CheckFailure):
+            return  # jail / permission checks already sent their own message
+
         logger.error(f"Error in command {ctx.command}: {error}", exc_info=error)
         
         if isinstance(error, commands.MissingPermissions):

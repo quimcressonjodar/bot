@@ -443,6 +443,7 @@ class EconomyCog(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="catch", description="Catch a wanted criminal and claim a reward")
+    @commands.cooldown(1, 900, commands.BucketType.user)
     @app_commands.describe(member="The wanted criminal to catch")
     async def catch(self, ctx: commands.Context, member: discord.Member):
         catcher_id = str(ctx.author.id)

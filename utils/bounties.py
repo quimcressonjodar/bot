@@ -85,8 +85,12 @@ def get_active_bounties():
     return list(bounties_col.find({"status": "active"}))
 
 def spawn_new_bounty():
-    """Select a random bounty type and activate it."""
-    b_key = random.choice(list(BOUNTY_TYPES.keys()))
+    """Select a random bounty type that isn't already active, then activate it."""
+    active_keys = {b["key"] for b in bounties_col.find({"status": "active"})}
+    available = [k for k in BOUNTY_TYPES if k not in active_keys]
+    if not available:
+        available = list(BOUNTY_TYPES.keys())  # all running — allow repeats as fallback
+    b_key = random.choice(available)
     b_data = BOUNTY_TYPES[b_key].copy()
     
     new_bounty = {

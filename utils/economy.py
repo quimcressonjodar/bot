@@ -1,3 +1,4 @@
+import time
 from database import eco_col
 
 
@@ -119,3 +120,30 @@ def apply_amortization(user_id: str, income: int) -> int:
         )
 
     return income - payment
+
+
+# ---------------------------------------------------------------------------
+# Jail system
+# ---------------------------------------------------------------------------
+
+JAIL_DURATION = 5400  # 90 minutes in seconds
+
+
+def set_jail(user_id: str, duration: int = JAIL_DURATION) -> int:
+    """Put a user in jail for `duration` seconds. Returns the release timestamp."""
+    release_at = int(time.time() + duration)
+    eco_col.update_one(
+        {"_id": user_id},
+        {"$set": {"jailed_until": release_at}},
+        upsert=True,
+    )
+    return release_at
+
+
+def is_jailed(user_id: str) -> int:
+    """Return the jail release timestamp if the user is currently jailed, else 0."""
+    user = eco_col.find_one({"_id": user_id}, {"jailed_until": 1})
+    if not user:
+        return 0
+    release = user.get("jailed_until", 0)
+    return release if release > time.time() else 0

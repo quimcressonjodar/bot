@@ -79,6 +79,20 @@ class WeeklyXPBot(commands.Bot):
         await self.tree.sync()
         logger.info("Slash commands synced")
 
+        # Global jail check — blocks all commands for jailed users
+        async def jail_check(ctx: commands.Context) -> bool:
+            from utils.economy import is_jailed
+            release = is_jailed(str(ctx.author.id))
+            if release:
+                await ctx.send(
+                    f"🔒 You are in jail and cannot use commands until <t:{release}:t> (<t:{release}:R>).",
+                    ephemeral=True,
+                )
+                return False
+            return True
+
+        self.add_check(jail_check)
+
     async def on_ready(self):
         logger.info(f"✅ Bot connected as {self.user}!")
         await self.change_presence(

@@ -418,7 +418,11 @@ class EconomyCog(commands.Cog):
             embed = discord.Embed(title="🥷 Successful Robbery", description=desc, color=0x00FF00)
         else:
             fine = random.randint(150, 500)
-            eco_col.update_one({"_id": thief_id}, {"$inc": {"wallet": -fine}, "$set": {"last_rob": now}}, upsert=True)
+            eco_col.update_one(
+                {"_id": thief_id},
+                {"$inc": {"wallet": -fine}, "$set": {"last_rob": now, "wanted_until": int(now + 2700)}},
+                upsert=True,
+            )
             msg = random.choice([
                 "tripped the alarm system", "got caught by security cameras",
                 "accidentally robbed a police officer", "left fingerprints everywhere",
@@ -427,7 +431,15 @@ class EconomyCog(commands.Cog):
                 "was chased down by a cybernetic guard dog", "dropped the loot while trying to escape over a fence",
                 "sneezed loudly while hiding in the closet",
             ])
-            embed = discord.Embed(title="🚨 Robbery Failed", description=f"You {msg}.\n\nYou paid a fine of 🪙 **{fine:,}**.", color=0xFF0000)
+            embed = discord.Embed(
+                title="🚨 Robbery Failed",
+                description=(
+                    f"You {msg}.\n\n"
+                    f"You paid a fine of 🪙 **{fine:,}**.\n\n"
+                    "🚨 **You are now WANTED** for 45 minutes. Watch your back!"
+                ),
+                color=0xFF0000,
+            )
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="catch", description="Catch a wanted criminal and claim a reward")
@@ -446,27 +458,66 @@ class EconomyCog(commands.Cog):
         if wanted_until < now:
             return await ctx.send(f"❌ **{member.display_name}** is not wanted right now.", ephemeral=True)
 
-        # Catch them — clear wanted status and reward catcher
+        # 50% chance the criminal escapes
+        if random.random() < 0.50:
+            escape_msg = random.choice([
+                "vanished into a crowd before you could react",
+                "bribed a passerby to block your path",
+                "jumped on a getaway bike and disappeared",
+                "ducked into an alley and gave you the slip",
+                "threw a smoke bomb and sprinted away",
+                "disguised themselves at the last second",
+                "spotted you coming and bolted before you got close",
+            ])
+            embed = discord.Embed(
+                title="💨 They Got Away!",
+                description=(
+                    f"**{member.display_name}** {escape_msg}.\n\n"
+                    "Better luck next time — they're still WANTED! 🚨"
+                ),
+                color=0xE74C3C,
+            )
+            return await ctx.send(embed=embed)
+
+        # Success — clear wanted, jail the criminal, reward the catcher
+        from utils.economy import set_jail
+        from utils.bounties import track_bounty_progress
+
         reward = random.randint(500, 2000)
+        release_ts = set_jail(target_id)
         eco_col.update_one({"_id": target_id}, {"$set": {"wanted_until": 0}}, upsert=True)
         update_wallet(catcher_id, reward)
 
-        # Track bounty progress
-        from utils.bounties import track_bounty_progress
         await track_bounty_progress(self.bot, catcher_id, "HUNTER", 1)
 
         remaining = int(wanted_until - now)
         embed = discord.Embed(
             title="🚔 Criminal Caught!",
             description=(
-                f"You caught **{member.display_name}** and turned them in to the authorities!\n"
+                f"You caught **{member.display_name}** and turned them in!\n"
                 f"They had **{remaining // 60}m {remaining % 60}s** left on their wanted timer.\n\n"
-                f"💰 Reward: 🪙 **{reward:,}** coins"
+                f"💰 Reward: 🪙 **{reward:,}** coins\n\n"
+                f"🔒 **{member.display_name}** has been sent to jail until <t:{release_ts}:t> "
+                f"(<t:{release_ts}:R>) and cannot use any commands."
             ),
-            color=0x3498DB
+            color=0x3498DB,
         )
-        embed.set_footer(text=f"New Wallet Balance: 🪙 {get_wallet(catcher_id):,}")
+        embed.set_footer(text=f"Your new wallet: 🪙 {get_wallet(catcher_id):,}")
         await ctx.send(embed=embed)
+
+        # DM the jailed player
+        try:
+            jail_embed = discord.Embed(
+                title="🔒 You've been sent to jail!",
+                description=(
+                    f"**{ctx.author.display_name}** caught you and turned you in.\n\n"
+                    f"You cannot use any bot commands until <t:{release_ts}:t> (<t:{release_ts}:R>)."
+                ),
+                color=0xE74C3C,
+            )
+            await member.send(embed=jail_embed)
+        except discord.Forbidden:
+            pass
 
     @commands.hybrid_command(name="sell", description="Sell an item from your inventory")
     async def sell(self, ctx: commands.Context):
